@@ -87,6 +87,45 @@ export const LIB = {
   ],
 };
 
+// How each jersey letters its number, so the number can be changed: the
+// font (the Louisville jersey numerals, or collegiate block), whether it has
+// a drop shadow, and the shoulder or cuff numbers. Each `tv` entry gives, in
+// art pixels (1366 x 1408), where the art's digits sit (`clear`), where to
+// letter the new ones (`at`, glyph height `h`, rotation `turn` in radians),
+// and which digits show there.
+const TV_2026 = [
+  { clear: [198, 82, 374, 174], at: [286, 128], h: 170, turn: 1.09, digits: 'last' },
+  { clear: [983, 85, 1162, 142], at: [1072, 113], h: 170, turn: -1.26, digits: 'first' },
+];
+const TV_BLOCK = [
+  { clear: [219, 78, 384, 191], at: [301, 134], h: 175, turn: 0.98, digits: 'last' },
+  { clear: [968, 88, 1136, 159], at: [1052, 123], h: 165, turn: -1.18, digits: 'first' },
+];
+const TV_2020 = [
+  { clear: [225, 66, 362, 154], at: [293, 110], h: 82, turn: -0.12, digits: 'all' },
+  { clear: [1022, 68, 1143, 155], at: [1082, 111], h: 82, turn: 0.12, digits: 'all' },
+];
+const TV_CUFF = [
+  { clear: [18, 266, 110, 410], at: [62, 338], h: 130, turn: 0.2, digits: 'last' },
+  { clear: [1290, 266, 1347, 414], at: [1318, 340], h: 130, turn: -0.2, digits: 'first' },
+];
+export const JERSEY_NUMBERS = {
+  'jersey-red': { font: 'jersey', tv: TV_2026 },
+  'jersey-white': { font: 'jersey', tv: TV_2026 },
+  'jersey-black': { font: 'block', tv: TV_BLOCK },
+  'jersey-red-wing': { font: 'jersey', shadow: true },
+  'jersey-white-wing': { font: 'jersey', shadow: true },
+  'jersey-black-wing': { font: 'jersey', shadow: true },
+  'jersey-red-20': { font: 'jersey', tv: TV_2020 },
+  'jersey-white-20': { font: 'jersey', tv: TV_2020 },
+  'jersey-black-20': { font: 'jersey', tv: TV_2020 },
+  'jersey-whitealt-20': { font: 'jersey', tv: TV_CUFF },
+  'jersey-halloween': { font: 'block', tv: TV_BLOCK },
+  'jersey-ironwings': { font: 'jersey', shadow: true },
+  'jersey-redgold': { font: 'jersey', tv: TV_2026 },
+  'jersey-black-23': { font: 'jersey', shadow: true },
+};
+
 // The facemask each helmet comes with; anything not listed wears red.
 export const MASK_DEF = {
   'Black': 'Black', 'Black 20': 'Black', 'White Alt 20': 'Black', 'Red 20': 'White', 'Black Script': 'Red',
@@ -108,5 +147,5 @@ export const DEFAULT_STATE = {
   helmetNote: 'Heisman Louie',
   site: 'vs', opponent: 'NC State', date: 'Sat · Oct 3', kickoff: '3:30 PM', network: 'ACCN',
   venue: 'Carter-Finley Stadium', showCrest: true,
-  name: '', gloves: 'Black', visor: 'smoke', skin: 3,
+  number: '12', name: '', gloves: 'Black', visor: 'smoke', skin: 3,
 };

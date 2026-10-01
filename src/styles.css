@@ -73,6 +73,8 @@ button { cursor: pointer; }
 
 .page { padding: 32px; display: flex; flex-direction: column; gap: 24px; max-width: 1440px; margin: 0 auto; }
 .top { display: flex; align-items: center; gap: 14px; }
+/* The wordmark stands apart from the crest, with clear space all round. */
+.wordmark { margin-left: auto; height: 56px; width: auto; padding: 4px 0 4px 24px; }
 .crest { width: 64px; height: 64px; object-fit: contain; }
 .top-text { display: flex; flex-direction: column; gap: 2px; }
 .title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 30px; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.01em; }
@@ -222,7 +224,8 @@ button { cursor: pointer; }
   letter-spacing: 0.1em;
 }
 .site-opt[aria-pressed="true"] { background: var(--cardinal); color: #ffffff; }
-.game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.game-grid, .lettering { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lettering { grid-template-columns: 96px minmax(0, 1fr); }
 
 .toggle-row { display: flex; align-items: center; justify-content: space-between; min-height: var(--hit); cursor: pointer; position: relative; }
 .toggle-input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -311,6 +314,10 @@ button { cursor: pointer; }
 
 @media (max-width: 900px) {
   .page { padding: 16px; gap: 16px; }
+  .crest { width: 48px; height: 48px; }
+  .title { font-size: 24px; }
+  .top { gap: 10px; }
+  .wordmark { height: 32px; padding-left: 12px; }
   .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "preview" "panel"; gap: 16px; }
   .preview-col { position: static; }
   .stage { aspect-ratio: 4 / 5; }

@@ -3,6 +3,7 @@
 
 export const FONTS = {
   jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
+  block: '"Graduate", "Arial Black", Impact, sans-serif',
   display: '"Anton", "Arial Narrow", Impact, sans-serif',
   sans: '"Gotham SSm A", "Gotham SSm B", "Gotham", "Montserrat", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif',
 };
@@ -42,11 +43,33 @@ function drawText(ctx, text, { family, cx, cy, height, sx = 1, fill, outlines = 
   ctx.restore();
 }
 
-// The jersey's front art, ready to project: the V-neck is filled with the
+// Width of `text` drawn by drawText at a given height, before any squeeze.
+function textWidth(ctx, text, family, height) {
+  ctx.save();
+  ctx.font = `100px ${family}`;
+  const m = ctx.measureText(text);
+  ctx.restore();
+  return (m.width * height) / ((m.actualBoundingBoxAscent || 72) + (m.actualBoundingBoxDescent || 0));
+}
+
+// A jersey number in the jersey's own lettering: fill, outline and, for the
+// shadowed styles, a drop shadow down and to the right. The squeeze is set so
+// "10" fills `width`, the width the art's own number takes, so every number
+// keeps the art's proportions.
+function letterNumber(ctx, number, { cx, cy, height, width }, spec, style) {
+  const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
+  const sx = Math.min(1.6, Math.max(0.8, width / textWidth(ctx, '10', family, height)));
+  const { fill, outline } = spec.number;
+  if (style.shadow) drawText(ctx, number, { family, cx: cx + height * 0.03, cy: cy + height * 0.022, height, sx, fill: outline });
+  drawText(ctx, number, { family, cx, cy, height, sx, fill, outlines: [{ color: outline, width: height * 0.012 }] });
+}
+
+// The jersey's front art, ready to project. The V-neck is filled with the
 // body color, because the 3D jersey's neckline is shallower than the drawing's
-// and gets its own piping from the collar shader. Coordinates are art pixels
-// (1366 x 1408), drawn at the canvas's scale.
-export function paintJerseyFront(canvas, img, spec) {
+// and gets its own piping from the collar shader. The art's "10" (chest and
+// shoulders) is painted out and the chosen number lettered in its place.
+// Coordinates are art pixels (1366 x 1408), drawn at the canvas's scale.
+export function paintJerseyFront(canvas, img, spec, style, number) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -58,24 +81,36 @@ export function paintJerseyFront(canvas, img, spec) {
   for (const [x, y] of [[445, 0], [921, 0], [915, 58], [690, 392], [676, 392], [451, 58]]) ctx.lineTo(x, y);
   ctx.closePath();
   ctx.fill();
+  const [x0, y0, x1, y1] = spec.number.box;
+  for (const [a, b, c, d] of [spec.number.box, ...(style.tv ?? []).map((t) => t.clear)]) ctx.fillRect(a - 8, b - 8, c - a + 16, d - b + 16);
   ctx.restore();
+
+  letterNumber(ctx, number, {
+    cx: ((x0 + x1) / 2) * k, cy: ((y0 + y1) / 2) * k, height: (y1 - y0) * 0.94 * k, width: (x1 - x0) * 0.94 * k,
+  }, spec, style);
+  const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
+  for (const tv of style.tv ?? []) {
+    const text = tv.digits === 'all' ? number : tv.digits === 'first' ? number[0] : number[number.length - 1];
+    drawText(ctx, text, {
+      family, cx: tv.at[0] * k, cy: tv.at[1] * k, height: tv.h * k, rotate: tv.turn,
+      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 5 * k }],
+    });
+  }
 }
 
-// The back: the body color, the front number set larger and higher, and an
-// optional name in the Louisville jersey face, in the number's colors.
-export function paintJerseyBack(canvas, img, spec, name) {
+// The back: the body color, the number larger and higher than on the front,
+// and an optional name in the Louisville jersey face, in the number's colors.
+export function paintJerseyBack(canvas, spec, style, number, name) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.fillStyle = spec.base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const [x0, y0, x1, y1] = spec.number.box;
-  const sw = x1 - x0;
-  const sh = y1 - y0;
-  const scale = 1.2;
+  const height = (y1 - y0) * 1.12;
   const top = name ? 470 : 400;
-  const sx = img.naturalWidth / spec.art.width;
-  ctx.drawImage(img, x0 * sx, y0 * sx, sw * sx, sh * sx,
-    (spec.art.width / 2 - (sw * scale) / 2) * k, top * k, sw * scale * k, sh * scale * k);
+  letterNumber(ctx, number, {
+    cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
+  }, spec, style);
   if (name) {
     drawText(ctx, name, {
       family: FONTS.jersey, cx: canvas.width / 2, cy: 400 * k, height: 70 * k,

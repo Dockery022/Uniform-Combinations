@@ -1,6 +1,6 @@
 // Combo state: validation, names, the 3D look for a combo, and share codes.
 import { ART } from './uniform-art.js';
-import { DEFAULT_STATE, FACEMASKS, GLOVES, GROUP_HEX, LIB, SKIN_TONES, VISORS } from './team.js';
+import { DEFAULT_STATE, FACEMASKS, GLOVES, GROUP_HEX, JERSEY_NUMBERS, LIB, SKIN_TONES, VISORS } from './team.js';
 
 const row = (kind, id) => LIB[kind].find((r) => r[0] === id);
 
@@ -26,7 +26,13 @@ export function cleanState(patch) {
     if (typeof patch[key] === 'string') out[key] = patch[key].slice(0, 60);
   }
   if (typeof patch.name === 'string') out.name = sanitizeName(patch.name);
+  if (typeof patch.number === 'string' && sanitizeNumber(patch.number)) out.number = sanitizeNumber(patch.number);
   return out;
+}
+
+// Jersey numbers are one or two digits.
+export function sanitizeNumber(value) {
+  return String(value ?? '').replace(/\D/g, '').slice(0, 2);
 }
 
 export function sanitizeName(value) {
@@ -70,7 +76,7 @@ export function resolveLook(state) {
   return {
     helmet: { file: file('helmet'), spec: ART.helmet[file('helmet')] },
     facemask: FACEMASKS.find(([n]) => n === state.facemask)?.[1] ?? FACEMASKS[0][1],
-    jersey: { file: file('jersey'), spec: ART.jersey[file('jersey')] },
+    jersey: { file: file('jersey'), spec: ART.jersey[file('jersey')], style: JERSEY_NUMBERS[file('jersey')] ?? { font: 'jersey' } },
     pants,
     socks: sockFile ? ART.socks[sockFile] : pants.spec.socks,
     // "No shoes" only leaves them out of the graphic; the player still wears black cleats.
@@ -78,6 +84,7 @@ export function resolveLook(state) {
     gloves: GLOVES.find(([n]) => n === state.gloves)?.[1] ?? null,
     visor: state.visor,
     skin: state.skin,
+    number: state.number,
     name: state.name,
   };
 }

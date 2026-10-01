@@ -3,7 +3,7 @@
 // The Game, and Saved Combos. Every control writes into the state and calls
 // onChange; the panel re-renders the parts that depend on it.
 import { FACEMASKS, GLOVES, GROUP_HEX, LIB, MASK_DEF, SKIN_TONES, VISORS } from './team.js';
-import { artUrl, pieceName, sanitizeName } from './combo.js';
+import { artUrl, pieceName, sanitizeName, sanitizeNumber } from './combo.js';
 
 const TABS = [['helmet', 'Helmet'], ['jersey', 'Jersey'], ['pants', 'Pants'], ['socks', 'Accessories']];
 const GAME_FIELDS = [['date', 'Date'], ['kickoff', 'Kickoff'], ['network', 'Network'], ['venue', 'Venue']];
@@ -133,6 +133,7 @@ export class Panel {
         .map((color) => [color, LIB[kind].filter((r) => r[1] === color)])
         .filter(([, items]) => items.length)
         .map(([color, items]) => group(color, GROUP_HEX[color], items, kind));
+      if (kind === 'jersey') groups.push(this.lettering());
     }
     const box = this.$('groups');
     box.setAttribute('aria-labelledby', `tab-${kind}`);
@@ -149,12 +150,6 @@ export class Panel {
         onclick: () => this.set({ [key]: value }),
       }, [hex !== undefined && el('i', { class: `dot${hex ? '' : ' dot-none'}`, style: hex ? `--c:${hex}` : '', 'aria-hidden': 'true' }), el('span', { text })]))),
     ]);
-    const name = el('input', {
-      class: 'input', id: 'name', type: 'text', value: s.name, maxlength: 14, autocomplete: 'off', spellcheck: 'false',
-      placeholder: 'Leave blank for no name',
-      oninput: (e) => this.set({ name: sanitizeName(e.target.value) }, false),
-      onblur: (e) => { e.target.value = this.getState().name; },
-    });
     return el('div', { class: 'group' }, [
       el('div', { class: 'group-head' }, [el('span', { class: 'eyebrow', text: 'On the 3D player' })]),
       chips('Gloves', GLOVES.map(([n, hex]) => [n, n, hex]), 'gloves'),
@@ -166,7 +161,32 @@ export class Panel {
           style: `--c:${tone}`, onclick: () => this.set({ skin: i }),
         }))),
       ]),
-      el('label', { class: 'field' }, [el('span', { class: 'eyebrow', text: 'Name on back' }), name]),
+    ]);
+  }
+
+  // Number and name, under the jerseys. The art's "10" is relettered on the player.
+  lettering() {
+    const s = this.getState();
+    const number = el('input', {
+      class: 'input', id: 'number', type: 'text', inputmode: 'numeric', value: s.number, maxlength: 2, autocomplete: 'off',
+      oninput: (e) => {
+        const n = sanitizeNumber(e.target.value);
+        if (n) this.set({ number: n }, false);
+      },
+      onblur: (e) => { e.target.value = this.getState().number; },
+    });
+    const name = el('input', {
+      class: 'input', id: 'name', type: 'text', value: s.name, maxlength: 14, autocomplete: 'off', spellcheck: 'false',
+      placeholder: 'No name',
+      oninput: (e) => this.set({ name: sanitizeName(e.target.value) }, false),
+      onblur: (e) => { e.target.value = this.getState().name; },
+    });
+    return el('div', { class: 'group' }, [
+      el('div', { class: 'group-head' }, [el('span', { class: 'eyebrow', text: 'On the 3D player' })]),
+      el('div', { class: 'lettering' }, [
+        el('label', { class: 'field' }, [el('span', { class: 'eyebrow', text: 'Number' }), number]),
+        el('label', { class: 'field' }, [el('span', { class: 'eyebrow', text: 'Name on back' }), name]),
+      ]),
     ]);
   }
 

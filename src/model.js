@@ -814,8 +814,8 @@ export class Player {
       loadImage(url(look.helmet.spec.decal)),
     ]);
     if (token !== this.artToken) return;
-    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec);
-    paint.paintJerseyBack(this.canvases.back, jersey, look.jersey.spec, look.name);
+    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number);
+    paint.paintJerseyBack(this.canvases.back, look.jersey.spec, look.jersey.style, look.number, look.name);
     const lc = this.canvases.logos.getContext('2d');
     lc.clearRect(0, 0, this.canvases.logos.width, this.canvases.logos.height);
     lc.drawImage(logos, 0, 0, this.canvases.logos.width, this.canvases.logos.height);

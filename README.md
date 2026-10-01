@@ -26,9 +26,10 @@ Opening `index.html` straight from disk (`file://`) won't work, because browsers
 - **Game graphic:** a live 1080 × 1080 preview of the design's "The Combo" template with the 3D render in place of the flat art, and a Download button.
 - **Poses** (Idle, Ready, Run, Celebrate, Heisman), **camera views** (3/4, Front, Back, Side, Helmet), drag to turn, scroll or pinch to zoom, and a turntable spin.
 - **Saved combos** stay in the browser, and the page address carries the current combo so a copied link reopens it.
-- **On the 3D player only:** gloves, visor, skin tone and name on back, under Accessories.
+- **Number and name.** The player wears No. 12 by default. Change it under the jerseys: the art's "10" is painted out on the chest, shoulders and back and the new number lettered in each jersey's own style (the Louisville jersey numerals, or block numerals for the Black 2026 and Halloween sets, with drop shadows where the art has them). Where the numbers sit is `JERSEY_NUMBERS` in `src/team.js`.
+- **On the 3D player only:** gloves, visor and skin tone, under Accessories.
 
-Colors follow the UofL Athletics brand guidelines (Cardinal Red `#C9001F`, black, white, metallic silver `#8A8D8F`) and text is set in Gotham where it's installed, with Montserrat as the web fallback.
+The header carries the LOUISVILLE wordmark, lifted from the jersey art with its white trap for the dark page. Colors follow the UofL Athletics brand guidelines (Cardinal Red `#C9001F`, black, white, metallic silver `#8A8D8F`) and text is set in Gotham where it's installed, with Montserrat as the web fallback.
 
 ## Matching it to your designs
 
