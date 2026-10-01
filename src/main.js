@@ -1,6 +1,6 @@
-// Boot: renderer, studio lighting, turf, the player, and the panel wiring.
+// Boot: renderer, studio lighting, turf, the player models, and the panel wiring.
 import * as THREE from './three.js';
-import { Player } from './player.js';
+import { loadAssets, Player } from './model.js';
 import { Orbit, VIEWS } from './orbit.js';
 import { Panel } from './ui.js';
 import { FONTS, makeCanvas, paintTurf } from './textures.js';
@@ -68,7 +68,7 @@ key.shadow.radius = 4;
 scene.add(key, key.target);
 key.target.position.set(0, 0.9, 0);
 
-const rimRed = new THREE.DirectionalLight('#ff2a46', 2.6);
+const rimRed = new THREE.DirectionalLight('#ff2a46', 1.7);
 rimRed.position.set(-3.2, 2.6, -2.6);
 const rimCool = new THREE.DirectionalLight('#c7d6ff', 1.5);
 rimCool.position.set(3.2, 2.2, -3);
@@ -87,8 +87,7 @@ turf.rotation.x = -Math.PI / 2;
 turf.receiveShadow = true;
 scene.add(turf);
 
-const player = new Player(renderer);
-scene.add(player.root);
+let player = null;
 
 const orbit = new Orbit(camera, canvas);
 
@@ -129,7 +128,7 @@ function storeSaved() {
 
 function applyCombo(next, { rerender = false } = {}) {
   combo = next;
-  player.apply(combo);
+  player?.apply(combo);
   panel.updateReadout(combo);
   if (rerender) panel.renderFields();
   try {
@@ -185,13 +184,13 @@ function readImage(file) {
 
 function loadDecalImage(url) {
   if (!url) {
-    player.setDecalImage(null);
+    player?.setDecalImage(null);
     return Promise.resolve();
   }
   return new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => { player.setDecalImage(img); resolve(); };
-    img.onerror = () => { player.setDecalImage(null); resolve(); };
+    img.onload = () => { player?.setDecalImage(img); resolve(); };
+    img.onerror = () => { player?.setDecalImage(null); resolve(); };
     img.src = url;
   });
 }
@@ -217,7 +216,7 @@ function segmented(container, entries, current, onPick) {
 const clock = new THREE.Clock();
 segmented(document.getElementById('poses'), Object.entries(POSE_LABELS), pose, (p) => {
   pose = p;
-  player.setPose(p, clock.elapsedTime);
+  player?.setPose(p, clock.elapsedTime);
 });
 segmented(document.getElementById('views'), Object.entries(VIEWS).map(([k, v]) => [k, v.label]), 'three', (v) => {
   orbit.flyTo(v);
@@ -368,7 +367,8 @@ function frame() {
   const dt = clock.getDelta();
   const t = clock.elapsedTime;
   const ambientOnly = pose !== 'run' && pose !== 'celebrate';
-  player.update(reduceMotion && ambientOnly ? 0 : t);
+  const still = reduceMotion && ambientOnly;
+  player.update(still ? 0 : t, still ? 0 : Math.min(dt, 0.1));
   orbit.update(Math.min(dt, 0.25), reduceMotion);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -380,7 +380,21 @@ async function start(data = {}) {
   else if (location.hash.length > 8) {
     try { initial = decodeCombo(location.hash); } catch { /* ignore a stale hash */ }
   }
-  await fontsReady();
+  const label = document.getElementById('loading-text');
+  let assets;
+  try {
+    [assets] = await Promise.all([
+      loadAssets((f) => { label.textContent = `Suiting up the player… ${Math.round(f * 100)}%`; }),
+      fontsReady(),
+    ]);
+  } catch (err) {
+    console.error(err);
+    label.textContent = 'The 3D player could not be loaded. Check your connection and reload the page.';
+    return;
+  }
+  player = new Player(renderer, assets);
+  scene.add(player.root);
+  if (pose !== 'idle') player.setPose(pose, clock.elapsedTime);
   await loadDecalImage(initial.helmet.decalImage);
   applyCombo(clone(initial), { rerender: true });
   if (data.pose && POSE_LABELS[data.pose]) document.getElementById(`poses-${data.pose}`)?.click();

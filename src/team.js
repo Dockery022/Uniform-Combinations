@@ -63,11 +63,6 @@ export const OPTIONS = {
     { value: 'custom', label: 'Upload' },
     { value: 'none', label: 'None' },
   ],
-  maskStyle: [
-    { value: 'two-bar', label: '2-bar' },
-    { value: 'robotic', label: 'Robotic' },
-    { value: 'cage', label: 'Cage' },
-  ],
   visor: [
     { value: 'none', label: 'None' },
     { value: 'clear', label: 'Clear' },
@@ -117,7 +112,7 @@ export const DEFAULT_COMBO = {
     shell: 'red', finish: 'gloss',
     stripe: 'single', stripeColor: 'black', stripeTrim: 'white',
     decal: 'letter', decalColor: 'white', decalTrim: 'black',
-    maskStyle: 'robotic', mask: 'black', visor: 'smoke',
+    mask: 'black', strap: 'white', bumper: 'black', visor: 'smoke',
   },
   jersey: {
     base: 'black', number: '7', numberFont: 'block',
@@ -128,7 +123,7 @@ export const DEFAULT_COMBO = {
   pants: { base: 'red', stripe: 'single', stripeColor: 'black', stripeTrim: 'white', belt: 'black' },
   socks: { base: 'black', stripe: 'single', stripeColor: 'red' },
   cleats: { base: 'black', sole: 'white' },
-  extras: { gloves: 'black', armSleeves: 'none', towel: true, skin: 3 },
+  extras: { gloves: 'black', tape: 'white', armSleeves: 'none', towel: true, skin: 3 },
 };
 
 // Starter combos. Each is merged over DEFAULT_COMBO, so a preset only
@@ -170,7 +165,7 @@ export const PRESETS = [
   {
     id: 'whiteout', name: 'Whiteout',
     combo: {
-      helmet: { shell: 'white', stripe: 'double', stripeColor: 'red', stripeTrim: 'black', decalColor: 'red', decalTrim: 'black', mask: 'white', visor: 'clear' },
+      helmet: { shell: 'white', stripe: 'double', stripeColor: 'red', stripeTrim: 'black', decalColor: 'red', decalTrim: 'black', mask: 'white', bumper: 'white', visor: 'clear' },
       jersey: { base: 'white', numberFill: 'black', numberTrim: 'single', trimColor: 'red', stripeColor: 'red', stripeColor2: 'black', collar: 'black' },
       pants: { base: 'white', stripe: 'double', stripeColor: 'red', stripeTrim: 'black' },
       socks: { base: 'white', stripe: 'double', stripeColor: 'red' },
@@ -181,7 +176,7 @@ export const PRESETS = [
   {
     id: 'redout', name: 'Red Out',
     combo: {
-      helmet: { shell: 'red', finish: 'matte', stripe: 'none', decalColor: 'black', decalTrim: 'white', mask: 'red', visor: 'iridescent' },
+      helmet: { shell: 'red', finish: 'matte', stripe: 'none', decalColor: 'black', decalTrim: 'white', mask: 'red', bumper: 'red', strap: 'black', visor: 'iridescent' },
       jersey: { base: 'red', numberFill: 'black', numberTrim: 'single', trimColor: 'white', stripeColor: 'black', stripeColor2: 'white', collar: 'black' },
       pants: { base: 'red', stripe: 'none' },
       socks: { base: 'red', stripe: 'none' },
@@ -201,8 +196,8 @@ export const PRESETS = [
   {
     id: 'throwback', name: 'Throwback',
     combo: {
-      helmet: { shell: 'white', stripe: 'tri', stripeColor: 'red', stripeTrim: 'black', decal: 'number', decalColor: 'red', decalTrim: 'black', maskStyle: 'two-bar', mask: 'gray', visor: 'none' },
-      jersey: { base: 'red', numberFill: 'white', numberTrim: 'none', stripeColor: 'white', stripeColor2: 'white', sleeveStripe: 'triple', collar: 'white', chest: 'none', tvNumbers: true },
+      helmet: { shell: 'white', stripe: 'tri', stripeColor: 'red', stripeTrim: 'black', decal: 'number', decalColor: 'red', decalTrim: 'black', mask: 'gray', bumper: 'gray', visor: 'none' },
+      jersey: { base: 'red', numberFill: 'white', numberTrim: 'none', stripeColor: 'white', stripeColor2: 'white', sleeveStripe: 'triple', collar: 'white', chest: 'none' },
       pants: { base: 'cream', stripe: 'tri', stripeColor: 'red', stripeTrim: 'black', belt: 'black' },
       socks: { base: 'red', stripe: 'double', stripeColor: 'white' },
       cleats: { base: 'black', sole: 'black' },

@@ -1,6 +1,6 @@
 # Uniform Combinations
 
-An interactive 3D combo builder: pick the helmet, jersey, pants, socks and cleats, and see the full uniform on a 3D football player you can turn, zoom and pose.
+An interactive 3D combo builder: pick the helmet, jersey, pants, socks and cleats, and see the full uniform on a rigged 3D football player you can turn, zoom and pose.
 
 ![Combo Builder](docs/preview.png)
 
@@ -20,9 +20,9 @@ Opening `index.html` straight from disk (`file://`) won't work, because browsers
 
 ## What it does
 
-- **3D player** built in code, with every part paintable: helmet shell, finish, center stripe, side decal, facemask style and color, visor tint, jersey body, numbers, outlines, sleeve stripes, sleeve numbers, collar, chest wordmark, name on back, pants and side stripes, belt, socks, cleats, gloves, arm sleeves, towel and skin tone.
+- **Rigged 3D player** (`assets/player.glb`) wearing a real helmet model (`assets/helmet.glb`). Every part is paintable: helmet shell, finish, center stripe, side decal, facemask, chin strap, bumpers, visor tint, jersey body, numbers, outlines, sleeve stripes, sleeve numbers, collar, chest wordmark, name on back, pants and side stripes, belt, socks and stripes, cleats and soles, gloves, wrist tape, arm sleeve, towel and skin tone.
 - **Helmet finishes:** gloss, satin, matte and chrome, lit by a studio environment so chrome and gloss pick up real highlights.
-- **Poses:** Idle, Ready, Run (with the ball tucked), Celebrate and Heisman, with smooth blending between them.
+- **Poses:** Idle (the model's own motion-capture idle), Ready, Run (with the ball), Celebrate and Heisman, with smooth blending between them.
 - **Camera views:** 3/4, Front, Back, Side and a Helmet close-up, plus drag to turn, scroll or pinch to zoom, and a turntable spin.
 - **Combo readout:** shows the Helmet · Jersey · Pants combo and whether it uses only pieces in the equipment room ("One of 36 locker combos").
 - **Starter combos, Randomize, Save combo** (kept on the device) and **combo codes** you can copy and paste to share a look. The page address also updates with the code, so a copied link reopens the same combo.
@@ -44,13 +44,39 @@ Everything team-specific is in **`src/team.js`**:
 
 To add a combo from a design file, copy a `PRESETS` entry and set its colors and styles. A color value can be a key from `COLORS` (`'red'`) or any hex string (`'#9d2235'`).
 
+## The 3D models
+
+The app loads two web-ready models from `assets/`:
+
+| File | From | Notes |
+| --- | --- | --- |
+| `player.glb` | `3x.fbx` (Mixamo-rigged player with an idle animation) | Materials are renamed by part: `jersey`, `pants`, `socks`, `cleats`, `skin`, `belt`, `tape`, `armSleeve`. The FBX's own helmet is removed. |
+| `helmet.glb` | `bucshelmet.obj` | Split into `shell`, `mask`, `strap`, `cup`, `bumper`, `trim`, `pads`, `hardware`; faces +z and is scaled to a shell width of 1. |
+
+To rebuild them from the source files:
+
+```bash
+npm install
+node_modules/fbx2gltf/bin/Linux/FBX2glTF --binary --input 3x.fbx --output player-raw   # Darwin/ or Windows_NT/ on other systems
+npm run prepare:player -- player-raw.glb assets/player.glb
+npx obj2gltf -i bucshelmet.obj -o helmet-raw.glb --binary
+npm run prepare:helmet -- helmet-raw.glb assets/helmet.glb
+```
+
+The jersey's numbers and sleeve stripes are painted onto the jersey's UV layout (`JERSEY_LAYOUT` in `src/textures.js`). Pants stripes, sock stripes, the collar, gloves and cleat soles are drawn by shaders from measurements taken on the model at load time (`measure()` in `src/model.js`), so they follow the cloth as the player moves.
+
+Make sure you have the rights to publish any model you add here, especially if the repository or the page is public.
+
 ## Project layout
 
 ```
 index.html        page shell
 src/main.js       renderer, lighting, turf, wiring, snapshot, save and share
-src/player.js     the procedural player model, rig and poses
-src/textures.js   canvas painters for numbers, stripes, decals and the turf
+src/model.js      loads the player and helmet, recolors parts, poses the rig
+src/textures.js   jersey lettering, decals, ball, turf and fabric normal maps
+src/vendor/       three.js GLTFLoader (MIT), sharing src/three.js
+assets/           player.glb and helmet.glb
+tools/            scripts that turn the source FBX/OBJ files into the GLBs
 src/orbit.js      camera controls and preset views
 src/ui.js         control panel generated from a field schema
 src/combo.js      combo state, names, locker check, share codes

@@ -1,6 +1,5 @@
-// Canvas painters for every printed part of the uniform. Each painter works in
-// real-world meters and converts to pixels with the layout it is handed, so
-// numbers and stripes keep true proportions on the curved meshes.
+// Canvas painters: jersey lettering, helmet decals, the ball, the turf and
+// fabric normal maps. Stripe patterns are shared with the shaders in model.js.
 import { hex } from './combo.js';
 import { TEAM } from './team.js';
 
@@ -68,134 +67,101 @@ function numberOutlines(jersey, px) {
   return [];
 }
 
-// Torso wraps a lathe whose seam sits at the center of the back:
-// u = 0.5 is the chest, u = 0 / 1 is the spine.
-export function paintTorso(canvas, combo, layout) {
+// Jersey lettering on the jersey's UV layout (a 2.5 : 1 sheet). The front
+// panel is centered at u = 0.578, the back panel at u = 0.855; v runs from
+// the collar (0) down to the hem (1). Heights are fractions of the sheet.
+// Each sleeve is its own piece: centered at u = 0.115 / 0.327, armhole seam
+// along v = 0.207 and a curved hem along v = 0.339 + 8 * (u - center)^2.
+export const JERSEY_LAYOUT = {
+  front: { u: 0.578, wordmark: { v: 0.37, h: 0.036 }, number: { v: 0.535, h: 0.2 } },
+  back: { u: 0.856, name: { v: 0.25, h: 0.042 }, number: { v: 0.51, h: 0.235 } },
+  sleeves: { centers: [0.115, 0.327], halfWidth: 0.1, hemV: 0.339, hemCurve: 8, number: { v: 0.268, h: 0.055 } },
+  vPerMeter: 0.81,
+};
+
+export function paintJersey(canvas, combo) {
   const ctx = canvas.getContext('2d');
   const { width: W, height: H } = canvas;
   const j = combo.jersey;
-  const pxV = H / layout.length;
-  const squeezeAt = (y) => (W / (2 * Math.PI * layout.radiusAt(y))) / pxV;
-  const outlinePx = 0.0075 * pxV;
-
+  const L = JERSEY_LAYOUT;
   ctx.fillStyle = hex(j.base);
   ctx.fillRect(0, 0, W, H);
 
   const family = FONTS[j.numberFont] ?? FONTS.block;
   const fill = hex(j.numberFill);
-  const outlines = numberOutlines(j, outlinePx);
+  const outlines = numberOutlines(j, H * 0.0065);
 
-  // Front number and chest wordmark.
-  drawText(ctx, j.number, {
-    family, cx: W / 2, cy: layout.yToCanvas(0.195, H), height: 0.225 * pxV, sx: squeezeAt(0.195), fill, outlines,
-  });
+  drawText(ctx, j.number, { family, cx: L.front.u * W, cy: L.front.number.v * H, height: L.front.number.h * H, fill, outlines });
   if (j.chest === 'wordmark') {
     drawText(ctx, TEAM.wordmark, {
-      family, cx: W / 2, cy: layout.yToCanvas(0.328, H), height: 0.022 * pxV, sx: squeezeAt(0.328), fill,
-      outlines: j.numberTrim === 'none' ? [] : [{ color: hex(j.trimColor), width: outlinePx * 0.45 }],
+      family, cx: L.front.u * W, cy: L.front.wordmark.v * H, height: L.front.wordmark.h * H, fill,
+      outlines: j.numberTrim === 'none' ? [] : [{ color: hex(j.trimColor), width: H * 0.003 }],
     });
   }
+  drawText(ctx, j.number, { family, cx: L.back.u * W, cy: L.back.number.v * H, height: L.back.number.h * H, fill, outlines });
+  if (j.name) {
+    drawText(ctx, j.name, { family, cx: L.back.u * W, cy: L.back.name.v * H, height: L.back.name.h * H, fill });
+  }
 
-  // Back number and nameplate, drawn twice so the seam splits them cleanly.
-  for (const cx of [0, W]) {
-    drawText(ctx, j.number, {
-      family, cx, cy: layout.yToCanvas(0.175, H), height: 0.25 * pxV, sx: squeezeAt(0.175), fill, outlines,
-    });
-    if (j.name) {
-      drawText(ctx, j.name, {
-        family, cx, cy: layout.yToCanvas(0.326, H), height: 0.026 * pxV, sx: squeezeAt(0.326), fill,
+  // Sleeve stripes run parallel to the curved hem; sleeve numbers sit above them.
+  const S = L.sleeves;
+  const bands = stripeBands(j.sleeveStripe, hex(j.stripeColor), hex(j.stripeColor2));
+  for (const c of S.centers) {
+    for (const band of bands) {
+      const lift = (0.045 + band.at) * L.vPerMeter;
+      ctx.beginPath();
+      for (let k = 0; k <= 40; k++) {
+        const du = -S.halfWidth + (2 * S.halfWidth * k) / 40;
+        const v = S.hemV + S.hemCurve * du * du - lift;
+        if (k === 0) ctx.moveTo((c + du) * W, v * H);
+        else ctx.lineTo((c + du) * W, v * H);
+      }
+      ctx.strokeStyle = band.color;
+      ctx.lineWidth = band.w * L.vPerMeter * H;
+      ctx.lineCap = 'butt';
+      ctx.stroke();
+    }
+    if (j.tvNumbers) {
+      drawText(ctx, j.number, {
+        family, cx: c * W, cy: S.number.v * H, height: S.number.h * H, fill, outlines: numberOutlines(j, H * 0.0025),
       });
     }
   }
 }
 
-// Sleeve cylinder: the outer side of each arm sits at u = 0.25.
-export function paintSleeve(canvas, combo, layout) {
-  const ctx = canvas.getContext('2d');
-  const { width: W, height: H } = canvas;
-  const j = combo.jersey;
-  const pxV = H / layout.length;
-  const pxU = W / layout.circumference;
-
-  ctx.fillStyle = hex(j.base);
-  ctx.fillRect(0, 0, W, H);
-
-  const bands = stripeBands(j.sleeveStripe, hex(j.stripeColor), hex(j.stripeColor2));
-  const center = H - 0.04 * pxV;
-  for (const b of bands) {
-    ctx.fillStyle = b.color;
-    ctx.fillRect(0, center + b.at * pxV - (b.w * pxV) / 2, W, b.w * pxV);
-  }
-
-  if (j.tvNumbers) {
-    const cy = (bands.length ? 0.058 : 0.07) * pxV;
-    drawText(ctx, j.number, {
-      family: FONTS[j.numberFont] ?? FONTS.block,
-      cx: W * 0.25, cy, height: (bands.length ? 0.05 : 0.06) * pxV, sx: pxU / pxV,
-      fill: hex(j.numberFill), outlines: numberOutlines(j, 0.0028 * pxV),
-    });
-  }
-}
-
-// Thigh: one stripe down the outer seam at u = 0.25.
-export function paintThigh(canvas, combo, layout) {
-  const ctx = canvas.getContext('2d');
-  const { width: W, height: H } = canvas;
-  const p = combo.pants;
-  const pxU = W / layout.circumference;
-  ctx.fillStyle = hex(p.base);
-  ctx.fillRect(0, 0, W, H);
-  for (const b of stripeBands(p.stripe, hex(p.stripeColor), hex(p.stripeTrim))) {
-    ctx.fillStyle = b.color;
-    ctx.fillRect(W * 0.25 + b.at * pxU - (b.w * pxU) / 2, 0, b.w * pxU, H);
-  }
-}
-
-// Pelvis: stripes on both hips (u = 0.25 and 0.75).
-export function paintPelvis(canvas, combo, layout) {
-  const ctx = canvas.getContext('2d');
-  const { width: W, height: H } = canvas;
-  const p = combo.pants;
-  const pxU = W / layout.circumference;
-  ctx.fillStyle = hex(p.base);
-  ctx.fillRect(0, 0, W, H);
-  for (const u of [0.25, 0.75]) {
-    for (const b of stripeBands(p.stripe, hex(p.stripeColor), hex(p.stripeTrim))) {
-      ctx.fillStyle = b.color;
-      ctx.fillRect(W * u + b.at * pxU - (b.w * pxU) / 2, 0, b.w * pxU, H);
+// Tileable tangent-space normal maps for fabric: a knit mesh for jerseys,
+// diagonal twill for pants and vertical ribs for socks.
+export function fabricNormal(kind, size = 128) {
+  const height = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const u = (x / size) * Math.PI * 2;
+      const v = (y / size) * Math.PI * 2;
+      let h;
+      if (kind === 'knit') h = Math.pow(Math.max(0, Math.sin(u * 8) * Math.sin(v * 8)), 0.6) - 0.15 * Math.cos(v * 16);
+      else if (kind === 'twill') h = Math.sin((u + v) * 12);
+      else h = Math.pow(Math.abs(Math.sin(u * 6)), 0.5);
+      height[y * size + x] = h;
     }
   }
-}
-
-// Sock: horizontal bands near the top of the calf.
-export function paintSock(canvas, combo, layout) {
+  const canvas = makeCanvas(size, size);
   const ctx = canvas.getContext('2d');
-  const { width: W, height: H } = canvas;
-  const s = combo.socks;
-  const pxV = H / layout.length;
-  ctx.fillStyle = hex(s.base);
-  ctx.fillRect(0, 0, W, H);
-  const color = hex(s.stripeColor);
-  const bands = s.stripe === 'single'
-    ? [{ at: 0.09, w: 0.032 }]
-    : s.stripe === 'double' ? [{ at: 0.075, w: 0.016 }, { at: 0.108, w: 0.016 }] : [];
-  ctx.fillStyle = color;
-  for (const b of bands) ctx.fillRect(0, b.at * pxV - (b.w * pxV) / 2, W, b.w * pxV);
-}
-
-// Helmet shell: the sphere's poles point out the ear holes, so the center
-// stripe that runs front to back is a horizontal band across the middle.
-export function paintShell(canvas, combo, layout) {
-  const ctx = canvas.getContext('2d');
-  const { width: W, height: H } = canvas;
-  const h = combo.helmet;
-  const pxV = H / layout.length;
-  ctx.fillStyle = hex(h.shell);
-  ctx.fillRect(0, 0, W, H);
-  for (const b of stripeBands(h.stripe, hex(h.stripeColor), hex(h.stripeTrim))) {
-    ctx.fillStyle = b.color;
-    ctx.fillRect(0, H / 2 + b.at * pxV - (b.w * pxV) / 2, W, b.w * pxV);
+  const img = ctx.createImageData(size, size);
+  const at = (x, y) => height[((y + size) % size) * size + ((x + size) % size)];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * 1.5;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * 1.5;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * size + x) * 4;
+      img.data[i] = ((-dx / len) * 0.5 + 0.5) * 255;
+      img.data[i + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
+      img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+      img.data[i + 3] = 255;
+    }
   }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
 }
 
 // Side decal on a transparent square.
