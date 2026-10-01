@@ -1,6 +1,8 @@
 // Combo state: validation, names, the 3D look for a combo, and share codes.
 import { ART } from './uniform-art.js';
-import { DEFAULT_STATE, FACEMASKS, GLOVES, GROUP_HEX, JERSEY_NUMBERS, JERSEY_SLEEVES, LIB, SKIN_TONES, VISORS } from './team.js';
+import {
+  DEFAULT_STATE, FACEMASKS, GLOVES, GRAPHIC_WORD, GROUP_HEX, HELMET_NOTE, JERSEY_NUMBERS, JERSEY_SLEEVES, LIB, MASK_DEF, SKIN_TONES, VISORS,
+} from './team.js';
 
 const row = (kind, id) => LIB[kind].find((r) => r[0] === id);
 
@@ -48,6 +50,20 @@ export function pieceName(kind, id) {
 // The color group a piece belongs to ("Red", "White", "Black", "Gray").
 export function groupOf(kind, id) {
   return row(kind, id)?.[1] ?? 'White';
+}
+
+// The big word for a piece on the game graphic: its own name for the
+// alternate sets, otherwise its color group.
+export function graphicWord(kind, id) {
+  return (GRAPHIC_WORD[id] ?? groupOf(kind, id)).toUpperCase();
+}
+
+// Switching helmets brings the new helmet's facemask, and its callout unless
+// the current callout was typed by hand.
+export function pickHelmet(state, id) {
+  const patch = { helmet: id, facemask: MASK_DEF[id] || 'Red' };
+  if (state.helmetNote === (HELMET_NOTE[state.helmet] ?? '')) patch.helmetNote = HELMET_NOTE[id] ?? '';
+  return patch;
 }
 
 export function groupHex(group) {

@@ -135,6 +135,21 @@ export const JERSEY_SLEEVES = {
   'jersey-black': [[300, 314, '#ffffff'], [320, 360, BRAND.red], [366, 380, '#ffffff']],
 };
 
+// The big word for a piece on the game graphic. Plain sets show their color
+// group; alternate sets show their own name so they read apart from it.
+export const GRAPHIC_WORD = {
+  'White Alt 20': 'Ali',
+  'Halloween 26': 'Halloween',
+  'Iron Wings': 'Iron Wings',
+  'Red Gold': 'Red Gold',
+};
+
+// The helmet callout each helmet starts with: the Louie decal helmets call
+// out Heisman Louie, the rest start blank. A callout you type stays put.
+export const HELMET_NOTE = {
+  'Red': 'Heisman Louie', 'White Louie': 'Heisman Louie', 'Black': 'Heisman Louie', 'Black Stripe': 'Heisman Louie',
+};
+
 // The facemask each helmet comes with; anything not listed wears red.
 export const MASK_DEF = {
   'Black': 'Black', 'Black 20': 'Black', 'White Alt 20': 'Black', 'Red 20': 'White', 'Black Script': 'Red',

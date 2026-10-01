@@ -2,8 +2,8 @@
 // (piece tabs with art, facemask, options grouped by color, helmet callout),
 // The Game, and Saved Combos. Every control writes into the state and calls
 // onChange; the panel re-renders the parts that depend on it.
-import { FACEMASKS, GLOVES, GROUP_HEX, LIB, MASK_DEF, SKIN_TONES, VISORS } from './team.js';
-import { artUrl, pieceName, sanitizeName, sanitizeNumber } from './combo.js';
+import { FACEMASKS, GLOVES, GROUP_HEX, LIB, SKIN_TONES, VISORS } from './team.js';
+import { artUrl, pickHelmet, pieceName, sanitizeName, sanitizeNumber } from './combo.js';
 
 const TABS = [['helmet', 'Helmet'], ['jersey', 'Jersey'], ['pants', 'Pants'], ['socks', 'Accessories']];
 const GAME_FIELDS = [['date', 'Date'], ['kickoff', 'Kickoff'], ['network', 'Network'], ['venue', 'Venue']];
@@ -111,7 +111,7 @@ export class Panel {
       const full = `${group} · ${tag}`;
       return el('button', {
         type: 'button', class: 'tile', role: 'radio', 'aria-checked': String(s[k] === id), title: full,
-        onclick: () => this.set(k === 'helmet' ? { helmet: id, facemask: MASK_DEF[id] || 'Red' } : { [k]: id }),
+        onclick: () => this.set(k === 'helmet' ? pickHelmet(s, id) : { [k]: id }),
       }, [
         art(file || k === 'socks' ? artUrl(k, id, s) : null, k, full),
         el('span', { class: 'tile-tag', text: label }),
