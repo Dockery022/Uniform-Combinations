@@ -40,6 +40,7 @@ The header carries the LOUISVILLE wordmark, lifted from the jersey art with its 
 | Starting combo and game | `DEFAULT_STATE` in `src/team.js` |
 | Helmet finish, stripes, chrome decals, scripts that shouldn't mirror | `HELMETS` in `tools/prepare-uniforms.py` |
 | How far down the leg a pants side panel runs, where game photos differ from the art | `PANEL_END` in `tools/prepare-uniforms.py` |
+| Sleeve bands, where game photos differ from the art (Black 2026) | `JERSEY_SLEEVES` in `src/team.js` |
 
 To add or update art, put the design's PNGs in a folder with their original names (`helmet-red-mask-red.png`, `jersey-red.png`, `pants-red.png`, `socks-red.png`, `shoes-red.png`, plus `1912-crest-outline.png` and `bird_master.png`) and run:
 

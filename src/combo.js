@@ -1,6 +1,6 @@
 // Combo state: validation, names, the 3D look for a combo, and share codes.
 import { ART } from './uniform-art.js';
-import { DEFAULT_STATE, FACEMASKS, GLOVES, GROUP_HEX, JERSEY_NUMBERS, LIB, SKIN_TONES, VISORS } from './team.js';
+import { DEFAULT_STATE, FACEMASKS, GLOVES, GROUP_HEX, JERSEY_NUMBERS, JERSEY_SLEEVES, LIB, SKIN_TONES, VISORS } from './team.js';
 
 const row = (kind, id) => LIB[kind].find((r) => r[0] === id);
 
@@ -76,7 +76,12 @@ export function resolveLook(state) {
   return {
     helmet: { file: file('helmet'), spec: ART.helmet[file('helmet')] },
     facemask: FACEMASKS.find(([n]) => n === state.facemask)?.[1] ?? FACEMASKS[0][1],
-    jersey: { file: file('jersey'), spec: ART.jersey[file('jersey')], style: JERSEY_NUMBERS[file('jersey')] ?? { font: 'jersey' } },
+    jersey: {
+      file: file('jersey'),
+      spec: ART.jersey[file('jersey')],
+      style: JERSEY_NUMBERS[file('jersey')] ?? { font: 'jersey' },
+      sleeves: JERSEY_SLEEVES[file('jersey')] ?? null,
+    },
     pants,
     socks: sockFile ? ART.socks[sockFile] : pants.spec.socks,
     // "No shoes" only leaves them out of the graphic; the player still wears black cleats.

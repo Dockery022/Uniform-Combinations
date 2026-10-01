@@ -99,7 +99,7 @@ function letterTv(ctx, number, spec, style, k) {
 // and gets its own piping from the collar shader. The art's "10" (chest and
 // shoulders) is painted out and the chosen number lettered in its place.
 // Coordinates are art pixels (1366 x 1408), drawn at the canvas's scale.
-export function paintJerseyFront(canvas, img, spec, style, number) {
+export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -113,6 +113,17 @@ export function paintJerseyFront(canvas, img, spec, style, number) {
   ctx.fill();
   const [x0, y0, x1, y1] = spec.number.box;
   for (const [a, b, c, d] of [spec.number.box, ...(style.tv ?? []).map((t) => t.clear)]) ctx.fillRect(a - 8, b - 8, c - a + 16, d - b + 16);
+  // Sleeve bands from game photos replace the drawn sleeve stripes.
+  if (sleeves) {
+    for (const [x, w] of [[0, 205], [1161, 205]]) {
+      ctx.fillStyle = spec.base;
+      ctx.fillRect(x, 175, w, 345);
+      for (const [top, bottom, color] of sleeves) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, top, w, bottom - top);
+      }
+    }
+  }
   ctx.restore();
 
   letterNumber(ctx, number, {
@@ -136,11 +147,11 @@ export function paintJerseyBack(canvas, spec, style, number, name) {
   }, spec, style);
   // Shoulder numbers show from behind too.
   letterTv(ctx, number, spec, style, k);
-  // Names are set in an upright condensed block, as on the game jerseys.
+  // Names are set in an upright condensed block with no outline, as on the
+  // game jerseys.
   if (name) {
     drawText(ctx, name, {
-      family: FONTS.display, cx: canvas.width / 2, cy: 400 * k, height: 66 * k, sx: 0.92,
-      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 3 * k }],
+      family: FONTS.display, cx: canvas.width / 2, cy: 400 * k, height: 66 * k, sx: 0.92, fill: spec.number.fill,
     });
   }
 }
