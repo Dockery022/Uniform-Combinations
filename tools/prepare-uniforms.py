@@ -222,15 +222,18 @@ for name in PANTS:
             runs.append([key, 1, px])
         x += 1
     runs = [r for r in runs if r[1] >= 3]
-    # The art draws the panel's black piping where an outline would be. Keep
-    # it when there is a panel to pipe, except on black pants, where the art's
-    # gray edge is only an outline.
+    # The art draws the panel's piping where an outline would be: black on
+    # red and white pants, gray on black pants, where the game uniforms show
+    # white. Keep it when there is a panel to pipe.
     if runs and max(runs[0][2]) < 90 and runs[0][1] <= 10:
-        has_panel = any(np.abs(r[2] - base).max() > 40 for r in runs[1:] if r[1] >= 8 and max(r[2]) >= 90)
-        if not has_panel or base.max() < 60:
+        # Piping sits right against its panel; a gap of pants color after
+        # the edge means it is only an outline.
+        has_panel = len(runs) > 1 and np.abs(runs[1][2] - base).max() > 40 and any(
+            np.abs(r[2] - base).max() > 40 for r in runs[1:] if r[1] >= 8 and max(r[2]) >= 90)
+        if not has_panel:
             runs = runs[1:]
         else:
-            runs[0][2] = np.array([17, 17, 19])
+            runs[0][2] = np.array([242, 242, 240]) if base.max() < 60 else np.array([17, 17, 19])
     # The front view shows only the front half of a side panel, so the 3D
     # panel is about twice the drawn width (850 art px per meter), centered on
     # the seam and nudged forward so it shows from the front as in the art.

@@ -126,6 +126,15 @@ export const JERSEY_NUMBERS = {
   'jersey-black-23': { font: 'jersey', shadow: true },
 };
 
+// Sleeve bands where game photos differ from the drawing, painted over the
+// art's sleeves as rows in art pixels [top, bottom, color]. The sleeves map
+// from y = 290 (shoulder) to 500 (hem). The Black 2026 art draws slanted
+// chevrons; on the field it wears a straight white-red-white band around
+// the upper sleeve, like the red and white sets.
+export const JERSEY_SLEEVES = {
+  'jersey-black': [[300, 314, '#ffffff'], [320, 360, BRAND.red], [366, 380, '#ffffff']],
+};
+
 // The facemask each helmet comes with; anything not listed wears red.
 export const MASK_DEF = {
   'Black': 'Black', 'Black 20': 'Black', 'White Alt 20': 'Black', 'Red 20': 'White', 'Black Script': 'Red',
