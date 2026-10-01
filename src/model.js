@@ -20,11 +20,26 @@ export async function loadAssets(onProgress) {
     const total = parts.reduce((a, p) => a + (p.total || 3e6), 0);
     onProgress?.(Math.min(1, loaded / total));
   };
-  const load = (url) => loader.loadAsync(url, (e) => {
-    progress[url] = { loaded: e.loaded, total: e.total };
+  const load = async (name) => {
+    const url = `assets/${name}.glb`;
+    // Hosts that won't serve .glb files get a base64 copy as a JS module.
+    if (!window.__comboEmbeddedModels) {
+      try {
+        return await loader.loadAsync(url, (e) => {
+          progress[url] = { loaded: e.loaded, total: e.total };
+          report();
+        });
+      } catch (err) {
+        console.warn(`Falling back to the embedded copy of ${url}`, err);
+      }
+    }
+    const { default: b64 } = await import(`../assets/${name}.glb.js`);
+    progress[url] = { loaded: 1, total: 1 };
     report();
-  });
-  const [player, helmet] = await Promise.all([load('assets/player.glb'), load('assets/helmet.glb')]);
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return loader.parseAsync(bytes.buffer, '');
+  };
+  const [player, helmet] = await Promise.all([load('player'), load('helmet')]);
   return { player, helmet };
 }
 
