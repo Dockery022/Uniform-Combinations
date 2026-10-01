@@ -55,6 +55,10 @@ JERSEYS = ['jersey-red', 'jersey-white', 'jersey-black', 'jersey-red-wing', 'jer
 PANTS = ['pants-red', 'pants-white', 'pants-black', 'pants-red-script', 'pants-white-script',
          'pants-black-script', 'pants-red-20', 'pants-white-20', 'pants-black-20', 'pants-whitealt-20',
          'pants-halloween', 'pants-ironwings', 'pants-redgold', 'pants-black-23']
+# Where a side panel stops, as a fraction of the way from waist to the
+# bottom of the pants, when game photos disagree with the drawing: the 2026
+# panels run nearly to the knee, though the art stops them at mid-thigh.
+PANEL_END = {'pants-red': 0.92, 'pants-white': 0.92, 'pants-black': 0.92}
 SOCKS = ['socks-red', 'socks-white', 'socks-black', 'socks-gray',
          'socks-red-20', 'socks-white-20', 'socks-black-20', 'socks-gray-20']
 SHOES = ['shoes-black', 'shoes-white', 'shoes-red', 'shoes-gray']
@@ -218,15 +222,52 @@ for name in PANTS:
             runs.append([key, 1, px])
         x += 1
     runs = [r for r in runs if r[1] >= 3]
+    # The art draws the panel's black piping where an outline would be. Keep
+    # it when there is a panel to pipe, except on black pants, where the art's
+    # gray edge is only an outline.
     if runs and max(runs[0][2]) < 90 and runs[0][1] <= 10:
-        runs = runs[1:]  # the black outline
+        has_panel = any(np.abs(r[2] - base).max() > 40 for r in runs[1:] if r[1] >= 8 and max(r[2]) >= 90)
+        if not has_panel or base.max() < 60:
+            runs = runs[1:]
+        else:
+            runs[0][2] = np.array([17, 17, 19])
+    # The front view shows only the front half of a side panel, so the 3D
+    # panel is about twice the drawn width (850 art px per meter), centered on
+    # the seam and nudged forward so it shows from the front as in the art.
     total = sum(r[1] for r in runs)
     bands, pos = [], 0
     for key, n, px in runs:
         if np.abs(px - base).max() > 40:
-            bands.append({'at': round((pos + n / 2 - total / 2) / 1300, 4), 'w': round(n / 1300, 4), 'color': hexof(px)})
+            bands.append({'at': round((pos + n / 2 - total / 2) / 850 + 0.006, 4), 'w': round(n / 850, 4), 'color': hexof(px)})
         pos += n
     bands = sorted(bands, key=lambda b: -b['w'])[:3]
+    # How far down the leg the panel runs, as a fraction of waist (y = 5) to
+    # sock line (y = 1380): the last row below the sample row that still
+    # carries at least half the sampled pattern width.
+    def edge_width(y):
+        r = a[y]
+        x = int(np.argmax(r[:, 3] > 128))
+        start = x
+        while x < start + 12 and np.abs(r[x, :3] - base).max() > 40 and r[x, :3].max() < 110:
+            x += 1
+        x0, last, gap = x, None, 0
+        while x < x0 + 200:
+            if np.abs(r[x, :3] - base).max() > 40:
+                last, gap = x, 0
+            else:
+                gap += 1
+                if gap > 14:
+                    break
+            x += 1
+        return 0 if last is None else last - x0 + 1
+    ref = edge_width(700)
+    end = 1380
+    if bands and ref:
+        y = 700
+        while y < 1380 and edge_width(y) >= ref * 0.5:
+            y += 10
+        end = y
+    band_end = PANEL_END.get(name, round((end - 5) / 1375, 3))
     # Hip logos: ink in the top of the pants that isn't part of an edge stripe.
     h, w = a.shape[:2]
     yy, xx = np.mgrid[0:h, 0:w]
@@ -236,7 +277,7 @@ for name in PANTS:
     save_webp(logos, f'logos-{name}', 542, quality=90)
     save_webp(img, name, 542)
     spec['pants'][name] = {
-        'base': hexof(base), 'socks': hexof(socks), 'bands': bands,
+        'base': hexof(base), 'socks': hexof(socks), 'bands': bands, 'bandEnd': band_end,
         'logos': f'logos-{name}', 'logoArt': {'width': w, 'height': 600},
     }
 

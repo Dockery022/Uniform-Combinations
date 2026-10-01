@@ -555,11 +555,17 @@ export const ART = {
    "socks": "#c9001f",
    "bands": [
     {
-     "at": 0.0,
-     "w": 0.0215,
+     "at": 0.0107,
+     "w": 0.0329,
      "color": "#ffffff"
+    },
+    {
+     "at": -0.0105,
+     "w": 0.0094,
+     "color": "#111113"
     }
    ],
+   "bandEnd": 0.92,
    "logos": "logos-pants-red",
    "logoArt": {
     "width": 1084,
@@ -571,11 +577,17 @@ export const ART = {
    "socks": "#ffffff",
    "bands": [
     {
-     "at": 0.0,
-     "w": 0.0292,
+     "at": 0.0107,
+     "w": 0.0447,
      "color": "#c9001f"
+    },
+    {
+     "at": -0.0164,
+     "w": 0.0094,
+     "color": "#111113"
     }
    ],
+   "bandEnd": 0.92,
    "logos": "logos-pants-white",
    "logoArt": {
     "width": 1084,
@@ -587,11 +599,12 @@ export const ART = {
    "socks": "#000000",
    "bands": [
     {
-     "at": 0.0,
-     "w": 0.0292,
+     "at": 0.006,
+     "w": 0.0447,
      "color": "#c9001f"
     }
    ],
+   "bandEnd": 0.92,
    "logos": "logos-pants-black",
    "logoArt": {
     "width": 1084,
@@ -602,6 +615,7 @@ export const ART = {
    "base": "#c9001f",
    "socks": "#c9001f",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-red-script",
    "logoArt": {
     "width": 1084,
@@ -612,6 +626,7 @@ export const ART = {
    "base": "#ffffff",
    "socks": "#ffffff",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-white-script",
    "logoArt": {
     "width": 1084,
@@ -622,6 +637,7 @@ export const ART = {
    "base": "#000000",
    "socks": "#000000",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-black-script",
    "logoArt": {
     "width": 1084,
@@ -632,6 +648,7 @@ export const ART = {
    "base": "#c2002c",
    "socks": "#c2002c",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-red-20",
    "logoArt": {
     "width": 1084,
@@ -642,6 +659,7 @@ export const ART = {
    "base": "#ffffff",
    "socks": "#ffffff",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-white-20",
    "logoArt": {
     "width": 1084,
@@ -652,6 +670,7 @@ export const ART = {
    "base": "#000000",
    "socks": "#000000",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-black-20",
    "logoArt": {
     "width": 1084,
@@ -663,16 +682,17 @@ export const ART = {
    "socks": "#ffffff",
    "bands": [
     {
-     "at": 0.0012,
-     "w": 0.03,
+     "at": 0.0078,
+     "w": 0.0459,
      "color": "#161412"
     },
     {
-     "at": -0.015,
-     "w": 0.0023,
+     "at": -0.0169,
+     "w": 0.0035,
      "color": "#464442"
     }
    ],
+   "bandEnd": 1.0,
    "logos": "logos-pants-whitealt-20",
    "logoArt": {
     "width": 1084,
@@ -684,21 +704,22 @@ export const ART = {
    "socks": "#000000",
    "bands": [
     {
-     "at": -0.0115,
-     "w": 0.0069,
+     "at": -0.0116,
+     "w": 0.0106,
      "color": "#b08d3e"
     },
     {
-     "at": 0.0023,
-     "w": 0.0069,
+     "at": 0.0095,
+     "w": 0.0106,
      "color": "#b08d3e"
     },
     {
-     "at": 0.0162,
-     "w": 0.0069,
+     "at": 0.0307,
+     "w": 0.0106,
      "color": "#b08d3e"
     }
    ],
+   "bandEnd": 1.0,
    "logos": "logos-pants-halloween",
    "logoArt": {
     "width": 1084,
@@ -709,6 +730,7 @@ export const ART = {
    "base": "#8f9195",
    "socks": "#8f9195",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-ironwings",
    "logoArt": {
     "width": 1084,
@@ -719,6 +741,7 @@ export const ART = {
    "base": "#c9001f",
    "socks": "#c9001f",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-redgold",
    "logoArt": {
     "width": 1084,
@@ -729,6 +752,7 @@ export const ART = {
    "base": "#000000",
    "socks": "#000000",
    "bands": [],
+   "bandEnd": 1.0,
    "logos": "logos-pants-black-23",
    "logoArt": {
     "width": 1084,

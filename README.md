@@ -39,6 +39,7 @@ The header carries the LOUISVILLE wordmark, lifted from the jersey art with its 
 | The facemask each helmet comes with | `MASK_DEF` in `src/team.js` |
 | Starting combo and game | `DEFAULT_STATE` in `src/team.js` |
 | Helmet finish, stripes, chrome decals, scripts that shouldn't mirror | `HELMETS` in `tools/prepare-uniforms.py` |
+| How far down the leg a pants side panel runs, where game photos differ from the art | `PANEL_END` in `tools/prepare-uniforms.py` |
 
 To add or update art, put the design's PNGs in a folder with their original names (`helmet-red-mask-red.png`, `jersey-red.png`, `pants-red.png`, `socks-red.png`, `shoes-red.png`, plus `1912-crest-outline.png` and `bird_master.png`) and run:
 
@@ -47,7 +48,7 @@ pip install pillow numpy
 npm run prepare:uniforms -- path/to/art
 ```
 
-It writes WebP copies to `assets/uni/`, cuts out the helmet decals and pants logos, and samples the colors the 3D materials use into `src/uniform-art.js`. The jersey projection assumes the design's jersey template (1366 × 1408, V-neck tip at y = 380, armpits at y = 540); the landmarks are `JERSEY_ART` in `src/model.js`.
+It writes WebP copies to `assets/uni/`, cuts out the helmet decals and pants logos, and samples the colors and side-panel stripes the 3D materials use into `src/uniform-art.js`. The jersey projection assumes the design's jersey template (1366 × 1408, V-neck tip at y = 380, armpits at y = 540, sleeves drawn hanging); the landmarks are `JERSEY_ART` in `src/model.js`. Cleats wear the side-view shoe art, projected along each foot.
 
 ## The 3D models
 

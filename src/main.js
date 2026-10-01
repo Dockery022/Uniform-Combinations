@@ -105,6 +105,7 @@ let state = clone(DEFAULT_STATE);
 let saved = loadSaved();
 let mode = '3d';
 let painted = Promise.resolve();
+let ready = false; // the player is loaded and dressed
 
 function loadSaved() {
   try {
@@ -257,8 +258,9 @@ function tracked(ctx, text, x, y, spacing) {
 }
 
 // The 1080 x 1080 "The Combo" graphic from the design, with the 3D render
-// standing in for the flat art.
+// standing in for the flat art. Returns false until the player is dressed.
 async function drawGraphic() {
+  if (!ready) return false;
   const s = state;
   await painted;
   const [bird, crest, shoes] = await Promise.all([
@@ -373,6 +375,7 @@ async function drawGraphic() {
   ctx.fillStyle = '#52525b';
   tracked(ctx, s.venue.toUpperCase(), 210, 1080 - 52 - 4, 2.8);
   if (shoes) ctx.drawImage(shoes, 540, 900, 200, (200 * shoes.naturalHeight) / shoes.naturalWidth);
+  return true;
 }
 
 let graphicTimer = 0;
@@ -397,7 +400,7 @@ document.getElementById('mode-3d').addEventListener('click', () => setMode('3d')
 document.getElementById('mode-graphic').addEventListener('click', () => setMode('graphic'));
 
 document.getElementById('download').addEventListener('click', async () => {
-  await drawGraphic();
+  if (!(await drawGraphic())) return;
   graphic.toBlob((blob) => {
     if (!blob) return toast('The graphic could not be saved here.');
     const a = el('a', { href: URL.createObjectURL(blob), download: `combo-${s2slug(state.opponent)}.png` });
@@ -457,6 +460,9 @@ async function start(data = {}) {
   };
   applyState(state);
   await painted;
+  ready = true;
+  document.getElementById('download').disabled = false;
+  if (mode === 'graphic') scheduleGraphic();
   if (data.pose && POSE_LABELS[data.pose]) document.getElementById(`poses-${data.pose}`)?.click();
   if (data.mode === 'graphic') setMode('graphic');
   document.getElementById('loading').hidden = true;

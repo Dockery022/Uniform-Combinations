@@ -53,15 +53,45 @@ function textWidth(ctx, text, family, height) {
 }
 
 // A jersey number in the jersey's own lettering: fill, outline and, for the
-// shadowed styles, a drop shadow down and to the right. The squeeze is set so
-// "10" fills `width`, the width the art's own number takes, so every number
-// keeps the art's proportions.
+// shadowed styles, a drop shadow down and to the right. The Louisville
+// numerals are set digit by digit the way the art sets its "10": a "1"
+// narrower than the font's, other digits a little wider, and a gap between
+// them. Block numerals are squeezed so "10" fills the art's number width.
 function letterNumber(ctx, number, { cx, cy, height, width }, spec, style) {
-  const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
-  const sx = Math.min(1.6, Math.max(0.8, width / textWidth(ctx, '10', family, height)));
   const { fill, outline } = spec.number;
-  if (style.shadow) drawText(ctx, number, { family, cx: cx + height * 0.03, cy: cy + height * 0.022, height, sx, fill: outline });
-  drawText(ctx, number, { family, cx, cy, height, sx, fill, outlines: [{ color: outline, width: height * 0.012 }] });
+  const outlines = [{ color: outline, width: height * 0.02 }];
+  const draw = (text, x, sx) => {
+    if (style.shadow) drawText(ctx, text, { family, cx: x + height * 0.03, cy: cy + height * 0.022, height, sx, fill: outline, outlines });
+    drawText(ctx, text, { family, cx: x, cy, height, sx, fill, outlines });
+  };
+  const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
+  if (style.font === 'block') {
+    draw(number, cx, Math.min(1.6, Math.max(0.8, width / textWidth(ctx, '10', family, height))));
+    return;
+  }
+  const digits = [...number];
+  const squeeze = digits.map((d) => (d === '1' ? 0.8 : 1.08));
+  const widths = digits.map((d, i) => textWidth(ctx, d, family, height) * squeeze[i]);
+  const gap = height * 0.12;
+  const total = widths.reduce((sum, w) => sum + w, 0) + gap * (digits.length - 1);
+  const fit = Math.min(1, (width * 1.05) / total);
+  let x = cx - (total * fit) / 2;
+  digits.forEach((d, i) => {
+    draw(d, x + (widths[i] * fit) / 2, squeeze[i] * fit);
+    x += (widths[i] + gap) * fit;
+  });
+}
+
+// Shoulder or cuff numbers, where the art puts them.
+function letterTv(ctx, number, spec, style, k) {
+  const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
+  for (const tv of style.tv ?? []) {
+    const text = tv.digits === 'all' ? number : tv.digits === 'first' ? number[0] : number[number.length - 1];
+    drawText(ctx, text, {
+      family, cx: tv.at[0] * k, cy: tv.at[1] * k, height: tv.h * k, rotate: tv.turn,
+      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 6 * k }],
+    });
+  }
 }
 
 // The jersey's front art, ready to project. The V-neck is filled with the
@@ -88,18 +118,11 @@ export function paintJerseyFront(canvas, img, spec, style, number) {
   letterNumber(ctx, number, {
     cx: ((x0 + x1) / 2) * k, cy: ((y0 + y1) / 2) * k, height: (y1 - y0) * 0.94 * k, width: (x1 - x0) * 0.94 * k,
   }, spec, style);
-  const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
-  for (const tv of style.tv ?? []) {
-    const text = tv.digits === 'all' ? number : tv.digits === 'first' ? number[0] : number[number.length - 1];
-    drawText(ctx, text, {
-      family, cx: tv.at[0] * k, cy: tv.at[1] * k, height: tv.h * k, rotate: tv.turn,
-      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 5 * k }],
-    });
-  }
+  letterTv(ctx, number, spec, style, k);
 }
 
 // The back: the body color, the number larger and higher than on the front,
-// and an optional name in the Louisville jersey face, in the number's colors.
+// the shoulder numbers, and an optional name, in the number's colors.
 export function paintJerseyBack(canvas, spec, style, number, name) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
@@ -111,10 +134,13 @@ export function paintJerseyBack(canvas, spec, style, number, name) {
   letterNumber(ctx, number, {
     cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
   }, spec, style);
+  // Shoulder numbers show from behind too.
+  letterTv(ctx, number, spec, style, k);
+  // Names are set in an upright condensed block, as on the game jerseys.
   if (name) {
     drawText(ctx, name, {
-      family: FONTS.jersey, cx: canvas.width / 2, cy: 400 * k, height: 70 * k,
-      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 5 * k }],
+      family: FONTS.display, cx: canvas.width / 2, cy: 400 * k, height: 66 * k, sx: 0.92,
+      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 3 * k }],
     });
   }
 }
@@ -136,8 +162,8 @@ export function alphaCenterX(canvas) {
   return x1 >= x0 ? (x0 + x1) / 2 : W / 2;
 }
 
-// Tileable tangent-space normal maps for fabric: a knit mesh for jerseys,
-// diagonal twill for pants and vertical ribs for socks.
+// Tileable tangent-space normal maps for fabric: a knit mesh for jerseys and
+// diagonal twill for pants.
 export function fabricNormal(kind, size = 128) {
   const height = new Float32Array(size * size);
   for (let y = 0; y < size; y++) {
@@ -146,8 +172,7 @@ export function fabricNormal(kind, size = 128) {
       const v = (y / size) * Math.PI * 2;
       let h;
       if (kind === 'knit') h = Math.pow(Math.max(0, Math.sin(u * 8) * Math.sin(v * 8)), 0.6) - 0.15 * Math.cos(v * 16);
-      else if (kind === 'twill') h = Math.sin((u + v) * 12);
-      else h = Math.pow(Math.abs(Math.sin(u * 6)), 0.5);
+      else h = Math.sin((u + v) * 12);
       height[y * size + x] = h;
     }
   }

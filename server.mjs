@@ -2,7 +2,7 @@
 // Run `npm start`, then open the forwarded port (default 8080).
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const root = resolve(import.meta.dirname);
 const port = Number(process.env.PORT) || 8080;
@@ -23,8 +23,10 @@ const types = {
 createServer(async (req, res) => {
   try {
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-    let file = normalize(join(root, path));
-    if (!file.startsWith(root)) throw new Error('outside root');
+    let file = resolve(root, `.${path}`);
+    // Serve only files inside the project, and nothing hidden (.git, .env, ...).
+    const rel = relative(root, file);
+    if (rel.startsWith('..') || isAbsolute(rel) || rel.split(sep).some((part) => part.startsWith('.'))) throw new Error('not served');
     if ((await stat(file)).isDirectory()) file = join(file, 'index.html');
     const body = await readFile(file);
     res.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-cache' });

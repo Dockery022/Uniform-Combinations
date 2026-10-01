@@ -132,6 +132,7 @@ button { cursor: pointer; }
   white-space: nowrap;
 }
 .btn:active { opacity: 0.8; }
+.btn:disabled { opacity: 0.45; cursor: default; }
 .btn-primary { background: var(--cardinal); border-color: var(--cardinal); color: #ffffff; }
 
 /* ---------- the uniform ---------- */

@@ -81,6 +81,7 @@ export function resolveLook(state) {
     socks: sockFile ? ART.socks[sockFile] : pants.spec.socks,
     // "No shoes" only leaves them out of the graphic; the player still wears black cleats.
     cleats: ART.shoes[shoeFile ?? 'shoes-black'],
+    shoes: shoeFile ?? 'shoes-black',
     gloves: GLOVES.find(([n]) => n === state.gloves)?.[1] ?? null,
     visor: state.visor,
     skin: state.skin,
