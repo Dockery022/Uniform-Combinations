@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Combo Builder 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Fraunces:ital,opsz,wght@1,9..144,400&family=Geist:wght@400..700&family=Graduate&family=Yellowtail&display=swap">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<div class="app">
+  <main class="stage" id="stage">
+    <canvas id="scene" role="img" aria-label="A football player wearing the current uniform combo. Drag to turn the view; scroll or pinch to zoom."></canvas>
+
+    <header class="stage-head">
+      <p class="eyebrow">The 1912 Society</p>
+      <h1 class="stage-title">Combo Builder</h1>
+    </header>
+    <p class="hint">Drag to turn · Scroll or pinch to zoom</p>
+
+    <div class="stage-foot">
+      <div class="readout" aria-live="polite">
+        <div class="readout-slots" id="readout-slots"></div>
+        <p class="readout-meta" id="readout-meta"></p>
+      </div>
+      <div class="dock">
+        <div class="dock-group" id="poses" role="group" aria-label="Pose"></div>
+        <div class="dock-group" id="views" role="group" aria-label="Camera view"></div>
+        <div class="dock-group">
+          <button type="button" class="dock-opt" id="spin" aria-pressed="false">Spin</button>
+          <button type="button" class="dock-opt" id="snap">Snapshot</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="loading" id="loading">
+      <span class="loading-dot" aria-hidden="true"></span>
+      Suiting up the player…
+    </div>
+  </main>
+
+  <aside class="panel" aria-label="Uniform controls">
+    <p class="tagline">Pick the helmet, jersey and pants. See the whole look before kickoff.</p>
+
+    <section class="block" aria-labelledby="presets-title">
+      <h2 class="eyebrow" id="presets-title">Starter combos</h2>
+      <div class="presets" id="presets"></div>
+    </section>
+
+    <section class="block" aria-label="Customize">
+      <div class="tabs" id="tabs" role="tablist" aria-label="Uniform piece"></div>
+      <div class="fields" id="fields" role="tabpanel"></div>
+    </section>
+
+    <section class="block" aria-labelledby="share-title">
+      <h2 class="eyebrow" id="share-title">Keep this combo</h2>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="save">Save combo</button>
+        <button type="button" class="btn" id="copy">Copy code</button>
+        <button type="button" class="btn" id="randomize">Randomize</button>
+      </div>
+      <form class="load-form" id="load-form">
+        <label class="field-label" for="code">Paste a combo code</label>
+        <div class="load-row">
+          <input class="text-input" id="code" type="text" autocomplete="off" spellcheck="false" placeholder="eyJ2Ijox…">
+          <button type="submit" class="btn">Load</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="block" aria-labelledby="saved-title">
+      <h2 class="eyebrow" id="saved-title">Your combos</h2>
+      <p class="empty" id="saved-empty">Combos you save show up here, on this device.</p>
+      <ul class="saved" id="saved"></ul>
+    </section>
+  </aside>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<dialog class="snapshot" id="snapshot" aria-labelledby="snapshot-title">
+  <h2 class="snapshot-title" id="snapshot-title">Snapshot</h2>
+  <img id="snapshot-img" alt="Snapshot of the current combo">
+  <p class="snapshot-note">Right-click or long-press the image to save it.</p>
+  <button type="button" class="btn" id="snapshot-close">Close</button>
+</dialog>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

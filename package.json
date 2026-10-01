@@ -1,0 +1,12 @@
+{
+  "name": "uniform-combinations",
+  "private": true,
+  "description": "Interactive 3D football uniform combo builder",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

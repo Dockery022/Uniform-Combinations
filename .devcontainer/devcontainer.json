@@ -1,0 +1,9 @@
+{
+  "name": "Combo Builder",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": { "label": "Combo Builder", "onAutoForward": "openPreview" }
+  },
+  "postAttachCommand": "npm start"
+}
