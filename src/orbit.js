@@ -3,10 +3,10 @@
 import * as THREE from './three.js';
 
 export const VIEWS = {
-  three: { label: '3/4', target: [0, 0.9, 0], theta: 0.62, phi: 1.36, radius: 5.4 },
-  front: { label: 'Front', target: [0, 0.9, 0], theta: 0, phi: 1.4, radius: 5.4 },
-  back: { label: 'Back', target: [0, 0.9, 0], theta: Math.PI, phi: 1.4, radius: 5.4 },
-  side: { label: 'Side', target: [0, 0.9, 0], theta: Math.PI / 2, phi: 1.42, radius: 5.4 },
+  three: { label: '3/4', target: [0, 0.95, 0], theta: 0.62, phi: 1.38, radius: 4.8 },
+  front: { label: 'Front', target: [0, 0.95, 0], theta: 0, phi: 1.42, radius: 4.8 },
+  back: { label: 'Back', target: [0, 0.95, 0], theta: Math.PI, phi: 1.42, radius: 4.8 },
+  side: { label: 'Side', target: [0, 0.95, 0], theta: Math.PI / 2, phi: 1.44, radius: 4.8 },
   helmet: { label: 'Helmet', target: [0, 1.72, 0], theta: 0.5, phi: 1.3, radius: 1.25 },
 };
 
@@ -14,8 +14,8 @@ export class Orbit {
   constructor(camera, dom) {
     this.camera = camera;
     this.dom = dom;
-    this.target = new THREE.Vector3(0, 0.9, 0);
-    this.s = { theta: 0.62, phi: 1.36, radius: 5.4 };
+    this.target = new THREE.Vector3(0, 0.95, 0);
+    this.s = { theta: 0.62, phi: 1.38, radius: 4.8 };
     this.vel = { theta: 0, phi: 0 };
     this.limits = { minPhi: 0.35, maxPhi: 1.62, minR: 0.8, maxR: 8 };
     this.autoRotate = false;
@@ -71,7 +71,7 @@ export class Orbit {
     this.s.radius = THREE.MathUtils.clamp(this.s.radius * factor, this.limits.minR, this.limits.maxR);
     // Drift the focus toward the helmet as the camera closes in.
     const t = THREE.MathUtils.clamp((3 - this.s.radius) / 1.9, 0, 1);
-    this.target.y = THREE.MathUtils.lerp(0.9, 1.7, t);
+    this.target.y = THREE.MathUtils.lerp(0.95, 1.7, t);
   }
 
   flyTo(name) {

@@ -1,11 +1,15 @@
-// The rigged player (assets/player.glb) wearing the helmet (assets/helmet.glb).
-// Uniform parts are recolored through their materials. Stripes, collars,
-// gloves and soles are drawn by small shader additions that read per-vertex
-// measurements taken once in the rest pose, so they follow the cloth when the
-// player moves. Jersey lettering is painted into a canvas on the jersey UVs.
+// The rigged player (assets/player.glb) wearing the helmet (assets/helmet.glb),
+// dressed in the design art from assets/uni/.
+//
+// The jersey art is a front view, so it is projected onto the jersey from the
+// front: every vertex gets an art coordinate from its rest-pose position, and
+// the sleeves are swung up about the shoulder to meet the art's outstretched
+// sleeves. The back gets a synthesized panel with the number. Helmet decals and
+// pants logos are cut out of the art and projected the same way. Stripes,
+// collars, gloves and soles are drawn by small shader additions that read
+// per-vertex measurements, so they follow the cloth when the player moves.
 import * as THREE from './three.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
-import { hex } from './combo.js';
 import { SKIN_TONES } from './team.js';
 import * as paint from './textures.js';
 
@@ -42,6 +46,30 @@ export async function loadAssets(onProgress) {
   const [player, helmet] = await Promise.all([load('player'), load('helmet')]);
   return { player, helmet };
 }
+
+const images = new Map();
+export function loadImage(url) {
+  if (!images.has(url)) {
+    images.set(url, new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => resolve(img);
+      img.onerror = () => { images.delete(url); reject(new Error(`Could not load ${url}`)); };
+      img.src = url;
+    }));
+  }
+  return images.get(url);
+}
+
+// Where the jersey art's landmarks sit, in art pixels (1366 x 1408 template).
+const JERSEY_ART = {
+  width: 1366, height: 1408, centerX: 683,
+  shoulderY: 20, vNeckY: 380, armpitY: 540, hemY: 1400,
+  bodyWidth: 774, // between the side outlines at the chest
+  cuffs: { left: [1354, 373], right: [12, 373] }, // the player's left sleeve is on the art's right
+};
+// Pants art (1084 x 1994): the hip logos, cut into a 1084 x 600 strip.
+const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidth: 666 };
 
 // ---------- shader helpers ----------
 
@@ -215,7 +243,6 @@ export class Player {
     this.root = new THREE.Group();
     this.body = assets.player.scene;
     this.root.add(this.body);
-    this.decalImage = null;
     this.pose = { current: 'idle', previous: 'idle', switchedAt: -10 };
     this.tmpV = new THREE.Vector3();
     this.tmpQ = new THREE.Quaternion();
@@ -259,16 +286,25 @@ export class Player {
 
   buildMaterials() {
     const C = paint.makeCanvas;
-    this.canvases = { jersey: C(2560, 1024), decal: C(512, 512), ball: C(512, 256) };
+    const aniso = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     const tex = (canvas, flipY = false) => {
       const t = new THREE.CanvasTexture(canvas);
       t.colorSpace = THREE.SRGBColorSpace;
       t.flipY = flipY;
-      t.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      t.anisotropy = aniso;
+      t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
       return t;
     };
-    this.textures = { jersey: tex(this.canvases.jersey), decal: tex(this.canvases.decal), ball: tex(this.canvases.ball, true) };
-    this.textures.decal.wrapS = THREE.ClampToEdgeWrapping;
+    // Art canvases: jersey front and back at half the art's size, the hip
+    // logos, the helmet decal and the ball.
+    this.canvases = {
+      front: C(JERSEY_ART.width / 2, JERSEY_ART.height / 2),
+      back: C(JERSEY_ART.width / 2, JERSEY_ART.height / 2),
+      logos: C(PANTS_ART.width / 2, PANTS_ART.height / 2),
+      decal: C(752, 762),
+      ball: C(512, 256),
+    };
+    this.textures = Object.fromEntries(Object.entries(this.canvases).map(([k, c]) => [k, tex(c, k === 'ball')]));
     const normals = {
       knit: paint.fabricNormal('knit'), twill: paint.fabricNormal('twill'), rib: paint.fabricNormal('rib'),
     };
@@ -282,45 +318,58 @@ export class Player {
 
     const fabric = (extra) => new THREE.MeshPhysicalMaterial({ roughness: 0.82, sheen: 0.45, sheenRoughness: 0.6, ...extra });
     const pantsU = bandUniforms();
-    const sockU = bandUniforms();
     this.uniforms = {
-      pants: pantsU,
-      socks: sockU,
-      collar: { uCollar: { value: new THREE.Color() }, uCollarW: { value: 0.026 } },
+      pants: { ...pantsU, uLogos: { value: this.textures.logos } },
+      jersey: {
+        uArtFront: { value: this.textures.front },
+        uArtBack: { value: this.textures.back },
+        uBase: { value: new THREE.Color() },
+        uCollar: { value: new THREE.Color() },
+        uCollarW: { value: 0.012 },
+      },
       glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 } },
       sole: { uSole: { value: new THREE.Color() } },
       shell: {
         uStripe: bandUniforms(),
         uDecal: { value: this.textures.decal },
-        uDecalOn: { value: 1 },
-        uDecalMirror: { value: 0 },
-        uDecalCenter: { value: new THREE.Vector2(-0.06, 0.07) },
-        uDecalSize: { value: 0.46 },
+        uDecalOn: { value: 0 },
+        // x, y: art pixel of the shell's front and top; z: art pixels per helmet unit.
+        uDecalArt: { value: new THREE.Vector3(85, 5, 541.7) },
+        uDecalSize: { value: new THREE.Vector2(752, 762) },
+        // Shell extents (front z, top y) in helmet units.
+        uShellFront: { value: new THREE.Vector2(0.612, 0.566) },
+        // Art u of the decal's center; the far side flips about it when the
+        // decal must read the same way on both sides (scripts). -1 mirrors.
+        uDecalFlip: { value: -1 },
+        uDecalMetal: { value: 0 },
       },
     };
 
     this.m = {
-      jersey: extend(fabric({ name: 'jersey', map: this.textures.jersey, normalMap: ntex(normals.knit, 70, 28), normalScale: new THREE.Vector2(0.45, 0.45) }), {
-        attrs: { aNeck: 'float' },
-        uniforms: this.uniforms.collar,
-        declare: 'uniform vec3 uCollar;\nuniform float uCollarW;',
+      jersey: extend(fabric({ name: 'jersey', normalMap: ntex(normals.knit, 70, 28), normalScale: new THREE.Vector2(0.45, 0.45) }), {
+        attrs: { aArt: 'vec3', aNeck: 'float' },
+        uniforms: this.uniforms.jersey,
+        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;',
         fragment: /* glsl */ `
+          vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
+          diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
         `,
       }),
       pants: extend(fabric({ name: 'pants', roughness: 0.55, sheen: 0.3, normalMap: ntex(normals.twill, 30, 30), normalScale: new THREE.Vector2(0.25, 0.25) }), {
-        attrs: { aSeam: 'float' },
-        uniforms: pantsU,
-        declare: BANDS_GLSL,
-        fragment: 'diffuseColor.rgb = applyBands(diffuseColor.rgb, vaSeam);',
+        attrs: { aSeam: 'float', aLogo: 'vec3' },
+        uniforms: this.uniforms.pants,
+        declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;`,
+        fragment: /* glsl */ `
+          diffuseColor.rgb = applyBands(diffuseColor.rgb, vaSeam);
+          if (vaLogo.z > 0.5 && vaLogo.x > 0.0 && vaLogo.x < 1.0 && vaLogo.y > 0.0 && vaLogo.y < 1.0) {
+            vec4 logo = texture2D(uLogos, vaLogo.xy);
+            diffuseColor.rgb = mix(diffuseColor.rgb, logo.rgb, logo.a);
+          }
+        `,
       }),
-      socks: extend(fabric({ name: 'socks', roughness: 0.9, normalMap: ntex(normals.rib, 18, 6), normalScale: new THREE.Vector2(0.5, 0.5) }), {
-        attrs: { aDrop: 'float' },
-        uniforms: sockU,
-        declare: BANDS_GLSL,
-        fragment: 'diffuseColor.rgb = applyBands(diffuseColor.rgb, vaDrop);',
-      }),
+      socks: fabric({ name: 'socks', roughness: 0.9, normalMap: ntex(normals.rib, 18, 6), normalScale: new THREE.Vector2(0.5, 0.5) }),
       cleats: extend(new THREE.MeshPhysicalMaterial({ name: 'cleats', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.35 }), {
         attrs: { aHeight: 'float' },
         uniforms: this.uniforms.sole,
@@ -335,7 +384,7 @@ export class Player {
       }),
       belt: new THREE.MeshStandardMaterial({ name: 'belt', roughness: 0.55 }),
       buckle: new THREE.MeshStandardMaterial({ name: 'buckle', color: '#c9ccd1', metalness: 0.9, roughness: 0.3 }),
-      tape: new THREE.MeshStandardMaterial({ name: 'tape', roughness: 0.85 }),
+      tape: new THREE.MeshStandardMaterial({ name: 'tape', color: '#f4f4f2', roughness: 0.85 }),
       armSleeve: fabric({ name: 'armSleeve', roughness: 0.5, sheen: 0.3 }),
       eyes: new THREE.MeshPhysicalMaterial({ name: 'eyes', color: '#1a1410', roughness: 0.15, clearcoat: 1 }),
     };
@@ -353,17 +402,20 @@ export class Player {
     const bonePos = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
     const setAttr = (mesh, name, data) => mesh.geometry.setAttribute(name, new THREE.BufferAttribute(data, 1));
 
-    // Jersey: distance from the neckline, for the collar trim.
+    // Jersey: distance from the neckline for the collar piping, and where each
+    // vertex lands on the front-view art.
     const jersey = this.parts.jersey;
     if (jersey) {
       const world = worldPositions(jersey);
+      const count = world.length / 3;
       const neck = bonePos('Neck');
       const shoulderY = bonePos('LeftArm').y;
       const neckEdge = boundaryPoints(jersey, world)
         .filter((p) => p.y > shoulderY - 0.22 && Math.abs(p.x - neck.x) < 0.1 && Math.hypot(p.x - neck.x, p.z - neck.z) < 0.14);
-      const aNeck = new Float32Array(world.length / 3);
-      for (let i = 0; i < aNeck.length; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
+      const aNeck = new Float32Array(count);
+      for (let i = 0; i < count; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
       setAttr(jersey, 'aNeck', aNeck);
+      jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(this.projectJersey(jersey, world, neckEdge, bonePos), 3));
     }
 
     // Pants: signed arc distance from the outer seam of each leg.
@@ -390,22 +442,29 @@ export class Player {
         aSeam[i] = angle * r.length() * (left ? 1 : -1);
       }
       setAttr(pants, 'aSeam', aSeam);
-    }
 
-    // Socks: distance down from the top of each sock.
-    const socks = this.parts.socks;
-    if (socks) {
-      const world = worldPositions(socks);
-      const midX = bonePos('Hips').x;
-      let topL = -Infinity;
-      let topR = -Infinity;
+      // Hip logos: a front projection of the art's waist strip.
+      let top = -Infinity;
+      for (let i = 1; i < world.length; i += 3) top = Math.max(top, world[i]);
+      const ring = { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
       for (let i = 0; i < world.length / 3; i++) {
-        if (world[i * 3] > midX) topL = Math.max(topL, world[i * 3 + 1]);
-        else topR = Math.max(topR, world[i * 3 + 1]);
+        if (Math.abs(world[i * 3 + 1] - (top - 0.04)) > 0.01) continue;
+        ring.x0 = Math.min(ring.x0, world[i * 3]);
+        ring.x1 = Math.max(ring.x1, world[i * 3]);
+        ring.z0 = Math.min(ring.z0, world[i * 3 + 2]);
+        ring.z1 = Math.max(ring.z1, world[i * 3 + 2]);
       }
-      const aDrop = new Float32Array(world.length / 3);
-      for (let i = 0; i < aDrop.length; i++) aDrop[i] = (world[i * 3] > midX ? topL : topR) - world[i * 3 + 1];
-      setAttr(socks, 'aDrop', aDrop);
+      const A = PANTS_ART;
+      const xc = (ring.x0 + ring.x1) / 2;
+      const zc = (ring.z0 + ring.z1) / 2;
+      const scale = A.waistWidth / (ring.x1 - ring.x0);
+      const aLogo = new Float32Array(world.length);
+      for (let i = 0; i < world.length / 3; i++) {
+        aLogo[i * 3] = (A.centerX + (world[i * 3] - xc) * scale) / A.width;
+        aLogo[i * 3 + 1] = (A.waistY + (top - world[i * 3 + 1]) * scale) / A.height;
+        aLogo[i * 3 + 2] = world[i * 3 + 2] > zc ? 1 : 0;
+      }
+      pants.geometry.setAttribute('aLogo', new THREE.BufferAttribute(aLogo, 3));
     }
 
     // Cleats: height above the lowest point, for the sole color.
@@ -439,6 +498,81 @@ export class Player {
     }
   }
 
+  // Art coordinates (u, v, back?) for each jersey vertex. The torso is a
+  // straight front (or back) projection, scaled so the chest fills the art's
+  // body and stretched vertically to meet its shoulder, V-neck and armpit
+  // lines. Sleeve vertices are swung about the shoulder joint, raising the
+  // arm to the angle of the art's sleeves.
+  projectJersey(jersey, world, neckEdge, bonePos) {
+    const A = JERSEY_ART;
+    const count = world.length / 3;
+    const uv = jersey.geometry.attributes.uv;
+    const panel = new Uint8Array(count); // 0 front, 1 back, 2 sleeve
+    let top = -Infinity;
+    let armpit = Infinity;
+    for (let i = 0; i < count; i++) {
+      const u = uv.getX(i);
+      panel[i] = u < 0.44 ? 2 : u < 0.715 ? 0 : 1;
+      const y = world[i * 3 + 1];
+      if (panel[i] === 0) top = Math.max(top, y);
+      if (panel[i] === 2) armpit = Math.min(armpit, y);
+    }
+    const neckZ = bonePos('Neck').z;
+    const front = neckEdge.filter((p) => p.z > neckZ);
+    const vTip = front.length ? Math.min(...front.map((p) => p.y)) : top - 0.075;
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    for (let i = 0; i < count; i++) {
+      if (panel[i] !== 0 || Math.abs(world[i * 3 + 1] - (armpit - 0.06)) > 0.012) continue;
+      x0 = Math.min(x0, world[i * 3]);
+      x1 = Math.max(x1, world[i * 3]);
+    }
+    const xc = (x0 + x1) / 2;
+    const scale = (A.bodyWidth - 28) / (x1 - x0); // art pixels per meter; keeps the side outlines off the body
+    const stops = [[top, A.shoulderY], [vTip, A.vNeckY], [armpit, A.armpitY]];
+    const artY = (y) => {
+      if (y >= top) return A.shoulderY - (y - top) * scale;
+      if (y <= armpit) return A.armpitY + (armpit - y) * scale;
+      for (let k = 0; k < stops.length - 1; k++) {
+        const [ya, pa] = stops[k];
+        const [yb, pb] = stops[k + 1];
+        if (y <= ya && y >= yb) return pa + ((ya - y) / (ya - yb)) * (pb - pa);
+      }
+      return A.armpitY;
+    };
+    const torso = (x, y, back) => [A.centerX + (back ? -1 : 1) * (x - xc) * scale, artY(y)];
+
+    const arms = ['Left', 'Right'].map((side) => {
+      const joint = bonePos(`${side}Arm`);
+      const elbow = bonePos(`${side}ForeArm`);
+      const at = torso(joint.x, joint.y, false);
+      const cuff = A.cuffs[side.toLowerCase()];
+      const turn = Math.atan2(-(cuff[1] - at[1]), cuff[0] - at[0]) - Math.atan2(elbow.y - joint.y, elbow.x - joint.x);
+      return { joint, at, cos: Math.cos(turn), sin: Math.sin(turn) };
+    });
+
+    const out = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const x = world[i * 3];
+      const y = world[i * 3 + 1];
+      let ax;
+      let ay;
+      if (panel[i] === 2) {
+        const arm = arms[x > xc ? 0 : 1];
+        const rx = x - arm.joint.x;
+        const ry = y - arm.joint.y;
+        ax = arm.at[0] + (rx * arm.cos - ry * arm.sin) * scale;
+        ay = arm.at[1] - (rx * arm.sin + ry * arm.cos) * scale;
+      } else {
+        [ax, ay] = torso(x, y, panel[i] === 1);
+      }
+      out[i * 3] = ax / A.width;
+      out[i * 3 + 1] = ay / A.height;
+      out[i * 3 + 2] = panel[i] === 1 ? 1 : 0;
+    }
+    return out;
+  }
+
   attachHelmet(helmet) {
     this.helmet = helmet;
     this.helmetParts = {};
@@ -454,31 +588,39 @@ export class Player {
     const stripe = h.uStripe;
     this.hm = {
       shell: extend(new THREE.MeshPhysicalMaterial({ name: 'shell' }), {
-        uniforms: { ...stripe, uDecal: h.uDecal, uDecalOn: h.uDecalOn, uDecalMirror: h.uDecalMirror, uDecalCenter: h.uDecalCenter, uDecalSize: h.uDecalSize },
+        uniforms: { ...stripe, ...Object.fromEntries(Object.entries(h).filter(([k]) => k !== 'uStripe')) },
         vertexWorld: true,
         declare: `${BANDS_GLSL}
           uniform sampler2D uDecal;
           uniform float uDecalOn;
-          uniform float uDecalMirror;
-          uniform vec2 uDecalCenter;
-          uniform float uDecalSize;
-          float paintMask = 0.0;`,
+          uniform vec3 uDecalArt;
+          uniform vec2 uDecalSize;
+          uniform vec2 uShellFront;
+          uniform float uDecalFlip;
+          uniform float uDecalMetal;
+          float paintMask = 0.0;
+          float decalMask = 0.0;`,
+        // The decal art is a side view from the player's left: art x runs
+        // from the shell's front toward its back, art y down from its top.
         fragment: /* glsl */ `
           {
             bool outer = dot(normalize(vObjNormal), normalize(vObjPos)) > 0.0;
             vec3 before = diffuseColor.rgb;
             if (outer) diffuseColor.rgb = applyBands(diffuseColor.rgb, vObjPos.x);
+            paintMask = step(0.001, distance(before, diffuseColor.rgb));
             float side = sign(vObjPos.x);
             float facing = side * normalize(vObjNormal).x;
-            if (outer && uDecalOn > 0.5 && facing > 0.3) {
-              float flip = (side < 0.0 && uDecalMirror < 0.5) ? 1.0 : -1.0;
-              vec2 duv = vec2(0.5 + flip * (vObjPos.z - uDecalCenter.x) / uDecalSize, 0.5 - (vObjPos.y - uDecalCenter.y) / uDecalSize);
+            if (outer && uDecalOn > 0.5 && facing > 0.2) {
+              vec2 duv = vec2(
+                (uDecalArt.x + (uShellFront.x - vObjPos.z) * uDecalArt.z) / uDecalSize.x,
+                (uDecalArt.y + (uShellFront.y - vObjPos.y) * uDecalArt.z) / uDecalSize.y);
+              if (side < 0.0 && uDecalFlip >= 0.0) duv.x = 2.0 * uDecalFlip - duv.x;
               if (duv.x > 0.0 && duv.x < 1.0 && duv.y > 0.0 && duv.y < 1.0) {
                 vec4 d = texture2D(uDecal, duv);
-                diffuseColor.rgb = mix(diffuseColor.rgb, d.rgb, d.a * smoothstep(0.3, 0.45, facing));
+                decalMask = d.a * smoothstep(0.2, 0.4, facing);
+                diffuseColor.rgb = mix(diffuseColor.rgb, d.rgb, decalMask);
               }
             }
-            paintMask = step(0.001, distance(before, diffuseColor.rgb));
           }
         `,
       }),
@@ -490,13 +632,22 @@ export class Player {
       pads: new THREE.MeshStandardMaterial({ name: 'pads', color: '#1b1b1e', roughness: 0.9 }),
       hardware: new THREE.MeshStandardMaterial({ name: 'hardware', color: '#b8bbc1', metalness: 0.55, roughness: 0.35 }),
     };
-    // Paint on a chrome shell reads as paint, not metal.
+    // Stripes read as paint; a chrome decal reads as polished metal.
     const shell = this.hm.shell;
     const base = shell.onBeforeCompile;
     shell.onBeforeCompile = (s) => {
       base(s);
-      s.fragmentShader = s.fragmentShader.replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor *= 1.0 - paintMask;');
+      s.fragmentShader = s.fragmentShader
+        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor * (1.0 - paintMask), 1.0, decalMask * uDecalMetal);')
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.12, decalMask * uDecalMetal);');
     };
+    // Where the shell's front and top are, for placing the side-view decal.
+    const shellMesh = this.helmetParts.shell;
+    if (shellMesh) {
+      shellMesh.geometry.computeBoundingBox();
+      const box = shellMesh.geometry.boundingBox;
+      h.uShellFront.value.set(box.max.z, box.max.y);
+    }
     for (const [name, mesh] of Object.entries(this.helmetParts)) if (this.hm[name]) mesh.material = this.hm[name];
 
     // Visor: a curved lens behind the top bar of the facemask.
@@ -526,7 +677,7 @@ export class Player {
   }
 
   addProps() {
-    // Towel tucked into the front of the belt on the player's right.
+    // Towel tucked into the front of the belt on the player's left.
     const towelGeo = new THREE.PlaneGeometry(0.085, 0.22, 6, 14);
     const tp = towelGeo.attributes.position;
     for (let i = 0; i < tp.count; i++) {
@@ -539,8 +690,8 @@ export class Player {
     this.towel = new THREE.Mesh(towelGeo, new THREE.MeshStandardMaterial({ color: '#f4f4f1', roughness: 0.95, side: THREE.DoubleSide }));
     this.towel.castShadow = true;
     const waist = this.waist ?? { y: 1.05, z: 0.13 };
-    this.towel.position.set(-0.085, waist.y + 0.01, waist.z - 0.012);
-    this.towel.rotation.set(-0.12, 0.25, 0.03);
+    this.towel.position.set(0.085, waist.y + 0.01, waist.z - 0.012);
+    this.towel.rotation.set(-0.12, -0.25, -0.03);
     this.root.add(this.towel);
     this.root.updateMatrixWorld(true);
     this.bones.Hips.attach(this.towel);
@@ -581,82 +732,66 @@ export class Player {
     return min;
   }
 
-  // ---------- apply a combo ----------
+  // ---------- dress the player ----------
 
-  setDecalImage(image) {
-    this.decalImage = image;
-  }
-
-  apply(combo) {
-    const h = combo.helmet;
-    const j = combo.jersey;
-    const p = combo.pants;
+  // `look` is a resolved combo (see resolveLook in combo.js): art file names,
+  // the colors sampled from that art, and the player options.
+  apply(look) {
     const m = this.m;
     const hm = this.hm;
     const u = this.uniforms;
+    const j = look.jersey.spec;
+    const p = look.pants.spec;
+    const h = look.helmet.spec;
+    const sheen = (c) => new THREE.Color(c).lerp(new THREE.Color('#ffffff'), 0.2);
 
-    paint.paintJersey(this.canvases.jersey, combo);
-    this.textures.jersey.needsUpdate = true;
-    paint.paintDecal(this.canvases.decal, combo, h.decal === 'custom' ? this.decalImage : null);
-    this.textures.decal.needsUpdate = true;
-
-    const sheen = (c) => new THREE.Color(hex(c)).lerp(new THREE.Color('#ffffff'), 0.2);
     m.jersey.color.set('#ffffff');
     m.jersey.sheenColor.copy(sheen(j.base));
-    u.collar.uCollar.value.set(hex(j.collar));
+    u.jersey.uBase.value.set(j.base);
+    u.jersey.uCollar.value.set(j.trim);
 
-    m.pants.color.set(hex(p.base));
+    m.pants.color.set(p.base);
     m.pants.sheenColor.copy(sheen(p.base));
-    setBands(u.pants, paint.stripeBands(p.stripe, hex(p.stripeColor), hex(p.stripeTrim)));
-    m.belt.color.set(hex(p.belt));
+    setBands(u.pants, p.bands);
+    m.belt.color.set(p.base === '#000000' ? '#0b0b0c' : '#111113');
+    m.socks.color.set(look.socks);
+    m.socks.sheenColor.copy(sheen(look.socks));
+    m.cleats.color.set(look.cleats);
+    u.sole.uSole.value.set('#ebe8de');
 
-    m.socks.color.set(hex(combo.socks.base));
-    m.socks.sheenColor.copy(sheen(combo.socks.base));
-    const sockBands = combo.socks.stripe === 'single'
-      ? [{ at: 0.075, w: 0.03 }]
-      : combo.socks.stripe === 'double' ? [{ at: 0.062, w: 0.015 }, { at: 0.092, w: 0.015 }] : [];
-    setBands(u.socks, sockBands.map((b) => ({ ...b, color: hex(combo.socks.stripeColor) })));
-
-    m.cleats.color.set(hex(combo.cleats.base));
-    u.sole.uSole.value.set(hex(combo.cleats.sole));
-
-    const skin = SKIN_TONES[combo.extras.skin] ?? SKIN_TONES[2];
+    const skin = SKIN_TONES[look.skin] ?? SKIN_TONES[2];
     m.skin.color.set(skin);
     m.skin.sheenColor.set(skin);
-    u.glove.uGlove.value.set(hex(combo.extras.gloves));
-    u.glove.uGloveOn.value = combo.extras.gloves === 'none' ? 0 : 1;
-    m.tape.color.set(hex(combo.extras.tape));
-    // The body has no forearm under the sleeve, so "none" dresses it as skin.
-    const sleeve = combo.extras.armSleeves;
-    if (this.parts.armSleeve) this.parts.armSleeve.material = sleeve === 'none' ? m.skin : m.armSleeve;
-    if (sleeve !== 'none') m.armSleeve.color.set(hex(sleeve));
-    this.towel.visible = combo.extras.towel;
+    u.glove.uGlove.value.set(look.gloves ?? '#000000');
+    u.glove.uGloveOn.value = look.gloves ? 1 : 0;
+    if (this.parts.armSleeve) this.parts.armSleeve.material = m.skin; // no forearm under the sleeve mesh
 
     // Helmet.
     const finish = {
       gloss: { metalness: 0, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03 },
-      satin: { metalness: 0.15, roughness: 0.42, clearcoat: 0.45, clearcoatRoughness: 0.3 },
-      matte: { metalness: 0, roughness: 0.75, clearcoat: 0, clearcoatRoughness: 1 },
-      chrome: { metalness: 1, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02 },
+      satin: { metalness: 0.1, roughness: 0.45, clearcoat: 0.45, clearcoatRoughness: 0.3 },
+      matte: { metalness: 0, roughness: 0.78, clearcoat: 0, clearcoatRoughness: 1 },
     }[h.finish] ?? {};
     Object.assign(hm.shell, finish);
-    hm.shell.color.set(hex(h.shell));
-    // Stripe widths are authored in meters; the shell shader works in helmet units.
+    hm.shell.color.set(h.shell);
+    // Stripe widths are in meters; the shell shader works in helmet units.
     const w = this.helmetWidth || 0.25;
-    setBands(u.shell.uStripe, paint.stripeBands(h.stripe, hex(h.stripeColor), hex(h.stripeTrim)).map((b) => ({ ...b, at: b.at / w, w: b.w / w })));
-    u.shell.uDecalOn.value = h.decal === 'none' || (h.decal === 'custom' && !this.decalImage) ? 0 : 1;
-    u.shell.uDecalMirror.value = h.decal === 'custom' ? 1 : 0;
-    hm.mask.color.set(hex(h.mask));
-    hm.strap.color.set(hex(h.strap));
-    hm.cup.color.set(hex(h.strap));
-    hm.bumper.color.set(hex(h.bumper));
+    setBands(u.shell.uStripe, h.stripe.map((b) => ({ ...b, at: b.at / w, w: b.w / w })));
+    u.shell.uDecalArt.value.set(h.decalArt.frontX, h.decalArt.topY, h.decalArt.pxPerUnit);
+    u.shell.uDecalSize.value.set(h.decalArt.width, h.decalArt.height);
+    u.shell.uDecalMetal.value = h.decalMetal;
+    hm.mask.color.set(look.facemask);
+    const strap = look.facemask === '#000000' ? '#111113' : '#f2f2f0';
+    hm.strap.color.set(strap);
+    hm.cup.color.set(strap);
+    hm.bumper.color.set('#111113');
 
     const visor = {
       none: null,
       clear: { color: '#ffffff', opacity: 0.14, metalness: 0, iridescence: 0, clearcoat: 1 },
       smoke: { color: '#0d0d10', opacity: 0.85, metalness: 0.3, iridescence: 0, clearcoat: 1 },
       iridescent: { color: '#16161c', opacity: 0.88, metalness: 0.6, iridescence: 1, iridescenceIOR: 1.8, iridescenceThicknessRange: [250, 900], clearcoat: 1 },
-    }[h.visor];
+    }[look.visor];
     this.visor.visible = Boolean(visor);
     if (visor) {
       const { color, ...rest } = visor;
@@ -664,6 +799,34 @@ export class Player {
       this.visorMat.color.set(color);
       this.visorMat.needsUpdate = true;
     }
+
+    return this.paintArt(look);
+  }
+
+  // Draws the art for this look into the jersey, logo and decal canvases.
+  // Images load once; a newer look that lands first wins.
+  async paintArt(look) {
+    const token = (this.artToken = (this.artToken ?? 0) + 1);
+    const url = (file) => `assets/uni/${file}.webp`;
+    const [jersey, logos, decal] = await Promise.all([
+      loadImage(url(look.jersey.file)),
+      loadImage(url(look.pants.spec.logos)),
+      loadImage(url(look.helmet.spec.decal)),
+    ]);
+    if (token !== this.artToken) return;
+    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec);
+    paint.paintJerseyBack(this.canvases.back, jersey, look.jersey.spec, look.name);
+    const lc = this.canvases.logos.getContext('2d');
+    lc.clearRect(0, 0, this.canvases.logos.width, this.canvases.logos.height);
+    lc.drawImage(logos, 0, 0, this.canvases.logos.width, this.canvases.logos.height);
+    const dc = this.canvases.decal.getContext('2d');
+    dc.clearRect(0, 0, 752, 762);
+    dc.drawImage(decal, 0, 0, 752, 762);
+    // A script must read forward on the far side too: flip it about its own center.
+    const sh = this.uniforms.shell;
+    sh.uDecalFlip.value = look.helmet.spec.mirror ? -1 : paint.alphaCenterX(this.canvases.decal) / 752;
+    sh.uDecalOn.value = 1;
+    for (const k of ['front', 'back', 'logos', 'decal']) this.textures[k].needsUpdate = true;
   }
 
   // ---------- poses ----------

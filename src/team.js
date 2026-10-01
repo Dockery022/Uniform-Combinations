@@ -1,207 +1,112 @@
-// Team data for the Combo Builder.
+// Team data for the Combo Builder, matching the Louisville Combo Builder design.
 //
-// This is the one file to edit when matching the builder to a new design:
-// swap the hex values in COLORS, the pieces in LOCKER, and the PRESETS.
-// Every color slot in a combo stores either a COLORS key ("red") or a raw
-// hex string ("#aa1122") picked with the custom swatch.
+// LIB lists every piece in the equipment room the way the design does:
+// [id, color group, tag, art file]. The art lives in assets/uni/ and the 3D
+// colors sampled from it in src/uniform-art.js (both made by
+// tools/prepare-uniforms.py). To add a piece, add its art, rerun the tool and
+// add a row here.
 
-export const TEAM = {
-  school: 'Louisville',
-  nickname: 'Cardinals',
-  script: 'Cards',
-  wordmark: 'LOUISVILLE',
-  defaultName: 'CARDINALS',
+// UofL Athletics brand palette (Brand Guidelines, Jan 2023). Beak yellow is
+// reserved for the primary mark, so it isn't offered anywhere.
+export const BRAND = {
+  red: '#C9001F', // Cardinal Red, PMS 200
+  black: '#000000',
+  white: '#FFFFFF',
+  silver: '#8A8D8F', // Metallic Silver, PMS 877
 };
 
-export const COLORS = {
-  red: { name: 'Red', hex: '#C8102E' },
-  black: { name: 'Black', hex: '#141416' },
-  white: { name: 'White', hex: '#F2F2EF' },
-  gray: { name: 'Gray', hex: '#7A7B80' },
-  chrome: { name: 'Silver', hex: '#C4C7CC' },
-  gold: { name: 'Gold', hex: '#F2B93B' },
-  cream: { name: 'Cream', hex: '#E9DFC8' },
+// Swatch colors for the color groups in the panel.
+export const GROUP_HEX = { Red: BRAND.red, White: BRAND.white, Black: BRAND.black, Gray: BRAND.silver };
+
+export const LIB = {
+  helmet: [
+    ['Red', 'Red', 'Louie', 'helmet-red'],
+    ['White', 'White', 'Cardinal head', 'helmet-white'],
+    ['White Louie', 'White', 'Louie', 'helmet-white-louie'],
+    ['Black', 'Black', 'Louie', 'helmet-black'],
+    ['White 20', 'White', 'Cardinal head · 2020', 'helmet-white-20'],
+    ['Red 20', 'Red', '2020', 'helmet-red-20'],
+    ['Black 20', 'Black', '2020', 'helmet-black-20'],
+    ['White Alt 20', 'White', 'Ali', 'helmet-whitealt-20'],
+    ['Black Script', 'Black', 'Cards script', 'helmet-script'],
+    ['Red Script', 'Red', 'Cards script', 'helmet-redscript'],
+    ['White Stripe', 'White', 'Stripe · cardinal head', 'helmet-whitestripe'],
+    ['Halloween 26', 'Black', 'Halloween · 2026', 'helmet-halloween'],
+    ['Red Gold', 'Red', 'Gold', 'helmet-redgold'],
+    ['Black Chrome', 'Black', 'Chrome', 'helmet-blackchrome'],
+    ['Black Matte', 'Black', 'Matte', 'helmet-blackmatte'],
+    ['Black Stripe', 'Black', 'Louie · stripe', 'helmet-blackstripe'],
+    ['Black 23', 'Black', 'Gray · 2023', 'helmet-black23'],
+    ['Black Matte Chrome', 'Black', 'Matte · chrome', 'helmet-blackmattechrome'],
+  ],
+  jersey: [
+    ['Red', 'Red', '2026', 'jersey-red'],
+    ['White', 'White', '2026', 'jersey-white'],
+    ['Black', 'Black', '2026', 'jersey-black'],
+    ['Red 24', 'Red', '2024', 'jersey-red-wing'],
+    ['White 24', 'White', '2024', 'jersey-white-wing'],
+    ['Black 24', 'Black', '2024', 'jersey-black-wing'],
+    ['Red 20', 'Red', '2020', 'jersey-red-20'],
+    ['White 20', 'White', '2020', 'jersey-white-20'],
+    ['Black 20', 'Black', '2020', 'jersey-black-20'],
+    ['White Alt 20', 'White', 'Ali', 'jersey-whitealt-20'],
+    ['Halloween 26', 'Black', 'Halloween · 2026', 'jersey-halloween'],
+    ['Iron Wings', 'Gray', 'Iron Wings', 'jersey-ironwings'],
+    ['Red Gold', 'Red', 'Gold', 'jersey-redgold'],
+    ['Black 23', 'Black', 'Gray · 2023', 'jersey-black-23'],
+  ],
+  pants: [
+    ['Red', 'Red', '2026', 'pants-red'],
+    ['White', 'White', '2026', 'pants-white'],
+    ['Black', 'Black', '2026', 'pants-black'],
+    ['Red 24', 'Red', '2024', 'pants-red-script'],
+    ['White 24', 'White', '2024', 'pants-white-script'],
+    ['Black 24', 'Black', '2024', 'pants-black-script'],
+    ['Red 20', 'Red', '2020', 'pants-red-20'],
+    ['White 20', 'White', '2020', 'pants-white-20'],
+    ['Black 20', 'Black', '2020', 'pants-black-20'],
+    ['White Alt 20', 'White', 'Ali', 'pants-whitealt-20'],
+    ['Halloween 26', 'Black', 'Halloween · 2026', 'pants-halloween'],
+    ['Iron Wings', 'Gray', 'Iron Wings', 'pants-ironwings'],
+    ['Red Gold', 'Red', 'Gold', 'pants-redgold'],
+    ['Black 23', 'Black', 'Gray · 2023', 'pants-black-23'],
+  ],
+  socks: [
+    ['Match', 'Match', 'Pants socks', null],
+    ['Red', 'Red', 'Socks', 'socks-red'],
+    ['White', 'White', 'Socks', 'socks-white'],
+    ['Black', 'Black', 'Socks', 'socks-black'],
+    ['Gray', 'Gray', 'Socks', 'socks-gray'],
+  ],
+  shoes: [
+    ['None', 'None', 'No shoes', null],
+    ['Black', 'Black', 'Cleats', 'shoes-black'],
+    ['White', 'White', 'Cleats', 'shoes-white'],
+    ['Red', 'Red', 'Cleats', 'shoes-red'],
+    ['Gray', 'Gray', 'Cleats', 'shoes-gray'],
+  ],
 };
 
-// Swatches offered for each kind of part, in display order.
-export const SWATCHES = {
-  shell: ['red', 'black', 'white', 'gray', 'chrome'],
-  fabric: ['red', 'black', 'white', 'gray', 'cream'],
-  trim: ['red', 'black', 'white', 'gray', 'gold'],
-  hardware: ['black', 'white', 'red', 'gray', 'chrome'],
+// The facemask each helmet comes with; anything not listed wears red.
+export const MASK_DEF = {
+  'Black': 'Black', 'Black 20': 'Black', 'White Alt 20': 'Black', 'Red 20': 'White', 'Black Script': 'Red',
+  'Red Script': 'White', 'White Stripe': 'Red', 'Halloween 26': 'Black', 'Red Gold': 'Black',
+  'Black Chrome': 'Black', 'Black Matte': 'Black', 'Black Stripe': 'Black', 'Black 23': 'Black',
+  'Black Matte Chrome': 'Black',
 };
 
+export const FACEMASKS = [['Red', BRAND.red], ['White', BRAND.white], ['Black', BRAND.black]];
+
+// Extras for the 3D player that the flat graphic doesn't show.
+export const GLOVES = [['Black', '#111113'], ['White', '#f2f2f0'], ['Red', BRAND.red], ['None', null]];
+export const VISORS = [['none', 'None'], ['clear', 'Clear'], ['smoke', 'Smoke'], ['iridescent', 'Iridescent']];
 export const SKIN_TONES = ['#F1C8A8', '#DDA982', '#BC8259', '#93603F', '#6C412A', '#45291B'];
 
-// The pieces the equipment room actually stocks. The builder counts
-// helmets x jerseys x pants to show how many base combos are possible,
-// and flags a combo that uses a piece outside this list as custom.
-// Helmet keys are "<shell>" for gloss, or "<finish>-<shell>" otherwise.
-export const LOCKER = {
-  helmets: ['red', 'black', 'white', 'chrome-red'],
-  jerseys: ['red', 'black', 'white'],
-  pants: ['red', 'black', 'white'],
+// Everything a saved combo holds: the uniform, the game, and the 3D extras.
+export const DEFAULT_STATE = {
+  helmet: 'Red', facemask: 'Red', jersey: 'White', pants: 'White', socks: 'Match', shoes: 'Black',
+  helmetNote: 'Heisman Louie',
+  site: 'vs', opponent: 'NC State', date: 'Sat · Oct 3', kickoff: '3:30 PM', network: 'ACCN',
+  venue: 'Carter-Finley Stadium', showCrest: true,
+  name: '', gloves: 'Black', visor: 'smoke', skin: 3,
 };
-
-export const OPTIONS = {
-  finish: [
-    { value: 'gloss', label: 'Gloss' },
-    { value: 'satin', label: 'Satin' },
-    { value: 'matte', label: 'Matte' },
-    { value: 'chrome', label: 'Chrome' },
-  ],
-  helmetStripe: [
-    { value: 'none', label: 'None' },
-    { value: 'single', label: 'Single' },
-    { value: 'double', label: 'Double' },
-    { value: 'tri', label: 'Tri' },
-  ],
-  decal: [
-    { value: 'letter', label: 'Letter' },
-    { value: 'script', label: 'Script' },
-    { value: 'number', label: 'Number' },
-    { value: 'custom', label: 'Upload' },
-    { value: 'none', label: 'None' },
-  ],
-  visor: [
-    { value: 'none', label: 'None' },
-    { value: 'clear', label: 'Clear' },
-    { value: 'smoke', label: 'Smoke' },
-    { value: 'iridescent', label: 'Iridescent' },
-  ],
-  numberFont: [
-    { value: 'block', label: 'Block' },
-    { value: 'modern', label: 'Modern' },
-  ],
-  numberTrim: [
-    { value: 'none', label: 'None' },
-    { value: 'single', label: 'Single' },
-    { value: 'double', label: 'Double' },
-  ],
-  sleeveStripe: [
-    { value: 'none', label: 'None' },
-    { value: 'single', label: 'Single' },
-    { value: 'double', label: 'Double' },
-    { value: 'triple', label: 'Triple' },
-  ],
-  chest: [
-    { value: 'wordmark', label: 'Wordmark' },
-    { value: 'none', label: 'None' },
-  ],
-  pantsStripe: [
-    { value: 'none', label: 'None' },
-    { value: 'single', label: 'Single' },
-    { value: 'double', label: 'Double' },
-    { value: 'tri', label: 'Tri' },
-  ],
-  sockStripe: [
-    { value: 'none', label: 'None' },
-    { value: 'single', label: 'Single' },
-    { value: 'double', label: 'Double' },
-  ],
-  armSleeves: [
-    { value: 'none', label: 'None' },
-    { value: 'black', label: 'Black' },
-    { value: 'white', label: 'White' },
-    { value: 'red', label: 'Red' },
-  ],
-};
-
-export const DEFAULT_COMBO = {
-  helmet: {
-    shell: 'red', finish: 'gloss',
-    stripe: 'single', stripeColor: 'black', stripeTrim: 'white',
-    decal: 'letter', decalColor: 'white', decalTrim: 'black',
-    mask: 'black', strap: 'white', bumper: 'black', visor: 'smoke',
-  },
-  jersey: {
-    base: 'black', number: '7', numberFont: 'block',
-    numberFill: 'white', numberTrim: 'single', trimColor: 'red', trimColor2: 'black',
-    sleeveStripe: 'double', stripeColor: 'red', stripeColor2: 'white',
-    tvNumbers: true, collar: 'red', chest: 'wordmark', name: TEAM.defaultName,
-  },
-  pants: { base: 'red', stripe: 'single', stripeColor: 'black', stripeTrim: 'white', belt: 'black' },
-  socks: { base: 'black', stripe: 'single', stripeColor: 'red' },
-  cleats: { base: 'black', sole: 'white' },
-  extras: { gloves: 'black', tape: 'white', armSleeves: 'none', towel: true, skin: 3 },
-};
-
-// Starter combos. Each is merged over DEFAULT_COMBO, so a preset only
-// lists what it changes. Replace these with the combos from the design file.
-export const PRESETS = [
-  {
-    id: 'home', name: 'Home Red',
-    combo: {
-      helmet: { shell: 'red', stripe: 'single', stripeColor: 'black', decalColor: 'white', mask: 'black' },
-      jersey: { base: 'red', numberFill: 'white', numberTrim: 'single', trimColor: 'black', stripeColor: 'black', stripeColor2: 'white', collar: 'black' },
-      pants: { base: 'white', stripe: 'single', stripeColor: 'red', stripeTrim: 'black' },
-      socks: { base: 'red', stripe: 'none' },
-    },
-  },
-  {
-    id: 'road', name: 'Road White',
-    combo: {
-      helmet: { shell: 'red', stripe: 'single', stripeColor: 'black', mask: 'black' },
-      jersey: { base: 'white', numberFill: 'red', numberTrim: 'single', trimColor: 'black', stripeColor: 'red', stripeColor2: 'black', collar: 'red' },
-      pants: { base: 'red', stripe: 'single', stripeColor: 'white', stripeTrim: 'black' },
-      socks: { base: 'white', stripe: 'single', stripeColor: 'red' },
-      cleats: { base: 'white', sole: 'white' },
-      extras: { gloves: 'white' },
-    },
-  },
-  {
-    id: 'mix', name: 'Red Black Red',
-    combo: {},
-  },
-  {
-    id: 'blackout', name: 'Blackout',
-    combo: {
-      helmet: { shell: 'black', finish: 'matte', stripe: 'single', stripeColor: 'red', decalColor: 'red', decalTrim: 'black', mask: 'black' },
-      jersey: { base: 'black', numberFill: 'red', numberTrim: 'single', trimColor: 'white', stripeColor: 'red', stripeColor2: 'black', collar: 'red' },
-      pants: { base: 'black', stripe: 'single', stripeColor: 'red', stripeTrim: 'black' },
-      socks: { base: 'black', stripe: 'none' },
-    },
-  },
-  {
-    id: 'whiteout', name: 'Whiteout',
-    combo: {
-      helmet: { shell: 'white', stripe: 'double', stripeColor: 'red', stripeTrim: 'black', decalColor: 'red', decalTrim: 'black', mask: 'white', bumper: 'white', visor: 'clear' },
-      jersey: { base: 'white', numberFill: 'black', numberTrim: 'single', trimColor: 'red', stripeColor: 'red', stripeColor2: 'black', collar: 'black' },
-      pants: { base: 'white', stripe: 'double', stripeColor: 'red', stripeTrim: 'black' },
-      socks: { base: 'white', stripe: 'double', stripeColor: 'red' },
-      cleats: { base: 'white', sole: 'white' },
-      extras: { gloves: 'white' },
-    },
-  },
-  {
-    id: 'redout', name: 'Red Out',
-    combo: {
-      helmet: { shell: 'red', finish: 'matte', stripe: 'none', decalColor: 'black', decalTrim: 'white', mask: 'red', bumper: 'red', strap: 'black', visor: 'iridescent' },
-      jersey: { base: 'red', numberFill: 'black', numberTrim: 'single', trimColor: 'white', stripeColor: 'black', stripeColor2: 'white', collar: 'black' },
-      pants: { base: 'red', stripe: 'none' },
-      socks: { base: 'red', stripe: 'none' },
-      cleats: { base: 'red', sole: 'black' },
-      extras: { gloves: 'red', armSleeves: 'black' },
-    },
-  },
-  {
-    id: 'chrome', name: 'Chrome Night',
-    combo: {
-      helmet: { shell: 'red', finish: 'chrome', stripe: 'none', decalColor: 'black', decalTrim: 'white', mask: 'black' },
-      jersey: { base: 'black', numberFill: 'white', numberTrim: 'double', trimColor: 'red', trimColor2: 'gray', stripeColor: 'red', stripeColor2: 'gray', collar: 'red', numberFont: 'modern' },
-      pants: { base: 'black', stripe: 'tri', stripeColor: 'red', stripeTrim: 'gray' },
-      socks: { base: 'black', stripe: 'none' },
-    },
-  },
-  {
-    id: 'throwback', name: 'Throwback',
-    combo: {
-      helmet: { shell: 'white', stripe: 'tri', stripeColor: 'red', stripeTrim: 'black', decal: 'number', decalColor: 'red', decalTrim: 'black', mask: 'gray', bumper: 'gray', visor: 'none' },
-      jersey: { base: 'red', numberFill: 'white', numberTrim: 'none', stripeColor: 'white', stripeColor2: 'white', sleeveStripe: 'triple', collar: 'white', chest: 'none' },
-      pants: { base: 'cream', stripe: 'tri', stripeColor: 'red', stripeTrim: 'black', belt: 'black' },
-      socks: { base: 'red', stripe: 'double', stripeColor: 'white' },
-      cleats: { base: 'black', sole: 'black' },
-      extras: { gloves: 'white', towel: false },
-    },
-  },
-];

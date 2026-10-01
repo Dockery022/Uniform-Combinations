@@ -1,90 +1,20 @@
-// Control panel: tabs of fields generated from a schema, preset cards, and
-// the combo readout. Every control writes into the combo and calls onChange.
-import { COLORS, DEFAULT_COMBO, OPTIONS, PRESETS, SKIN_TONES, SWATCHES } from './team.js';
-import { colorName, comboNames, hex, lockerStatus, mergeCombo, sanitizeName, sanitizeNumber } from './combo.js';
+// The control panel, laid out like the Combo Builder design: The Uniform
+// (piece tabs with art, facemask, options grouped by color, helmet callout),
+// The Game, and Saved Combos. Every control writes into the state and calls
+// onChange; the panel re-renders the parts that depend on it.
+import { FACEMASKS, GLOVES, GROUP_HEX, LIB, MASK_DEF, SKIN_TONES, VISORS } from './team.js';
+import { artUrl, pieceName, sanitizeName } from './combo.js';
 
-const color = (label, path, swatches, when) => ({ type: 'color', label, path, swatches, when });
-const choice = (label, path, options, when) => ({ type: 'choice', label, path, options, when });
+const TABS = [['helmet', 'Helmet'], ['jersey', 'Jersey'], ['pants', 'Pants'], ['socks', 'Accessories']];
+const GAME_FIELDS = [['date', 'Date'], ['kickoff', 'Kickoff'], ['network', 'Network'], ['venue', 'Venue']];
 
-export const TABS = [
-  {
-    id: 'helmet', label: 'Helmet',
-    fields: [
-      color('Shell', 'helmet.shell', SWATCHES.shell),
-      choice('Finish', 'helmet.finish', OPTIONS.finish),
-      choice('Center stripe', 'helmet.stripe', OPTIONS.helmetStripe),
-      color('Stripe', 'helmet.stripeColor', SWATCHES.trim, (c) => c.helmet.stripe !== 'none'),
-      color('Stripe edge', 'helmet.stripeTrim', SWATCHES.trim, (c) => c.helmet.stripe === 'tri'),
-      choice('Side decal', 'helmet.decal', OPTIONS.decal),
-      { type: 'file', label: 'Decal artwork', path: 'helmet.decalImage', when: (c) => c.helmet.decal === 'custom' },
-      color('Decal fill', 'helmet.decalColor', SWATCHES.trim, (c) => !['none', 'custom'].includes(c.helmet.decal)),
-      color('Decal outline', 'helmet.decalTrim', SWATCHES.trim, (c) => !['none', 'custom'].includes(c.helmet.decal)),
-      color('Facemask', 'helmet.mask', SWATCHES.hardware),
-      color('Chin strap', 'helmet.strap', SWATCHES.hardware),
-      color('Bumpers', 'helmet.bumper', SWATCHES.hardware),
-      choice('Visor', 'helmet.visor', OPTIONS.visor),
-    ],
-  },
-  {
-    id: 'jersey', label: 'Jersey',
-    fields: [
-      color('Body', 'jersey.base', SWATCHES.fabric),
-      { type: 'text', label: 'Number', path: 'jersey.number', inputmode: 'numeric', maxlength: 2, clean: sanitizeNumber },
-      { type: 'text', label: 'Name on back', path: 'jersey.name', maxlength: 14, clean: sanitizeName },
-      choice('Number font', 'jersey.numberFont', OPTIONS.numberFont),
-      color('Number fill', 'jersey.numberFill', SWATCHES.trim),
-      choice('Number outline', 'jersey.numberTrim', OPTIONS.numberTrim),
-      color('Outline', 'jersey.trimColor', SWATCHES.trim, (c) => c.jersey.numberTrim !== 'none'),
-      color('Outer outline', 'jersey.trimColor2', SWATCHES.trim, (c) => c.jersey.numberTrim === 'double'),
-      choice('Sleeve stripes', 'jersey.sleeveStripe', OPTIONS.sleeveStripe),
-      color('Stripe', 'jersey.stripeColor', SWATCHES.trim, (c) => c.jersey.sleeveStripe !== 'none'),
-      color('Center stripe', 'jersey.stripeColor2', SWATCHES.trim, (c) => c.jersey.sleeveStripe === 'triple'),
-      { type: 'toggle', label: 'Sleeve numbers', path: 'jersey.tvNumbers' },
-      choice('Chest', 'jersey.chest', OPTIONS.chest),
-      color('Collar', 'jersey.collar', SWATCHES.trim),
-    ],
-  },
-  {
-    id: 'pants', label: 'Pants',
-    fields: [
-      color('Pants', 'pants.base', SWATCHES.fabric),
-      choice('Side stripe', 'pants.stripe', OPTIONS.pantsStripe),
-      color('Stripe', 'pants.stripeColor', SWATCHES.trim, (c) => c.pants.stripe !== 'none'),
-      color('Stripe edge', 'pants.stripeTrim', SWATCHES.trim, (c) => c.pants.stripe === 'tri'),
-      color('Belt', 'pants.belt', SWATCHES.hardware),
-    ],
-  },
-  {
-    id: 'feet', label: 'Socks & cleats',
-    fields: [
-      color('Socks', 'socks.base', SWATCHES.fabric),
-      choice('Sock stripes', 'socks.stripe', OPTIONS.sockStripe),
-      color('Stripe', 'socks.stripeColor', SWATCHES.trim, (c) => c.socks.stripe !== 'none'),
-      color('Cleats', 'cleats.base', SWATCHES.hardware),
-      color('Soles', 'cleats.sole', SWATCHES.hardware),
-    ],
-  },
-  {
-    id: 'player', label: 'Player',
-    fields: [
-      color('Gloves', 'extras.gloves', SWATCHES.trim),
-      color('Wrist tape', 'extras.tape', SWATCHES.hardware),
-      choice('Arm sleeve', 'extras.armSleeves', OPTIONS.armSleeves),
-      { type: 'toggle', label: 'Towel', path: 'extras.towel' },
-      { type: 'skin', label: 'Skin tone', path: 'extras.skin' },
-    ],
-  },
-];
-
-const get = (obj, path) => path.split('.').reduce((o, k) => o?.[k], obj);
-const set = (obj, path, value) => {
-  const keys = path.split('.');
-  const last = keys.pop();
-  keys.reduce((o, k) => o[k], obj)[last] = value;
+// How each kind of art sits in its tile.
+const FIT = {
+  helmet: 'contain', jersey: 'contain', pants: 'contain', shoes: 'contain',
+  socks: 'auto 300%', // the bottom third of the pants art is the socks
 };
-const idFor = (path, suffix = '') => `f-${path.replace(/\./g, '-')}${suffix}`;
 
-function el(tag, attrs = {}, children = []) {
+export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v === undefined || v === null || v === false) continue;
@@ -98,180 +28,185 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+const art = (url, kind, label) => el('span', {
+  class: 'art', role: 'img', 'aria-label': label,
+  style: url ? `background-image:url("${url}");background-size:${FIT[kind]};background-position:${kind === 'socks' ? 'center bottom' : 'center'}` : '',
+});
+
 export class Panel {
-  constructor({ getCombo, onChange, onPreset, onDecalFile }) {
-    this.getCombo = getCombo;
+  constructor({ getState, onChange, onSave, onLoad, onRemove }) {
+    this.getState = getState;
     this.onChange = onChange;
-    this.onPreset = onPreset;
-    this.onDecalFile = onDecalFile;
+    this.onSave = onSave;
+    this.onLoad = onLoad;
+    this.onRemove = onRemove;
     this.tab = 'helmet';
-    this.tabsEl = document.getElementById('tabs');
-    this.fieldsEl = document.getElementById('fields');
-    this.presetsEl = document.getElementById('presets');
+    this.$ = (id) => document.getElementById(id);
+    this.bindGame();
+    this.$('save').addEventListener('click', () => this.onSave());
+    this.$('note').addEventListener('input', (e) => this.set({ helmetNote: e.target.value.slice(0, 60) }, false));
+    this.render();
+  }
+
+  set(patch, rerender = true) {
+    Object.assign(this.getState(), patch);
+    this.onChange(this.getState());
+    if (rerender) this.render();
+  }
+
+  render() {
     this.renderTabs();
-    this.renderPresets();
-    this.renderFields();
+    this.renderMasks();
+    this.renderGroups();
+    this.syncInputs();
   }
 
   renderTabs() {
-    this.tabsEl.replaceChildren(...TABS.map((t) => el('button', {
-      class: 'tab', role: 'tab', id: `tab-${t.id}`, 'aria-selected': String(t.id === this.tab),
-      'aria-controls': 'fields', tabindex: t.id === this.tab ? '0' : '-1', text: t.label,
-      onclick: () => this.selectTab(t.id),
-      onkeydown: (e) => {
-        const i = TABS.findIndex((x) => x.id === this.tab);
-        const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-        if (!step) return;
-        e.preventDefault();
-        this.selectTab(TABS[(i + step + TABS.length) % TABS.length].id);
-        document.getElementById(`tab-${this.tab}`)?.focus();
-      },
-    })));
-  }
-
-  selectTab(id) {
-    this.tab = id;
-    this.renderTabs();
-    this.renderFields();
-  }
-
-  renderPresets() {
-    const cards = PRESETS.map((p) => {
-      const combo = mergeCombo(DEFAULT_COMBO, p.combo);
-      const names = comboNames(combo);
+    const s = this.getState();
+    const buttons = TABS.map(([kind, label]) => {
+      let sel = pieceName(kind, s[kind]);
+      if (kind === 'socks') {
+        sel = (s.socks === 'Match' ? 'Socks · match' : `${s.socks} socks`) + (s.shoes !== 'None' ? ` · ${s.shoes} cleats` : '');
+      }
       return el('button', {
-        class: 'preset', id: `preset-${p.id}`, onclick: () => this.onPreset(p.id),
-        'aria-label': `${p.name}: ${names.helmet} helmet, ${names.jersey} jersey, ${names.pants} pants`,
+        type: 'button', class: 'piece-tab', role: 'tab', id: `tab-${kind}`, 'aria-selected': String(this.tab === kind),
+        'aria-controls': 'groups', tabindex: this.tab === kind ? '0' : '-1',
+        onclick: () => { this.tab = kind; this.render(); },
+        onkeydown: (e) => {
+          const i = TABS.findIndex(([k]) => k === this.tab);
+          const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+          if (!step) return;
+          e.preventDefault();
+          this.tab = TABS[(i + step + TABS.length) % TABS.length][0];
+          this.render();
+          this.$(`tab-${this.tab}`)?.focus();
+        },
       }, [
-        el('span', { class: 'preset-chips', 'aria-hidden': 'true' }, [
-          el('i', { class: `chip-dot${combo.helmet.finish === 'chrome' ? ' is-chrome' : ''}`, style: `--c:${hex(combo.helmet.shell)}` }),
-          el('i', { class: 'chip-dot', style: `--c:${hex(combo.jersey.base)}` }),
-          el('i', { class: 'chip-dot', style: `--c:${hex(combo.pants.base)}` }),
-        ]),
-        el('span', { class: 'preset-name', text: p.name }),
-        el('span', { class: 'preset-hjp', text: `${names.helmet} · ${names.jersey} · ${names.pants}` }),
+        art(artUrl(kind, s[kind], s), kind, sel),
+        el('span', { class: 'piece-label', text: label }),
+        el('span', { class: 'piece-sel', text: sel }),
       ]);
     });
-    this.presetsEl.replaceChildren(...cards);
+    this.$('piece-tabs').replaceChildren(...buttons);
   }
 
-  renderFields() {
-    const combo = this.getCombo();
-    const tab = TABS.find((t) => t.id === this.tab);
-    const focusedId = document.activeElement?.id;
-    const nodes = tab.fields.filter((f) => !f.when || f.when(combo)).map((f) => this.field(f, combo));
-    this.fieldsEl.setAttribute('aria-labelledby', `tab-${tab.id}`);
-    this.fieldsEl.replaceChildren(...nodes);
-    if (focusedId) document.getElementById(focusedId)?.focus({ preventScroll: true });
-  }
-
-  commit(path, value, rerender = true) {
-    const combo = this.getCombo();
-    set(combo, path, value);
-    this.onChange(combo);
-    if (rerender) this.renderFields();
-  }
-
-  field(f, combo) {
-    const value = get(combo, f.path);
-    const labelId = idFor(f.path, '-label');
-    const wrap = (control, extra) => el('div', { class: 'field' }, [
-      el('div', { class: 'field-label', id: labelId }, [el('span', { text: f.label }), extra && el('span', { class: 'field-value', text: extra })]),
-      control,
-    ]);
-
-    if (f.type === 'color') {
-      const isCustom = !COLORS[value];
-      const swatches = f.swatches.map((key) => el('button', {
-        class: 'swatch', role: 'radio', id: idFor(f.path, `-${key}`), 'aria-checked': String(value === key),
-        'aria-label': COLORS[key].name, title: COLORS[key].name, style: `--sw:${COLORS[key].hex}`,
-        onclick: () => this.commit(f.path, key),
-      }));
-      const picker = el('input', {
-        type: 'color', id: idFor(f.path, '-custom'), value: hex(value), 'aria-label': `${f.label}: custom color`,
-        oninput: (e) => this.commit(f.path, e.target.value, false),
-        onchange: () => this.renderFields(),
-      });
-      const custom = el('label', {
-        class: `swatch swatch-custom${isCustom ? ' is-selected' : ''}`, title: 'Custom color',
-        style: isCustom ? `--sw:${hex(value)}` : '',
-      }, [picker]);
-      return wrap(el('div', { class: 'swatches', role: 'radiogroup', 'aria-labelledby': labelId }, [...swatches, custom]), colorName(value));
-    }
-
-    if (f.type === 'choice') {
-      const buttons = f.options.map((o) => el('button', {
-        class: 'opt', role: 'radio', id: idFor(f.path, `-${o.value}`), 'aria-checked': String(value === o.value), text: o.label,
-        onclick: () => this.commit(f.path, o.value),
-      }));
-      return wrap(el('div', { class: 'opts', role: 'radiogroup', 'aria-labelledby': labelId }, buttons));
-    }
-
-    if (f.type === 'text') {
-      const input = el('input', {
-        class: 'text-input', id: idFor(f.path), type: 'text', value, maxlength: f.maxlength, inputmode: f.inputmode,
-        autocomplete: 'off', spellcheck: 'false', 'aria-labelledby': labelId,
-        oninput: (e) => {
-          const clean = f.clean(e.target.value);
-          if (f.path === 'jersey.number' && e.target.value === '') return;
-          this.commit(f.path, clean, false);
-        },
-        onblur: (e) => { e.target.value = get(this.getCombo(), f.path); },
-      });
-      return wrap(input);
-    }
-
-    if (f.type === 'toggle') {
-      const input = el('input', {
-        type: 'checkbox', id: idFor(f.path), class: 'toggle-input', checked: value,
-        onchange: (e) => this.commit(f.path, e.target.checked),
-      });
-      return el('label', { class: 'field field-toggle', for: idFor(f.path) }, [
-        el('span', { class: 'field-label', text: f.label }), input, el('span', { class: 'toggle', 'aria-hidden': 'true' }),
-      ]);
-    }
-
-    if (f.type === 'skin') {
-      const tones = SKIN_TONES.map((tone, i) => el('button', {
-        class: 'swatch', role: 'radio', id: idFor(f.path, `-${i}`), 'aria-checked': String(value === i),
-        'aria-label': `Skin tone ${i + 1}`, title: `Tone ${i + 1}`, style: `--sw:${tone}`,
-        onclick: () => this.commit(f.path, i),
-      }));
-      return wrap(el('div', { class: 'swatches', role: 'radiogroup', 'aria-labelledby': labelId }, tones));
-    }
-
-    if (f.type === 'file') {
-      const input = el('input', {
-        type: 'file', id: idFor(f.path), accept: 'image/png,image/svg+xml,image/webp,image/jpeg', class: 'file-input',
-        onchange: (e) => e.target.files?.[0] && this.onDecalFile(e.target.files[0]),
-      });
-      const hasImage = Boolean(combo.helmet.decalImage);
-      return wrap(el('div', { class: 'file-row' }, [
-        el('label', { class: 'btn btn-quiet', for: idFor(f.path), text: hasImage ? 'Replace image' : 'Choose image' }),
-        input,
-        el('span', { class: 'file-note', text: 'PNG or SVG with a transparent background works best. Artwork faces forward on both sides.' }),
-      ]));
-    }
-    return el('div');
-  }
-
-  updateReadout(combo) {
-    const names = comboNames(combo);
-    const { total, inLocker } = lockerStatus(combo);
-    const slot = (label, name, c, chrome) => el('div', { class: 'slot' }, [
-      el('span', { class: 'slot-label', text: label }),
-      el('span', { class: 'slot-value' }, [
-        el('i', { class: `chip-dot${chrome ? ' is-chrome' : ''}`, style: `--c:${c}`, 'aria-hidden': 'true' }),
-        el('span', { text: name }),
-      ]),
-    ]);
-    document.getElementById('readout-slots').replaceChildren(
-      slot('Helmet', names.helmet, hex(combo.helmet.shell), combo.helmet.finish === 'chrome'),
-      slot('Jersey', names.jersey, hex(combo.jersey.base)),
-      slot('Pants', names.pants, hex(combo.pants.base)),
+  renderMasks() {
+    const s = this.getState();
+    const row = this.$('masks');
+    row.hidden = this.tab !== 'helmet';
+    row.replaceChildren(
+      el('span', { class: 'eyebrow', id: 'masks-label', text: 'Facemask' }),
+      ...FACEMASKS.map(([name, hex]) => el('button', {
+        type: 'button', class: 'chip', role: 'radio', 'aria-checked': String(s.facemask === name),
+        onclick: () => this.set({ facemask: name }),
+      }, [el('i', { class: 'dot', style: `--c:${hex}`, 'aria-hidden': 'true' }), el('span', { text: name })])),
     );
-    document.getElementById('readout-meta').textContent = inLocker
-      ? `No. ${combo.jersey.number} · One of ${total} locker combos`
-      : `No. ${combo.jersey.number} · Custom combo, outside the locker`;
+  }
+
+  renderGroups() {
+    const s = this.getState();
+    const kind = this.tab;
+    const tile = (k) => ([id, group, tag, file]) => {
+      const label = k === 'socks' ? (id === 'Match' ? 'Match pants' : group) : k === 'shoes' ? (id === 'None' ? 'None' : group) : tag;
+      const full = `${group} · ${tag}`;
+      return el('button', {
+        type: 'button', class: 'tile', role: 'radio', 'aria-checked': String(s[k] === id), title: full,
+        onclick: () => this.set(k === 'helmet' ? { helmet: id, facemask: MASK_DEF[id] || 'Red' } : { [k]: id }),
+      }, [
+        art(file || k === 'socks' ? artUrl(k, id, s) : null, k, full),
+        el('span', { class: 'tile-tag', text: label }),
+      ]);
+    };
+    const group = (title, dot, items, k) => el('div', { class: 'group' }, [
+      el('div', { class: 'group-head' }, [
+        dot && el('i', { class: 'dot dot-sm', style: `--c:${dot}`, 'aria-hidden': 'true' }),
+        el('span', { class: 'eyebrow', text: `${title} · ${items.length}` }),
+      ]),
+      el('div', { class: 'tiles', role: 'radiogroup', 'aria-label': title }, items.map(tile(k))),
+    ]);
+
+    let groups;
+    if (kind === 'socks') {
+      groups = [group('Socks', null, LIB.socks, 'socks'), group('Shoes', null, LIB.shoes, 'shoes'), this.extras()];
+    } else {
+      groups = ['Red', 'White', 'Black', 'Gray']
+        .map((color) => [color, LIB[kind].filter((r) => r[1] === color)])
+        .filter(([, items]) => items.length)
+        .map(([color, items]) => group(color, GROUP_HEX[color], items, kind));
+    }
+    const box = this.$('groups');
+    box.setAttribute('aria-labelledby', `tab-${kind}`);
+    box.replaceChildren(...groups);
+  }
+
+  // 3D-only options, under Accessories.
+  extras() {
+    const s = this.getState();
+    const chips = (label, options, key) => el('div', { class: 'extra' }, [
+      el('span', { class: 'eyebrow', text: label }),
+      el('div', { class: 'chips', role: 'radiogroup', 'aria-label': label }, options.map(([value, text, hex]) => el('button', {
+        type: 'button', class: 'chip', role: 'radio', 'aria-checked': String(s[key] === value),
+        onclick: () => this.set({ [key]: value }),
+      }, [hex !== undefined && el('i', { class: `dot${hex ? '' : ' dot-none'}`, style: hex ? `--c:${hex}` : '', 'aria-hidden': 'true' }), el('span', { text })]))),
+    ]);
+    const name = el('input', {
+      class: 'input', id: 'name', type: 'text', value: s.name, maxlength: 14, autocomplete: 'off', spellcheck: 'false',
+      placeholder: 'Leave blank for no name',
+      oninput: (e) => this.set({ name: sanitizeName(e.target.value) }, false),
+      onblur: (e) => { e.target.value = this.getState().name; },
+    });
+    return el('div', { class: 'group' }, [
+      el('div', { class: 'group-head' }, [el('span', { class: 'eyebrow', text: 'On the 3D player' })]),
+      chips('Gloves', GLOVES.map(([n, hex]) => [n, n, hex]), 'gloves'),
+      chips('Visor', VISORS.map(([v, t]) => [v, t]), 'visor'),
+      el('div', { class: 'extra' }, [
+        el('span', { class: 'eyebrow', text: 'Skin tone' }),
+        el('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Skin tone' }, SKIN_TONES.map((tone, i) => el('button', {
+          type: 'button', class: 'swatch', role: 'radio', 'aria-checked': String(s.skin === i), 'aria-label': `Skin tone ${i + 1}`,
+          style: `--c:${tone}`, onclick: () => this.set({ skin: i }),
+        }))),
+      ]),
+      el('label', { class: 'field' }, [el('span', { class: 'eyebrow', text: 'Name on back' }), name]),
+    ]);
+  }
+
+  bindGame() {
+    const fields = this.$('game-fields');
+    fields.replaceChildren(...GAME_FIELDS.map(([key, label]) => el('label', { class: 'field' }, [
+      el('span', { class: 'eyebrow', text: label }),
+      el('input', { class: 'input', id: `game-${key}`, type: 'text', autocomplete: 'off', oninput: (e) => this.set({ [key]: e.target.value.slice(0, 60) }, false) }),
+    ])));
+    this.$('opponent').addEventListener('input', (e) => this.set({ opponent: e.target.value.slice(0, 60) }, false));
+    for (const site of ['vs', 'at']) this.$(`site-${site}`).addEventListener('click', () => this.set({ site }));
+    this.$('crest').addEventListener('change', (e) => this.set({ showCrest: e.target.checked }));
+  }
+
+  // Text inputs only take the state's value when they aren't being typed in.
+  syncInputs() {
+    const s = this.getState();
+    const put = (id, v) => {
+      const node = this.$(id);
+      if (node && document.activeElement !== node) node.value = v;
+    };
+    put('note', s.helmetNote);
+    put('opponent', s.opponent);
+    for (const [key] of GAME_FIELDS) put(`game-${key}`, s[key]);
+    for (const site of ['vs', 'at']) this.$(`site-${site}`).setAttribute('aria-pressed', String(s.site === site));
+    this.$('crest').checked = s.showCrest;
+  }
+
+  renderSaved(saved) {
+    this.$('saved-empty').hidden = saved.length > 0;
+    this.$('saved').replaceChildren(...saved.map((c) => el('li', { class: 'saved-row' }, [
+      el('button', { type: 'button', class: 'saved-open', onclick: () => this.onLoad(c) }, [
+        el('span', { class: 'saved-title', text: `${c.site} ${c.opponent} · ${c.date}` }),
+        el('span', {
+          class: 'saved-sub',
+          text: `${pieceName('helmet', c.helmet)} · ${c.facemask} mask / ${pieceName('jersey', c.jersey)} / ${pieceName('pants', c.pants)}`
+            + `${c.socks && c.socks !== 'Match' ? ` · ${c.socks} socks` : ''}${c.helmetNote ? ` · ${c.helmetNote}` : ''}`,
+        }),
+      ]),
+      el('button', { type: 'button', class: 'saved-del', 'aria-label': `Delete ${c.site} ${c.opponent}`, text: 'Delete', onclick: () => this.onRemove(c) }),
+    ])));
   }
 }

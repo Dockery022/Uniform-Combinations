@@ -1,6 +1,6 @@
 # Uniform Combinations
 
-An interactive 3D combo builder: pick the helmet, jersey, pants, socks and cleats, and see the full uniform on a rigged 3D football player you can turn, zoom and pose.
+The Louisville Combo Builder in 3D: pick the helmet, facemask, jersey, pants, socks and cleats from the equipment room, see the whole uniform on a rigged 3D player you can turn, zoom and pose, and export the 1080 × 1080 "The Combo" game graphic with the 3D player in it.
 
 ![Combo Builder](docs/preview.png)
 
@@ -20,29 +20,33 @@ Opening `index.html` straight from disk (`file://`) won't work, because browsers
 
 ## What it does
 
-- **Rigged 3D player** (`assets/player.glb`) wearing a real helmet model (`assets/helmet.glb`). Every part is paintable: helmet shell, finish, center stripe, side decal, facemask, chin strap, bumpers, visor tint, jersey body, numbers, outlines, sleeve stripes, sleeve numbers, collar, chest wordmark, name on back, pants and side stripes, belt, socks and stripes, cleats and soles, gloves, wrist tape, arm sleeve, towel and skin tone.
-- **Helmet finishes:** gloss, satin, matte and chrome, lit by a studio environment so chrome and gloss pick up real highlights.
-- **Poses:** Idle (the model's own motion-capture idle), Ready, Run (with the ball), Celebrate and Heisman, with smooth blending between them.
-- **Camera views:** 3/4, Front, Back, Side and a Helmet close-up, plus drag to turn, scroll or pinch to zoom, and a turntable spin.
-- **Combo readout:** shows the Helmet · Jersey · Pants combo and whether it uses only pieces in the equipment room ("One of 36 locker combos").
-- **Starter combos, Randomize, Save combo** (kept on the device) and **combo codes** you can copy and paste to share a look. The page address also updates with the code, so a copied link reopens the same combo.
-- **Snapshot:** renders a 4:5 image with the combo name for sharing.
-- **Custom decal upload:** drop in a PNG or SVG and it's placed on both sides of the helmet, facing forward.
+- **The uniform**, laid out like the Combo Builder design: Helmet, Jersey, Pants and Accessories tabs with the design art, options grouped by color (Red, White, Black, Gray), a facemask picker that defaults per helmet, and a helmet callout.
+- **Your art on the 3D player.** The jersey front art is projected onto the jersey (sleeves included), the back gets the number set larger plus an optional name in the Louisville jersey face, helmet decals are cut from the side-view art and placed on both sides (birds face forward, scripts read forward), and the pants get their hip logos and side stripes. Shell finishes (gloss, satin, matte), chrome decals and stripes follow each helmet.
+- **The game:** vs/at, opponent, date, kickoff, network, venue and the crest, used by the graphic.
+- **Game graphic:** a live 1080 × 1080 preview of the design's "The Combo" template with the 3D render in place of the flat art, and a Download button.
+- **Poses** (Idle, Ready, Run, Celebrate, Heisman), **camera views** (3/4, Front, Back, Side, Helmet), drag to turn, scroll or pinch to zoom, and a turntable spin.
+- **Saved combos** stay in the browser, and the page address carries the current combo so a copied link reopens it.
+- **On the 3D player only:** gloves, visor, skin tone and name on back, under Accessories.
+
+Colors follow the UofL Athletics brand guidelines (Cardinal Red `#C9001F`, black, white, metallic silver `#8A8D8F`) and text is set in Gotham where it's installed, with Montserrat as the web fallback.
 
 ## Matching it to your designs
 
-Everything team-specific is in **`src/team.js`**:
-
 | What | Where |
 | --- | --- |
-| Team colors (hex values) | `COLORS` |
-| Which swatches each part offers | `SWATCHES` |
-| Pieces in the equipment room, used for the combo count | `LOCKER` |
-| Starting combo | `DEFAULT_COMBO` |
-| Starter combo cards | `PRESETS`. Each one lists only what it changes from `DEFAULT_COMBO` |
-| Wordmark, script decal text, default name on back | `TEAM` |
+| The pieces, their color groups, tags and art files | `LIB` in `src/team.js` |
+| The facemask each helmet comes with | `MASK_DEF` in `src/team.js` |
+| Starting combo and game | `DEFAULT_STATE` in `src/team.js` |
+| Helmet finish, stripes, chrome decals, scripts that shouldn't mirror | `HELMETS` in `tools/prepare-uniforms.py` |
 
-To add a combo from a design file, copy a `PRESETS` entry and set its colors and styles. A color value can be a key from `COLORS` (`'red'`) or any hex string (`'#9d2235'`).
+To add or update art, put the design's PNGs in a folder with their original names (`helmet-red-mask-red.png`, `jersey-red.png`, `pants-red.png`, `socks-red.png`, `shoes-red.png`, plus `1912-crest-outline.png` and `bird_master.png`) and run:
+
+```bash
+pip install pillow numpy
+npm run prepare:uniforms -- path/to/art
+```
+
+It writes WebP copies to `assets/uni/`, cuts out the helmet decals and pants logos, and samples the colors the 3D materials use into `src/uniform-art.js`. The jersey projection assumes the design's jersey template (1366 × 1408, V-neck tip at y = 380, armpits at y = 540); the landmarks are `JERSEY_ART` in `src/model.js`.
 
 ## The 3D models
 
@@ -63,24 +67,25 @@ npx obj2gltf -i bucshelmet.obj -o helmet-raw.glb --binary
 npm run prepare:helmet -- helmet-raw.glb assets/helmet.glb
 ```
 
-The jersey's numbers and sleeve stripes are painted onto the jersey's UV layout (`JERSEY_LAYOUT` in `src/textures.js`). Pants stripes, sock stripes, the collar, gloves and cleat soles are drawn by shaders from measurements taken on the model at load time (`measure()` in `src/model.js`), so they follow the cloth as the player moves.
+The art is mapped from measurements taken on the model at load time (`measure()` in `src/model.js`), so it follows the cloth as the player moves.
 
-Make sure you have the rights to publish any model you add here, especially if the repository or the page is public.
+Make sure you have the rights to publish the models, the art, the marks and the jersey font (`assets/fonts/louisville-jersey.otf`) before making the repository or the page public.
 
 ## Project layout
 
 ```
-index.html        page shell
-src/main.js       renderer, lighting, turf, wiring, snapshot, save and share
-src/model.js      loads the player and helmet, recolors parts, poses the rig
-src/textures.js   jersey lettering, decals, ball, turf and fabric normal maps
-src/vendor/       three.js GLTFLoader (MIT), sharing src/three.js
-assets/           player.glb and helmet.glb
-tools/            scripts that turn the source FBX/OBJ files into the GLBs
-src/orbit.js      camera controls and preset views
-src/ui.js         control panel generated from a field schema
-src/combo.js      combo state, names, locker check, share codes
-src/team.js       team colors, options, presets (edit this one)
-src/styles.css    styles, using 1912 Society design tokens
-server.mjs        zero-dependency static server for local and Codespaces use
+index.html            page shell
+src/main.js           renderer, lighting, turf, wiring, game graphic, saved combos
+src/model.js          loads the player and helmet, dresses them in the art, poses the rig
+src/textures.js       jersey art for projection, back lettering, ball, turf, fabric normals
+src/ui.js             The Uniform, The Game and Saved Combos panels
+src/combo.js          state checks, piece names, the 3D look for a combo, share links
+src/team.js           the uniform library and brand colors (edit this one)
+src/uniform-art.js    colors and placements sampled from the art (generated)
+src/orbit.js          camera controls and preset views
+src/vendor/           three.js GLTFLoader (MIT), sharing src/three.js
+src/styles.css        styles
+assets/               player.glb, helmet.glb, uni/ art, fonts/
+tools/                scripts that build the models and the art
+server.mjs            zero-dependency static server for local and Codespaces use
 ```

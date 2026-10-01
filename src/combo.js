@@ -1,136 +1,101 @@
-// Combo state helpers: color lookup, merging, naming and share codes.
-import { COLORS, DEFAULT_COMBO, LOCKER, PRESETS } from './team.js';
+// Combo state: validation, names, the 3D look for a combo, and share codes.
+import { ART } from './uniform-art.js';
+import { DEFAULT_STATE, FACEMASKS, GLOVES, GROUP_HEX, LIB, SKIN_TONES, VISORS } from './team.js';
 
-const HEX = /^#[0-9a-f]{6}$/i;
-
-export function hex(color) {
-  if (COLORS[color]) return COLORS[color].hex;
-  return HEX.test(color) ? color : '#888888';
-}
-
-export function colorName(color) {
-  if (COLORS[color]) return COLORS[color].name;
-  return HEX.test(color) ? color.toUpperCase() : 'Custom';
-}
+const row = (kind, id) => LIB[kind].find((r) => r[0] === id);
 
 export function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-// Copy only the keys DEFAULT_COMBO knows about, with matching types, so a
-// stale or hand-edited code can never inject unexpected fields.
-export function mergeCombo(base, patch) {
-  const out = clone(base);
+// Copy only known keys with valid values, so stale saves and hand-edited
+// links can't inject anything unexpected.
+export function cleanState(patch) {
+  const out = clone(DEFAULT_STATE);
   if (!patch || typeof patch !== 'object') return out;
-  for (const part of Object.keys(DEFAULT_COMBO)) {
-    const src = patch[part];
-    if (!src || typeof src !== 'object') continue;
-    for (const key of Object.keys(DEFAULT_COMBO[part])) {
-      if (key in src && typeof src[key] === typeof DEFAULT_COMBO[part][key]) out[part][key] = src[key];
-    }
-    if (part === 'helmet' && typeof src.decalImage === 'string') out.helmet.decalImage = src.decalImage;
+  for (const kind of ['helmet', 'jersey', 'pants', 'socks', 'shoes']) {
+    if (row(kind, patch[kind])) out[kind] = patch[kind];
   }
-  out.jersey.number = sanitizeNumber(out.jersey.number);
-  out.jersey.name = sanitizeName(out.jersey.name);
+  if (FACEMASKS.some(([n]) => n === patch.facemask)) out.facemask = patch.facemask;
+  if (GLOVES.some(([n]) => n === patch.gloves)) out.gloves = patch.gloves;
+  if (VISORS.some(([v]) => v === patch.visor)) out.visor = patch.visor;
+  if (Number.isInteger(patch.skin) && patch.skin >= 0 && patch.skin < SKIN_TONES.length) out.skin = patch.skin;
+  if (patch.site === 'vs' || patch.site === 'at') out.site = patch.site;
+  if (typeof patch.showCrest === 'boolean') out.showCrest = patch.showCrest;
+  for (const key of ['helmetNote', 'opponent', 'date', 'kickoff', 'network', 'venue']) {
+    if (typeof patch[key] === 'string') out[key] = patch[key].slice(0, 60);
+  }
+  if (typeof patch.name === 'string') out.name = sanitizeName(patch.name);
   return out;
-}
-
-export function presetCombo(id) {
-  const preset = PRESETS.find((p) => p.id === id) ?? PRESETS[0];
-  return mergeCombo(DEFAULT_COMBO, preset.combo);
-}
-
-export function sanitizeNumber(value) {
-  const digits = String(value ?? '').replace(/\D/g, '').slice(0, 2);
-  return digits === '' ? '0' : digits;
 }
 
 export function sanitizeName(value) {
   return String(value ?? '').toUpperCase().replace(/[^A-Z0-9 .'-]/g, '').slice(0, 14);
 }
 
-export function helmetKey(helmet) {
-  return helmet.finish === 'gloss' ? helmet.shell : `${helmet.finish}-${helmet.shell}`;
+// "Red Louie", "White 2026" — the design's names for a piece.
+export function pieceName(kind, id) {
+  const r = row(kind, id);
+  return r ? `${r[1]} ${r[2]}` : id;
 }
 
-export function helmetName(helmet) {
-  const prefix = { gloss: '', satin: 'Satin ', matte: 'Matte ', chrome: 'Chrome ' }[helmet.finish] ?? '';
-  return prefix + colorName(helmet.shell);
+// The color group a piece belongs to ("Red", "White", "Black", "Gray").
+export function groupOf(kind, id) {
+  return row(kind, id)?.[1] ?? 'White';
 }
 
-export function comboNames(combo) {
+export function groupHex(group) {
+  return GROUP_HEX[group] ?? '#888888';
+}
+
+// Art image for a piece, as the panel and the graphic show it.
+export function artUrl(kind, id, state) {
+  const r = row(kind, id) ?? LIB[kind][0];
+  if (kind === 'helmet') return `assets/uni/${r[3]}-mask-${state.facemask.toLowerCase()}.webp`;
+  if (kind === 'socks') {
+    if (!r[3]) return artUrl('pants', state.pants, state);
+    return `assets/uni/${r[3]}${/ 20$/.test(state.pants) ? '-20' : ''}.webp`;
+  }
+  if (kind === 'shoes') return r[3] ? `assets/uni/${r[3]}.webp` : null;
+  return `assets/uni/${r[3]}.webp`;
+}
+
+// Everything the 3D player needs for this state.
+export function resolveLook(state) {
+  const file = (kind) => (row(kind, state[kind]) ?? LIB[kind][0])[3];
+  const pantsFile = file('pants');
+  const pants = { file: pantsFile, spec: ART.pants[pantsFile] };
+  const sockFile = file('socks');
+  const shoeFile = file('shoes');
   return {
-    helmet: helmetName(combo.helmet),
-    jersey: colorName(combo.jersey.base),
-    pants: colorName(combo.pants.base),
+    helmet: { file: file('helmet'), spec: ART.helmet[file('helmet')] },
+    facemask: FACEMASKS.find(([n]) => n === state.facemask)?.[1] ?? FACEMASKS[0][1],
+    jersey: { file: file('jersey'), spec: ART.jersey[file('jersey')] },
+    pants,
+    socks: sockFile ? ART.socks[sockFile] : pants.spec.socks,
+    // "No shoes" only leaves them out of the graphic; the player still wears black cleats.
+    cleats: ART.shoes[shoeFile ?? 'shoes-black'],
+    gloves: GLOVES.find(([n]) => n === state.gloves)?.[1] ?? null,
+    visor: state.visor,
+    skin: state.skin,
+    name: state.name,
   };
 }
 
-export function lockerStatus(combo) {
-  const total = LOCKER.helmets.length * LOCKER.jerseys.length * LOCKER.pants.length;
-  const inLocker =
-    LOCKER.helmets.includes(helmetKey(combo.helmet)) &&
-    LOCKER.jerseys.includes(combo.jersey.base) &&
-    LOCKER.pants.includes(combo.pants.base);
-  return { total, inLocker };
-}
-
-// Share codes are base64url JSON of only what differs from DEFAULT_COMBO.
-// Uploaded decal images stay on the device.
-export function encodeCombo(combo) {
-  const diff = { v: 1 };
-  for (const part of Object.keys(DEFAULT_COMBO)) {
-    for (const key of Object.keys(DEFAULT_COMBO[part])) {
-      if (combo[part][key] !== DEFAULT_COMBO[part][key]) (diff[part] ??= {})[key] = combo[part][key];
-    }
-  }
-  const json = JSON.stringify(diff);
-  const bytes = new TextEncoder().encode(json);
+// Share codes: base64url JSON of only what differs from the defaults.
+export function encodeState(state) {
+  const diff = { v: 2 };
+  for (const [k, v] of Object.entries(state)) if (DEFAULT_STATE[k] !== v) diff[k] = v;
+  const bytes = new TextEncoder().encode(JSON.stringify(diff));
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function decodeCombo(code) {
-  const clean = String(code).trim().replace(/^#/, '').replace(/^combo\./, '');
-  const b64 = clean.replace(/-/g, '+').replace(/_/g, '/');
+export function decodeState(code) {
+  const b64 = String(code).trim().replace(/^#/, '').replace(/-/g, '+').replace(/_/g, '/');
   const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
-  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-  const data = JSON.parse(new TextDecoder().decode(bytes));
-  if (!data || data.v !== 1) throw new Error('Unknown code version');
-  return mergeCombo(DEFAULT_COMBO, data);
-}
-
-export function randomCombo() {
-  const pick = (list) => list[Math.floor(Math.random() * list.length)];
-  const helmet = pick(LOCKER.helmets);
-  const [finish, shell] = helmet.includes('-') ? helmet.split('-') : ['gloss', helmet];
-  const jersey = pick(LOCKER.jerseys);
-  const pants = pick(LOCKER.pants);
-  const contrast = (base) => pick(['red', 'black', 'white'].filter((c) => c !== base));
-  const numberFill = contrast(jersey);
-  return mergeCombo(DEFAULT_COMBO, {
-    helmet: {
-      shell, finish,
-      stripe: pick(['none', 'single', 'double', 'tri']),
-      stripeColor: contrast(shell), stripeTrim: contrast(shell),
-      decalColor: contrast(shell), decalTrim: contrast(shell),
-      mask: pick(['black', 'white', shell === 'chrome' ? 'black' : shell]),
-      visor: pick(['none', 'clear', 'smoke', 'iridescent']),
-    },
-    jersey: {
-      base: jersey, numberFill,
-      trimColor: pick(['red', 'black', 'white'].filter((c) => c !== jersey && c !== numberFill)),
-      stripeColor: contrast(jersey), stripeColor2: contrast(jersey), collar: contrast(jersey),
-      sleeveStripe: pick(['none', 'single', 'double', 'triple']),
-      number: String(Math.floor(Math.random() * 99) + 1),
-    },
-    pants: {
-      base: pants, stripe: pick(['none', 'single', 'double', 'tri']),
-      stripeColor: contrast(pants), stripeTrim: contrast(pants),
-    },
-    socks: { base: pick([jersey, pants, 'black', 'white']), stripe: pick(['none', 'single', 'double']), stripeColor: contrast(jersey) },
-    cleats: { base: pick(['black', 'white']), sole: pick(['black', 'white']) },
-    extras: { gloves: pick(['black', 'white', jersey]) },
-  });
+  const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  if (!data || data.v !== 2) throw new Error('Unknown code version');
+  return cleanState(data);
 }

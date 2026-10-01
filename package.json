@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.mjs",
     "prepare:player": "node tools/prepare-player.mjs",
-    "prepare:helmet": "node tools/prepare-helmet.mjs"
+    "prepare:helmet": "node tools/prepare-helmet.mjs",
+    "prepare:uniforms": "python3 tools/prepare-uniforms.py"
   },
   "engines": {
     "node": ">=20.11"

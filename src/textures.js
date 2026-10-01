@@ -1,12 +1,10 @@
-// Canvas painters: jersey lettering, helmet decals, the ball, the turf and
-// fabric normal maps. Stripe patterns are shared with the shaders in model.js.
-import { hex } from './combo.js';
-import { TEAM } from './team.js';
+// Canvas painters: the jersey art for projection, back lettering, the ball,
+// the turf and fabric normal maps.
 
 export const FONTS = {
-  block: '"Graduate", "Arial Black", Impact, sans-serif',
-  modern: '"Anton", "Arial Narrow", Impact, sans-serif',
-  script: '"Yellowtail", "Brush Script MT", cursive',
+  jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
+  display: '"Anton", "Arial Narrow", Impact, sans-serif',
+  sans: '"Gotham SSm A", "Gotham SSm B", "Gotham", "Montserrat", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif',
 };
 
 export function makeCanvas(w, h) {
@@ -14,21 +12,6 @@ export function makeCanvas(w, h) {
   canvas.width = w;
   canvas.height = h;
   return canvas;
-}
-
-// Stripe patterns as bands across a center line: offset and width in meters.
-export function stripeBands(style, c1, c2) {
-  switch (style) {
-    case 'single': return [{ at: 0, w: 0.026, color: c1 }];
-    case 'double': return [{ at: -0.0135, w: 0.014, color: c1 }, { at: 0.0135, w: 0.014, color: c1 }];
-    case 'tri': return [
-      { at: -0.0195, w: 0.007, color: c2 }, { at: 0, w: 0.02, color: c1 }, { at: 0.0195, w: 0.007, color: c2 },
-    ];
-    case 'triple': return [
-      { at: -0.024, w: 0.011, color: c1 }, { at: 0, w: 0.011, color: c2 }, { at: 0.024, w: 0.011, color: c1 },
-    ];
-    default: return [];
-  }
 }
 
 // Draw text centered on (cx, cy) with a given cap height in pixels, an
@@ -59,74 +42,63 @@ function drawText(ctx, text, { family, cx, cy, height, sx = 1, fill, outlines = 
   ctx.restore();
 }
 
-function numberOutlines(jersey, px) {
-  const inner = hex(jersey.trimColor);
-  const outer = hex(jersey.trimColor2);
-  if (jersey.numberTrim === 'single') return [{ color: inner, width: px * 0.9 }];
-  if (jersey.numberTrim === 'double') return [{ color: outer, width: px * 1.7 }, { color: inner, width: px * 0.85 }];
-  return [];
+// The jersey's front art, ready to project: the V-neck is filled with the
+// body color, because the 3D jersey's neckline is shallower than the drawing's
+// and gets its own piping from the collar shader. Coordinates are art pixels
+// (1366 x 1408), drawn at the canvas's scale.
+export function paintJerseyFront(canvas, img, spec) {
+  const ctx = canvas.getContext('2d');
+  const k = canvas.width / spec.art.width;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.scale(k, k);
+  ctx.fillStyle = spec.base;
+  ctx.beginPath();
+  for (const [x, y] of [[445, 0], [921, 0], [915, 58], [690, 392], [676, 392], [451, 58]]) ctx.lineTo(x, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
-// Jersey lettering on the jersey's UV layout (a 2.5 : 1 sheet). The front
-// panel is centered at u = 0.578, the back panel at u = 0.855; v runs from
-// the collar (0) down to the hem (1). Heights are fractions of the sheet.
-// Each sleeve is its own piece: centered at u = 0.115 / 0.327, armhole seam
-// along v = 0.207 and a curved hem along v = 0.339 + 8 * (u - center)^2.
-export const JERSEY_LAYOUT = {
-  front: { u: 0.578, wordmark: { v: 0.37, h: 0.036 }, number: { v: 0.535, h: 0.2 } },
-  back: { u: 0.856, name: { v: 0.25, h: 0.042 }, number: { v: 0.51, h: 0.235 } },
-  sleeves: { centers: [0.115, 0.327], halfWidth: 0.1, hemV: 0.339, hemCurve: 8, number: { v: 0.268, h: 0.055 } },
-  vPerMeter: 0.81,
-};
-
-export function paintJersey(canvas, combo) {
+// The back: the body color, the front number set larger and higher, and an
+// optional name in the Louisville jersey face, in the number's colors.
+export function paintJerseyBack(canvas, img, spec, name) {
   const ctx = canvas.getContext('2d');
-  const { width: W, height: H } = canvas;
-  const j = combo.jersey;
-  const L = JERSEY_LAYOUT;
-  ctx.fillStyle = hex(j.base);
-  ctx.fillRect(0, 0, W, H);
-
-  const family = FONTS[j.numberFont] ?? FONTS.block;
-  const fill = hex(j.numberFill);
-  const outlines = numberOutlines(j, H * 0.0065);
-
-  drawText(ctx, j.number, { family, cx: L.front.u * W, cy: L.front.number.v * H, height: L.front.number.h * H, fill, outlines });
-  if (j.chest === 'wordmark') {
-    drawText(ctx, TEAM.wordmark, {
-      family, cx: L.front.u * W, cy: L.front.wordmark.v * H, height: L.front.wordmark.h * H, fill,
-      outlines: j.numberTrim === 'none' ? [] : [{ color: hex(j.trimColor), width: H * 0.003 }],
+  const k = canvas.width / spec.art.width;
+  ctx.fillStyle = spec.base;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const [x0, y0, x1, y1] = spec.number.box;
+  const sw = x1 - x0;
+  const sh = y1 - y0;
+  const scale = 1.2;
+  const top = name ? 470 : 400;
+  const sx = img.naturalWidth / spec.art.width;
+  ctx.drawImage(img, x0 * sx, y0 * sx, sw * sx, sh * sx,
+    (spec.art.width / 2 - (sw * scale) / 2) * k, top * k, sw * scale * k, sh * scale * k);
+  if (name) {
+    drawText(ctx, name, {
+      family: FONTS.jersey, cx: canvas.width / 2, cy: 400 * k, height: 70 * k,
+      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 5 * k }],
     });
   }
-  drawText(ctx, j.number, { family, cx: L.back.u * W, cy: L.back.number.v * H, height: L.back.number.h * H, fill, outlines });
-  if (j.name) {
-    drawText(ctx, j.name, { family, cx: L.back.u * W, cy: L.back.name.v * H, height: L.back.name.h * H, fill });
-  }
+}
 
-  // Sleeve stripes run parallel to the curved hem; sleeve numbers sit above them.
-  const S = L.sleeves;
-  const bands = stripeBands(j.sleeveStripe, hex(j.stripeColor), hex(j.stripeColor2));
-  for (const c of S.centers) {
-    for (const band of bands) {
-      const lift = (0.045 + band.at) * L.vPerMeter;
-      ctx.beginPath();
-      for (let k = 0; k <= 40; k++) {
-        const du = -S.halfWidth + (2 * S.halfWidth * k) / 40;
-        const v = S.hemV + S.hemCurve * du * du - lift;
-        if (k === 0) ctx.moveTo((c + du) * W, v * H);
-        else ctx.lineTo((c + du) * W, v * H);
+// Horizontal center of the opaque pixels, in canvas pixels.
+export function alphaCenterX(canvas) {
+  const { width: W, height: H } = canvas;
+  const data = canvas.getContext('2d').getImageData(0, 0, W, H).data;
+  let x0 = W;
+  let x1 = 0;
+  for (let y = 0; y < H; y += 2) {
+    for (let x = 0; x < W; x++) {
+      if (data[(y * W + x) * 4 + 3] > 40) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
       }
-      ctx.strokeStyle = band.color;
-      ctx.lineWidth = band.w * L.vPerMeter * H;
-      ctx.lineCap = 'butt';
-      ctx.stroke();
-    }
-    if (j.tvNumbers) {
-      drawText(ctx, j.number, {
-        family, cx: c * W, cy: S.number.v * H, height: S.number.h * H, fill, outlines: numberOutlines(j, H * 0.0025),
-      });
     }
   }
+  return x1 >= x0 ? (x0 + x1) / 2 : W / 2;
 }
 
 // Tileable tangent-space normal maps for fabric: a knit mesh for jerseys,
@@ -162,32 +134,6 @@ export function fabricNormal(kind, size = 128) {
   }
   ctx.putImageData(img, 0, 0);
   return canvas;
-}
-
-// Side decal on a transparent square.
-export function paintDecal(canvas, combo, image) {
-  const ctx = canvas.getContext('2d');
-  const { width: W, height: H } = canvas;
-  const h = combo.helmet;
-  ctx.clearRect(0, 0, W, H);
-  const fill = hex(h.decalColor);
-  const outlines = [{ color: hex(h.decalTrim), width: W * 0.022 }];
-  if (h.decal === 'letter') {
-    drawText(ctx, TEAM.school[0], { family: FONTS.block, cx: W / 2, cy: H / 2, height: H * 0.62, fill, outlines });
-  } else if (h.decal === 'script') {
-    drawText(ctx, TEAM.script ?? TEAM.nickname, {
-      family: FONTS.script, cx: W / 2, cy: H * 0.5, height: H * 0.34, sx: 0.92, fill, outlines, rotate: -0.16,
-    });
-  } else if (h.decal === 'number') {
-    drawText(ctx, combo.jersey.number, {
-      family: FONTS[combo.jersey.numberFont] ?? FONTS.block, cx: W / 2, cy: H / 2, height: H * 0.5, fill, outlines,
-    });
-  } else if (h.decal === 'custom' && image) {
-    const scale = Math.min((W * 0.9) / image.width, (H * 0.9) / image.height);
-    const w = image.width * scale;
-    const ih = image.height * scale;
-    ctx.drawImage(image, (W - w) / 2, (H - ih) / 2, w, ih);
-  }
 }
 
 // Leather ball: half-stripes near each tip and a lace row.
