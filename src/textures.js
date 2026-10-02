@@ -64,7 +64,7 @@ function textWidth(ctx, text, family, height, weight = '', spacing = 0) {
 // narrower than the font's, other digits a little wider, and a gap between
 // them. Block numerals are squeezed so "10" fills the art's number width.
 function letterNumber(ctx, number, { cx, cy, height, width }, spec, style) {
-  const { fill, outline } = spec.number;
+  const { fill, outline } = numberColors(spec);
   const outlines = [{ color: outline, width: height * 0.02 }];
   const draw = (text, x, sx) => {
     if (style.shadow) drawText(ctx, text, { family, cx: x + height * 0.03, cy: cy + height * 0.022, height, sx, fill: outline, outlines });
@@ -104,7 +104,7 @@ export function paintTvDecals(canvas, spec, style, number) {
     const w = textWidth(ctx, text, family, height);
     drawText(ctx, text, {
       family, cx: W * (i + 0.5) / 2, cy: H / 2, height, sx: Math.min(1, (W / 2 - 80) / w),
-      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: height * 0.035 }],
+      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: height * 0.035 }],
     });
   });
 }
@@ -179,7 +179,7 @@ export function paintBackLettering(canvas, spec, style, number, name) {
     drawText(ctx, number, {
       family: FONTS.backNumber, cx: canvas.width / 2, cy: (top + height / 2) * k, height: h,
       sx: Math.min(1, ((x1 - x0) * 1.25 * k) / w),
-      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: h * 0.055 }],
+      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: h * 0.055 }],
     });
   }
   if (name) {
@@ -189,9 +189,24 @@ export function paintBackLettering(canvas, spec, style, number, name) {
     const w = textWidth(ctx, name, FONTS.name, nameH, 700, spacing);
     drawText(ctx, name, {
       family: FONTS.name, weight: 700, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 34) * k, height: nameH * k,
-      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#111111' : spec.number.fill,
+      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#111111' : numberColors(spec).fill,
     });
   }
+}
+
+// Doc's number colors: the red sampled from the art (#c80818 and its
+// neighbors) is Cardinal Red #C9001F, and near-black is pure #000000.
+// Other colors (white, gold, gray) stay as the art has them.
+const CARDINAL = '#C9001F';
+function brandColor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
+  if (r > 150 && g < 60 && b < 70) return CARDINAL;
+  if (r < 56 && g < 56 && b < 56) return '#000000';
+  return hex;
+}
+export function numberColors(spec) {
+  return { fill: brandColor(spec.number.fill), outline: brandColor(spec.number.outline) };
 }
 
 function isLight(hex) {
