@@ -42,6 +42,7 @@ function studioEnvironment() {
     env.add(m);
   };
   box(3.5, 2.4, [4, 3, 4], 5);
+  box(3.5, 2.4, [-4, 3, -4], 5); // the same softbox behind, so the back reads like the front
   box(7, 1.2, [0, 3.9, 0], 3.2);
   box(2, 4, [-5, 2, 2], 1.6, '#dfe6ff');
   box(1.4, 4, [-4, 2, -4.5], 0.8, '#ff2b48');
@@ -65,14 +66,15 @@ key.shadow.radius = 4;
 scene.add(key, key.target);
 key.target.position.set(0, 0.9, 0);
 
-// The red rim is kept faint so white jerseys stay white from behind; a
-// neutral fill lights the back views.
-const rimRed = new THREE.DirectionalLight('#ff2a46', 0.35);
+// The back is lit like the front: a mirror of the key light, so the back
+// number and fabric read the same as the chest from the opposite view. The
+// rims stay faint so white jerseys stay white from behind.
+const rimRed = new THREE.DirectionalLight('#ff2a46', 0.2);
 rimRed.position.set(-3.2, 2.6, -2.6);
-const rimCool = new THREE.DirectionalLight('#c7d6ff', 1.5);
+const rimCool = new THREE.DirectionalLight('#c7d6ff', 0.6);
 rimCool.position.set(3.2, 2.2, -3);
-const backFill = new THREE.DirectionalLight('#fff6ee', 1.6);
-backFill.position.set(-1.5, 3.5, -3.5);
+const backFill = new THREE.DirectionalLight('#fff4ea', 2.4);
+backFill.position.set(-2.4, 4.2, -3.2);
 scene.add(rimRed, rimCool, backFill, new THREE.HemisphereLight('#d6dcea', '#1b1310', 0.35));
 
 const turfCanvas = makeCanvas(1024, 1024);
