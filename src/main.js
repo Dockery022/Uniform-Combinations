@@ -434,9 +434,18 @@ const s2slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replac
 
 // ---------- boot ----------
 
+// Every face the canvases draw with: Oswald 700 for back names, Anton for
+// back numbers, plus the jersey, block and display faces. The first paint
+// waits up to 2.5 s; whatever arrives later triggers a redraw (see start).
+const fontLoads = Promise.all([
+  `100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`,
+  `700 100px ${FONTS.name}`, `400 100px ${FONTS.backNumber}`, `600 20px ${FONTS.sans}`,
+].map((f) => document.fonts.load(f).catch(() => [])));
+let fontsSettled = false;
+fontLoads.then(() => { fontsSettled = true; });
+
 async function fontsReady() {
-  const loads = [`100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`, `700 100px ${FONTS.name}`, `100px ${FONTS.backNumber}`, `600 20px ${FONTS.sans}`].map((f) => document.fonts.load(f));
-  await Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 2500))]);
+  await Promise.race([fontLoads, new Promise((r) => setTimeout(r, 2500))]);
 }
 
 function frame() {
@@ -485,8 +494,9 @@ async function start(data = {}) {
   if (data.mode === 'graphic') setMode('graphic');
   document.getElementById('loading').hidden = true;
   requestAnimationFrame(frame);
-  // Late fonts get a repaint so the back lettering never shows a fallback face.
-  document.fonts.ready.then(() => applyState(state));
+  // Fonts that missed the first paint get a redraw of the jersey decals, so
+  // the lettering never stays in a fallback face.
+  if (!fontsSettled) fontLoads.then(() => applyState(state));
 }
 
 const hot = window.claude?.hot;
