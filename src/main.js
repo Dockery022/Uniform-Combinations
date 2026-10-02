@@ -436,12 +436,12 @@ const s2slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replac
 
 // ---------- boot ----------
 
-// Every face the canvases draw with: Oswald 700 for back names, plus the
-// jersey, block and display faces. The first paint waits up to 2.5 s;
-// whatever arrives later triggers a redraw (see start).
+// Every face the canvases draw with: the jersey, block and display faces.
+// The first paint waits up to 2.5 s; whatever arrives later triggers a
+// redraw (see start).
 const fontLoads = Promise.all([
   `100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`,
-  `700 100px ${FONTS.name}`, `600 20px ${FONTS.sans}`,
+  `600 20px ${FONTS.sans}`,
 ].map((f) => document.fonts.load(f).catch(() => [])));
 let fontsSettled = false;
 fontLoads.then(() => { fontsSettled = true; });
