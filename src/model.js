@@ -347,12 +347,16 @@ export class Player {
     this.canvases = {
       front: C(JERSEY_ART.width, JERSEY_ART.height),
       back: C(JERSEY_ART.width, JERSEY_ART.height),
+      // The back number and name, on their own 2048 px canvas so they stay sharp.
+      backLetters: C(2048, Math.round((2048 * JERSEY_ART.height) / JERSEY_ART.width)),
       logos: C(PANTS_ART.width, PANTS_ART.height),
       shoe: C(702, 372),
       decal: C(752, 762),
       ball: C(512, 256),
     };
     this.textures = Object.fromEntries(Object.entries(this.canvases).map(([k, c]) => [k, tex(c, k === 'ball')]));
+    // Premultiplied, so the letters' edges filter cleanly over the jersey.
+    this.textures.backLetters.premultiplyAlpha = true;
     // One set of fabric maps; the jersey and pants each get their own tiling,
     // set from their UV scale in measure().
     const fabricMaps = loadFabricMaps(this.renderer, 'jersey-material/maps/');
@@ -365,6 +369,7 @@ export class Player {
       jersey: {
         uArtFront: { value: this.textures.front },
         uArtBack: { value: this.textures.back },
+        uBackLetters: { value: this.textures.backLetters },
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.012 },
@@ -394,13 +399,17 @@ export class Player {
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey), {
         attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float' },
         uniforms: this.uniforms.jersey,
-        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;',
+        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;',
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
-          float meshAmt = vaMesh * (1.0 - smoothstep(0.12, 0.25, distance(diffuseColor.rgb, uBase)));
+          vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
+          float letters = lettering.a;
+          diffuseColor.rgb = diffuseColor.rgb * (1.0 - letters) + lettering.rgb;
+          // No mesh under the lettering or anything else off the base color.
+          float meshAmt = vaMesh * (1.0 - letters) * (1.0 - smoothstep(0.12, 0.25, distance(diffuseColor.rgb, uBase)));
         `,
         rewrite: { aomap_fragment: (chunk) => chunk.replace(/aoMapIntensity/g, '(aoMapIntensity * meshAmt)') },
         after: {
@@ -934,7 +943,8 @@ export class Player {
     ]);
     if (token !== this.artToken) return;
     paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
-    paint.paintJerseyBack(this.canvases.back, look.jersey.spec, look.jersey.style, look.number, look.name);
+    paint.paintJerseyBack(this.canvases.back, look.jersey.spec, look.jersey.style, look.number);
+    paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.number, look.name);
     const lc = this.canvases.logos.getContext('2d');
     lc.clearRect(0, 0, this.canvases.logos.width, this.canvases.logos.height);
     lc.drawImage(logos, 0, 0, this.canvases.logos.width, this.canvases.logos.height);
@@ -948,7 +958,7 @@ export class Player {
     const shc = this.canvases.shoe.getContext('2d');
     shc.clearRect(0, 0, 702, 372);
     shc.drawImage(shoe, 0, 0, 702, 372);
-    for (const k of ['front', 'back', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
+    for (const k of ['front', 'back', 'backLetters', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
   }
 
   // ---------- poses ----------

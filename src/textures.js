@@ -139,24 +139,32 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   letterTv(ctx, number, spec, style, k);
 }
 
-// The back: the body color, the number larger and higher than on the front,
-// the shoulder numbers, and an optional name between the collar and the
-// number. As on the game jerseys, the name is a heavy, slightly spaced block,
-// about a sixth of the number's height, black on white jerseys and in the
-// number's fill on dark ones.
-export function paintJerseyBack(canvas, spec, style, number, name) {
+// The back panel: the body color and the shoulder numbers, which show from
+// behind too. The number and name are lettered separately, by
+// paintBackLettering, on their own sharper canvas.
+export function paintJerseyBack(canvas, spec, style, number) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.fillStyle = spec.base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  letterTv(ctx, number, spec, style, k, true);
+}
+
+// The back number, larger and higher than on the front, and an optional
+// name between the collar and the number, on a transparent canvas laid over
+// the back panel. As on the game jerseys, the name is a heavy, slightly
+// spaced block, about a sixth of the number's height, black on white jerseys
+// and in the number's fill on dark ones.
+export function paintBackLettering(canvas, spec, style, number, name) {
+  const ctx = canvas.getContext('2d');
+  const k = canvas.width / spec.art.width;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   const [x0, y0, x1, y1] = spec.number.box;
   const height = (y1 - y0) * 1.12;
   const top = name ? 430 : 400;
   letterNumber(ctx, number, {
     cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
   }, spec, style);
-  // Shoulder numbers show from behind too.
-  letterTv(ctx, number, spec, style, k, true);
   if (name) {
     const nameH = height * 0.17;
     const spacing = 6;
