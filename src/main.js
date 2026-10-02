@@ -5,7 +5,7 @@ import { loadAssets, loadImage, Player } from './model.js';
 import { Orbit, VIEWS } from './orbit.js';
 import { Panel, el } from './ui.js';
 import { FONTS, makeCanvas, paintTurf } from './textures.js';
-import { artUrl, cleanState, clone, decodeState, encodeState, groupOf, pieceName, resolveLook } from './combo.js';
+import { artUrl, cleanState, clone, decodeState, encodeState, graphicWord, groupOf, pieceName, resolveLook } from './combo.js';
 import { BRAND, DEFAULT_STATE } from './team.js';
 
 const POSE_LABELS = { idle: 'Idle', ready: 'Ready', run: 'Run', celebrate: 'Celebrate', heisman: 'Heisman' };
@@ -340,13 +340,15 @@ async function drawGraphic() {
       tracked(ctx, note.toUpperCase(), 210 + lw + 14, y + 20, 2.8);
     }
     const group = groupOf(kind, s[kind]);
-    const word = group.toUpperCase();
+    const word = graphicWord(kind, s[kind]);
     ctx.font = display(232);
     const ww = ctx.measureText(word).width;
-    const k = Math.min(1, 500 / ww);
+    // Long names are condensed first, then scaled down, to fit 500 px.
+    const fit = Math.min(1, 500 / ww);
+    const k = Math.min(1, fit / 0.72);
     ctx.save();
     ctx.translate(204, y + 26 + 200 * k);
-    ctx.scale(k, k);
+    ctx.scale(fit, k);
     if (group === 'White') {
       ctx.fillStyle = '#ffffff';
       ctx.fillText(word, 0, 0);
@@ -411,6 +413,19 @@ document.getElementById('download').addEventListener('click', async () => {
     toast('Graphic downloaded');
   }, 'image/png');
 });
+// The page address carries the combo, so copying it shares the combo.
+document.getElementById('copy-link').addEventListener('click', async () => {
+  const link = `${location.origin}${location.pathname}#${encodeState(state)}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    toast('Link copied');
+  } catch {
+    // Clipboard access can be blocked (http pages, sandboxed frames); let the
+    // browser's own prompt hand the link over instead.
+    window.prompt('Copy this link to share the combo:', link);
+  }
+});
+
 const s2slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'game';
 
 // ---------- boot ----------

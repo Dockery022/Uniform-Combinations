@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
+    "test": "node --test test/*.test.js",
     "prepare:player": "node tools/prepare-player.mjs",
     "prepare:helmet": "node tools/prepare-helmet.mjs",
     "prepare:uniforms": "python3 tools/prepare-uniforms.py"

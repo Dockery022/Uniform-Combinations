@@ -23,13 +23,21 @@ Opening `index.html` straight from disk (`file://`) won't work, because browsers
 - **The uniform**, laid out like the Combo Builder design: Helmet, Jersey, Pants and Accessories tabs with the design art, options grouped by color (Red, White, Black, Gray), a facemask picker that defaults per helmet, and a helmet callout.
 - **Your art on the 3D player.** The jersey front art is projected onto the jersey (sleeves included), the back gets the number set larger plus an optional name in the Louisville jersey face, helmet decals are cut from the side-view art and placed on both sides (birds face forward, scripts read forward), and the pants get their hip logos and side stripes. Shell finishes (gloss, satin, matte), chrome decals and stripes follow each helmet.
 - **The game:** vs/at, opponent, date, kickoff, network, venue and the crest, used by the graphic.
-- **Game graphic:** a live 1080 × 1080 preview of the design's "The Combo" template with the 3D render in place of the flat art, and a Download button.
+- **Game graphic:** a live 1080 × 1080 preview of the design's "The Combo" template with the 3D render in place of the flat art, and a Download button. Plain sets show their color (RED, WHITE, BLACK); alternate sets show their own name (ALI, HALLOWEEN, IRON WINGS, RED GOLD).
 - **Poses** (Idle, Ready, Run, Celebrate, Heisman), **camera views** (3/4, Front, Back, Side, Helmet), drag to turn, scroll or pinch to zoom, and a turntable spin.
-- **Saved combos** stay in the browser, and the page address carries the current combo so a copied link reopens it.
+- **Saved combos** stay in the browser, and the page address carries the current combo. **Copy link** puts that address on the clipboard so it reopens the same combo.
 - **Number and name.** The player wears No. 12 by default. Change it under the jerseys: the art's "10" is painted out on the chest, shoulders and back and the new number lettered in each jersey's own style (the Louisville jersey numerals, or block numerals for the Black 2026 and Halloween sets, with drop shadows where the art has them). Where the numbers sit is `JERSEY_NUMBERS` in `src/team.js`.
 - **On the 3D player only:** gloves, visor and skin tone, under Accessories.
 
 The header carries the LOUISVILLE wordmark, lifted from the jersey art with its white trap for the dark page. Colors follow the UofL Athletics brand guidelines (Cardinal Red `#C9001F`, black, white, metallic silver `#8A8D8F`) and text is set in Gotham where it's installed, with Montserrat as the web fallback.
+
+## Checks
+
+```bash
+npm test
+```
+
+Checks that every piece in `LIB` has its art and sampled colors, that the team tables only name real pieces, and that share links round-trip. GitHub runs it on every push and pull request.
 
 ## Matching it to your designs
 
@@ -37,6 +45,8 @@ The header carries the LOUISVILLE wordmark, lifted from the jersey art with its 
 | --- | --- |
 | The pieces, their color groups, tags and art files | `LIB` in `src/team.js` |
 | The facemask each helmet comes with | `MASK_DEF` in `src/team.js` |
+| The helmet callout each helmet starts with (a typed callout stays when you switch) | `HELMET_NOTE` in `src/team.js` |
+| The big word an alternate set shows on the game graphic | `GRAPHIC_WORD` in `src/team.js` |
 | Starting combo and game | `DEFAULT_STATE` in `src/team.js` |
 | Helmet finish, stripes, chrome decals, scripts that shouldn't mirror | `HELMETS` in `tools/prepare-uniforms.py` |
 | How far down the leg a pants side panel runs, where game photos differ from the art | `PANEL_END` in `tools/prepare-uniforms.py` |
@@ -90,5 +100,6 @@ src/vendor/           three.js GLTFLoader (MIT), sharing src/three.js
 src/styles.css        styles
 assets/               player.glb, helmet.glb, uni/ art, fonts/
 tools/                scripts that build the models and the art
+test/                 npm test checks for the combo data and share links
 server.mjs            zero-dependency static server for local and Codespaces use
 ```
