@@ -3,7 +3,7 @@
 export const ART = {
  "helmet": {
   "helmet-red": {
-   "shell": "#c9001f",
+   "shell": "#C9001F",
    "finish": "gloss",
    "mirror": true,
    "decalMetal": 0,
@@ -18,7 +18,7 @@ export const ART = {
    }
   },
   "helmet-white": {
-   "shell": "#ffffff",
+   "shell": "#FFFFFF",
    "finish": "gloss",
    "mirror": true,
    "decalMetal": 0,
@@ -33,7 +33,7 @@ export const ART = {
    }
   },
   "helmet-white-louie": {
-   "shell": "#ffffff",
+   "shell": "#FFFFFF",
    "finish": "gloss",
    "mirror": true,
    "decalMetal": 0,
@@ -63,7 +63,7 @@ export const ART = {
    }
   },
   "helmet-white-20": {
-   "shell": "#ffffff",
+   "shell": "#FFFFFF",
    "finish": "gloss",
    "mirror": true,
    "decalMetal": 0,
@@ -78,7 +78,7 @@ export const ART = {
    }
   },
   "helmet-red-20": {
-   "shell": "#a2032c",
+   "shell": "#C9001F",
    "finish": "satin",
    "mirror": true,
    "decalMetal": 0,
@@ -108,7 +108,7 @@ export const ART = {
    }
   },
   "helmet-whitealt-20": {
-   "shell": "#f0f0f0",
+   "shell": "#FFFFFF",
    "finish": "satin",
    "mirror": true,
    "decalMetal": 0,
@@ -138,7 +138,7 @@ export const ART = {
    }
   },
   "helmet-redscript": {
-   "shell": "#c9001f",
+   "shell": "#C9001F",
    "finish": "gloss",
    "mirror": false,
    "decalMetal": 0,
@@ -153,7 +153,7 @@ export const ART = {
    }
   },
   "helmet-whitestripe": {
-   "shell": "#ffffff",
+   "shell": "#FFFFFF",
    "finish": "gloss",
    "mirror": true,
    "decalMetal": 0,
@@ -161,7 +161,7 @@ export const ART = {
     {
      "at": 0,
      "w": 0.06,
-     "color": "#c8102e"
+     "color": "#C9001F"
     }
    ],
    "decal": "decal-helmet-whitestripe",
@@ -174,7 +174,7 @@ export const ART = {
    }
   },
   "helmet-halloween": {
-   "shell": "#0f0f0f",
+   "shell": "#000000",
    "finish": "satin",
    "mirror": true,
    "decalMetal": 0,
@@ -189,7 +189,7 @@ export const ART = {
    }
   },
   "helmet-redgold": {
-   "shell": "#c9001f",
+   "shell": "#C9001F",
    "finish": "gloss",
    "mirror": true,
    "decalMetal": 0,
@@ -204,7 +204,7 @@ export const ART = {
    }
   },
   "helmet-blackchrome": {
-   "shell": "#141416",
+   "shell": "#000000",
    "finish": "gloss",
    "mirror": true,
    "decalMetal": 1,
@@ -219,7 +219,7 @@ export const ART = {
    }
   },
   "helmet-blackmatte": {
-   "shell": "#343437",
+   "shell": "#000000",
    "finish": "matte",
    "mirror": true,
    "decalMetal": 0,
@@ -242,17 +242,17 @@ export const ART = {
     {
      "at": -0.026,
      "w": 0.012,
-     "color": "#ffffff"
+     "color": "#FFFFFF"
     },
     {
      "at": 0,
      "w": 0.04,
-     "color": "#c8102e"
+     "color": "#C9001F"
     },
     {
      "at": 0.026,
      "w": 0.012,
-     "color": "#ffffff"
+     "color": "#FFFFFF"
     }
    ],
    "decal": "decal-helmet-blackstripe",
@@ -265,7 +265,7 @@ export const ART = {
    }
   },
   "helmet-black23": {
-   "shell": "#1e1e20",
+   "shell": "#000000",
    "finish": "satin",
    "mirror": true,
    "decalMetal": 0,
@@ -280,7 +280,7 @@ export const ART = {
    }
   },
   "helmet-blackmattechrome": {
-   "shell": "#2e2e31",
+   "shell": "#000000",
    "finish": "matte",
    "mirror": true,
    "decalMetal": 1,
@@ -297,7 +297,7 @@ export const ART = {
  },
  "jersey": {
   "jersey-red": {
-   "base": "#c9001f",
+   "base": "#C9001F",
    "trim": "#000000",
    "number": {
     "box": [
@@ -306,8 +306,8 @@ export const ART = {
      916,
      1150
     ],
-    "fill": "#f8f8f8",
-    "outline": "#080808"
+    "fill": "#FFFFFF",
+    "outline": "#000000"
    },
    "art": {
     "width": 1366,
@@ -315,7 +315,7 @@ export const ART = {
    }
   },
   "jersey-white": {
-   "base": "#ffffff",
+   "base": "#FFFFFF",
    "trim": "#000000",
    "number": {
     "box": [
@@ -324,8 +324,8 @@ export const ART = {
      912,
      1150
     ],
-    "fill": "#c80818",
-    "outline": "#080808"
+    "fill": "#C9001F",
+    "outline": "#000000"
    },
    "art": {
     "width": 1366,
@@ -334,7 +334,7 @@ export const ART = {
   },
   "jersey-black": {
    "base": "#000000",
-   "trim": "#4d4d4d",
+   "trim": "#000000",
    "number": {
     "box": [
      433,
@@ -342,8 +342,8 @@ export const ART = {
      939,
      1069
     ],
-    "fill": "#f8f8f8",
-    "outline": "#c80818"
+    "fill": "#FFFFFF",
+    "outline": "#C9001F"
    },
    "art": {
     "width": 1366,
@@ -351,8 +351,8 @@ export const ART = {
    }
   },
   "jersey-red-wing": {
-   "base": "#c9001f",
-   "trim": "#ff5050",
+   "base": "#C9001F",
+   "trim": "#C9001F",
    "number": {
     "box": [
      462,
@@ -360,8 +360,8 @@ export const ART = {
      939,
      1168
     ],
-    "fill": "#f8f8f8",
-    "outline": "#080808"
+    "fill": "#FFFFFF",
+    "outline": "#000000"
    },
    "art": {
     "width": 1366,
@@ -369,8 +369,8 @@ export const ART = {
    }
   },
   "jersey-white-wing": {
-   "base": "#ffffff",
-   "trim": "#999999",
+   "base": "#FFFFFF",
+   "trim": "#8A8D8F",
    "number": {
     "box": [
      461,
@@ -378,8 +378,8 @@ export const ART = {
      939,
      1169
     ],
-    "fill": "#c80818",
-    "outline": "#080808"
+    "fill": "#C9001F",
+    "outline": "#000000"
    },
    "art": {
     "width": 1366,
@@ -388,7 +388,7 @@ export const ART = {
   },
   "jersey-black-wing": {
    "base": "#000000",
-   "trim": "#666666",
+   "trim": "#8A8D8F",
    "number": {
     "box": [
      479,
@@ -396,8 +396,8 @@ export const ART = {
      939,
      1168
     ],
-    "fill": "#f8f8f8",
-    "outline": "#c80818"
+    "fill": "#FFFFFF",
+    "outline": "#C9001F"
    },
    "art": {
     "width": 1366,
@@ -405,8 +405,8 @@ export const ART = {
    }
   },
   "jersey-red-20": {
-   "base": "#c2002c",
-   "trim": "#750c28",
+   "base": "#C9001F",
+   "trim": "#C9001F",
    "number": {
     "box": [
      497,
@@ -414,8 +414,8 @@ export const ART = {
      922,
      1056
     ],
-    "fill": "#f8f8f8",
-    "outline": "#281818"
+    "fill": "#FFFFFF",
+    "outline": "#000000"
    },
    "art": {
     "width": 1366,
@@ -423,8 +423,8 @@ export const ART = {
    }
   },
   "jersey-white-20": {
-   "base": "#ffffff",
-   "trim": "#0a0a0a",
+   "base": "#FFFFFF",
+   "trim": "#000000",
    "number": {
     "box": [
      495,
@@ -432,8 +432,8 @@ export const ART = {
      923,
      1055
     ],
-    "fill": "#c80828",
-    "outline": "#b80828"
+    "fill": "#C9001F",
+    "outline": "#C9001F"
    },
    "art": {
     "width": 1366,
@@ -442,7 +442,7 @@ export const ART = {
   },
   "jersey-black-20": {
    "base": "#000000",
-   "trim": "#959595",
+   "trim": "#8A8D8F",
    "number": {
     "box": [
      497,
@@ -450,8 +450,8 @@ export const ART = {
      923,
      1054
     ],
-    "fill": "#f8f8f8",
-    "outline": "#b80828"
+    "fill": "#FFFFFF",
+    "outline": "#C9001F"
    },
    "art": {
     "width": 1366,
@@ -459,8 +459,8 @@ export const ART = {
    }
   },
   "jersey-whitealt-20": {
-   "base": "#ffffff",
-   "trim": "#242122",
+   "base": "#FFFFFF",
+   "trim": "#000000",
    "number": {
     "box": [
      495,
@@ -468,8 +468,8 @@ export const ART = {
      923,
      1055
     ],
-    "fill": "#181818",
-    "outline": "#181808"
+    "fill": "#000000",
+    "outline": "#000000"
    },
    "art": {
     "width": 1366,
@@ -478,7 +478,7 @@ export const ART = {
   },
   "jersey-halloween": {
    "base": "#000000",
-   "trim": "#4d4d4d",
+   "trim": "#000000",
    "number": {
     "box": [
      433,
@@ -495,8 +495,8 @@ export const ART = {
    }
   },
   "jersey-ironwings": {
-   "base": "#8f9195",
-   "trim": "#e1e2e4",
+   "base": "#8A8D8F",
+   "trim": "#FFFFFF",
    "number": {
     "box": [
      462,
@@ -504,8 +504,8 @@ export const ART = {
      938,
      1168
     ],
-    "fill": "#f8f8f8",
-    "outline": "#080808"
+    "fill": "#FFFFFF",
+    "outline": "#000000"
    },
    "art": {
     "width": 1366,
@@ -513,7 +513,7 @@ export const ART = {
    }
   },
   "jersey-redgold": {
-   "base": "#c9001f",
+   "base": "#C9001F",
    "trim": "#000000",
    "number": {
     "box": [
@@ -523,7 +523,7 @@ export const ART = {
      1150
     ],
     "fill": "#c8a848",
-    "outline": "#080808"
+    "outline": "#000000"
    },
    "art": {
     "width": 1366,
@@ -532,7 +532,7 @@ export const ART = {
   },
   "jersey-black-23": {
    "base": "#000000",
-   "trim": "#666666",
+   "trim": "#8A8D8F",
    "number": {
     "box": [
      479,
@@ -540,8 +540,8 @@ export const ART = {
      940,
      1169
     ],
-    "fill": "#d8d8d8",
-    "outline": "#889898"
+    "fill": "#FFFFFF",
+    "outline": "#8A8D8F"
    },
    "art": {
     "width": 1366,
@@ -551,21 +551,21 @@ export const ART = {
  },
  "pants": {
   "pants-red": {
-   "base": "#c9001f",
-   "socks": "#c9001f",
+   "base": "#C9001F",
+   "socks": "#C9001F",
    "bands": [
     {
      "at": 0.0107,
      "w": 0.0329,
-     "color": "#ffffff"
+     "color": "#FFFFFF"
     },
     {
      "at": -0.0105,
      "w": 0.0094,
-     "color": "#111113"
+     "color": "#000000"
     }
    ],
-   "bandEnd": 0.92,
+   "bandEnd": 1.0,
    "logos": "logos-pants-red",
    "logoArt": {
     "width": 1084,
@@ -573,21 +573,21 @@ export const ART = {
    }
   },
   "pants-white": {
-   "base": "#ffffff",
-   "socks": "#ffffff",
+   "base": "#FFFFFF",
+   "socks": "#FFFFFF",
    "bands": [
     {
      "at": 0.0107,
-     "w": 0.0447,
-     "color": "#c9001f"
+     "w": 0.0567,
+     "color": "#000000"
     },
     {
-     "at": -0.0164,
-     "w": 0.0094,
-     "color": "#111113"
+     "at": 0.0107,
+     "w": 0.0447,
+     "color": "#C9001F"
     }
    ],
-   "bandEnd": 0.92,
+   "bandEnd": 1.0,
    "logos": "logos-pants-white",
    "logoArt": {
     "width": 1084,
@@ -601,15 +601,15 @@ export const ART = {
     {
      "at": 0.0107,
      "w": 0.0447,
-     "color": "#c9001f"
+     "color": "#C9001F"
     },
     {
      "at": -0.0164,
      "w": 0.0094,
-     "color": "#f2f2f0"
+     "color": "#FFFFFF"
     }
    ],
-   "bandEnd": 0.92,
+   "bandEnd": 1.0,
    "logos": "logos-pants-black",
    "logoArt": {
     "width": 1084,
@@ -617,8 +617,8 @@ export const ART = {
    }
   },
   "pants-red-script": {
-   "base": "#c9001f",
-   "socks": "#c9001f",
+   "base": "#C9001F",
+   "socks": "#C9001F",
    "bands": [],
    "bandEnd": 1.0,
    "logos": "logos-pants-red-script",
@@ -628,8 +628,8 @@ export const ART = {
    }
   },
   "pants-white-script": {
-   "base": "#ffffff",
-   "socks": "#ffffff",
+   "base": "#FFFFFF",
+   "socks": "#FFFFFF",
    "bands": [],
    "bandEnd": 1.0,
    "logos": "logos-pants-white-script",
@@ -650,8 +650,8 @@ export const ART = {
    }
   },
   "pants-red-20": {
-   "base": "#c2002c",
-   "socks": "#c2002c",
+   "base": "#C9001F",
+   "socks": "#C9001F",
    "bands": [],
    "bandEnd": 1.0,
    "logos": "logos-pants-red-20",
@@ -661,8 +661,8 @@ export const ART = {
    }
   },
   "pants-white-20": {
-   "base": "#ffffff",
-   "socks": "#ffffff",
+   "base": "#FFFFFF",
+   "socks": "#FFFFFF",
    "bands": [],
    "bandEnd": 1.0,
    "logos": "logos-pants-white-20",
@@ -683,18 +683,18 @@ export const ART = {
    }
   },
   "pants-whitealt-20": {
-   "base": "#ffffff",
-   "socks": "#ffffff",
+   "base": "#FFFFFF",
+   "socks": "#FFFFFF",
    "bands": [
     {
      "at": 0.0078,
      "w": 0.0459,
-     "color": "#161412"
+     "color": "#000000"
     },
     {
      "at": -0.0169,
      "w": 0.0035,
-     "color": "#464442"
+     "color": "#000000"
     }
    ],
    "bandEnd": 1.0,
@@ -732,8 +732,8 @@ export const ART = {
    }
   },
   "pants-ironwings": {
-   "base": "#8f9195",
-   "socks": "#8f9195",
+   "base": "#8A8D8F",
+   "socks": "#8A8D8F",
    "bands": [],
    "bandEnd": 1.0,
    "logos": "logos-pants-ironwings",
@@ -743,8 +743,8 @@ export const ART = {
    }
   },
   "pants-redgold": {
-   "base": "#c9001f",
-   "socks": "#c9001f",
+   "base": "#C9001F",
+   "socks": "#C9001F",
    "bands": [],
    "bandEnd": 1.0,
    "logos": "logos-pants-redgold",
@@ -766,19 +766,19 @@ export const ART = {
   }
  },
  "socks": {
-  "socks-red": "#c8102e",
-  "socks-white": "#ffffff",
-  "socks-black": "#0a0a0a",
-  "socks-gray": "#8f9195",
-  "socks-red-20": "#c8102e",
-  "socks-white-20": "#ffffff",
-  "socks-black-20": "#0a0a0a",
-  "socks-gray-20": "#8f9195"
+  "socks-red": "#C9001F",
+  "socks-white": "#FFFFFF",
+  "socks-black": "#000000",
+  "socks-gray": "#8A8D8F",
+  "socks-red-20": "#C9001F",
+  "socks-white-20": "#FFFFFF",
+  "socks-black-20": "#000000",
+  "socks-gray-20": "#8A8D8F"
  },
  "shoes": {
-  "shoes-black": "#181819",
-  "shoes-white": "#dddddf",
-  "shoes-red": "#a81d3a",
-  "shoes-gray": "#545559"
+  "shoes-black": "#000000",
+  "shoes-white": "#FFFFFF",
+  "shoes-red": "#C9001F",
+  "shoes-gray": "#8A8D8F"
  }
 };

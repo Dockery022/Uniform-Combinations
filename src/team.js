@@ -161,7 +161,7 @@ export const MASK_DEF = {
 export const FACEMASKS = [['Red', BRAND.red], ['White', BRAND.white], ['Black', BRAND.black]];
 
 // Extras for the 3D player that the flat graphic doesn't show.
-export const GLOVES = [['Black', '#111113'], ['White', '#f2f2f0'], ['Red', BRAND.red], ['None', null]];
+export const GLOVES = [['Black', BRAND.black], ['White', BRAND.white], ['Red', BRAND.red], ['None', null]];
 export const VISORS = [['none', 'None'], ['clear', 'Clear'], ['smoke', 'Smoke'], ['iridescent', 'Iridescent']];
 export const SKIN_TONES = ['#F1C8A8', '#DDA982', '#BC8259', '#93603F', '#6C412A', '#45291B'];
 

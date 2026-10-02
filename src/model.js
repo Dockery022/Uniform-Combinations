@@ -10,9 +10,9 @@
 // per-vertex measurements, so they follow the cloth when the player moves.
 import * as THREE from './three.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
-import { SKIN_TONES } from './team.js';
+import { SKIN_TONES, BRAND } from './team.js';
 import * as paint from './textures.js';
-import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace, SMOOTH_FABRIC } from '../jersey-material/jerseyMaterial.js';
+import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
 const PLAYER_HEIGHT = 1.88; // rest-pose height of the body in meters, without helmet
 
@@ -84,8 +84,17 @@ const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidt
 // the yoke and sleeves. The numbers and lettering stay smooth too. Each mesh
 // gets its own tiling from its UV scale, so the holes are round and the same
 // size everywhere.
+// Tuned to Doc's game-photo notes: nearly matte cloth, small faint holes
+// that fade out at full-body distance, little sheen.
+// How far above the pants hem the socks reach, tucked under the pants, and
+// how far up under the hem the shin is drawn in the sock color.
+const SOCK_TUCK = 0.015;
+const SOCK_SKIN = 0.04;
+
 const MESH_FABRIC = {
-  holesPerMeter: 160, // each map tile is 20 holes across
+  holesPerMeter: 200, // each map tile is 20 holes across
+  mesh: { normalScale: 0.25, aoIntensity: 0.35, sheen: 0.2, sheenRoughness: 0.7, envMapIntensity: 0.6, roughness: 1.35 },
+  smooth: { sheen: 0.2, sheenRoughness: 0.7, roughness: 0.7, envMapIntensity: 0.6 }, // yoke, sleeves, socks
   yokeDrop: 0.07, // meters below the armpits where the mesh starts on the front
   backDrop: 0.25, // and on the back, where it only covers the lower back, under the number
 };
@@ -176,6 +185,38 @@ function worldPositions(mesh) {
     out[i * 3] = v.x;
     out[i * 3 + 1] = v.y;
     out[i * 3 + 2] = v.z;
+  }
+  return out;
+}
+
+// Smooth vertex normals for rest-pose world positions (welded by position,
+// so UV seams don't crease them).
+function worldNormals(mesh, world) {
+  const index = mesh.geometry.index;
+  const count = world.length / 3;
+  const weld = new Map();
+  const id = new Int32Array(count);
+  for (let i = 0; i < count; i++) {
+    const k = `${world[i * 3].toFixed(4)},${world[i * 3 + 1].toFixed(4)},${world[i * 3 + 2].toFixed(4)}`;
+    if (!weld.has(k)) weld.set(k, weld.size);
+    id[i] = weld.get(k);
+  }
+  const acc = new Float32Array(weld.size * 3);
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const tris = index ? index.array : Array.from({ length: count }, (_, i) => i);
+  for (let t = 0; t < tris.length; t += 3) {
+    a.fromArray(world, tris[t] * 3);
+    b.fromArray(world, tris[t + 1] * 3).sub(a);
+    c.fromArray(world, tris[t + 2] * 3).sub(a);
+    b.cross(c); // area-weighted face normal
+    for (let k = 0; k < 3; k++) for (let j = 0; j < 3; j++) acc[id[tris[t + k]] * 3 + j] += b.getComponent(j);
+  }
+  const out = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    a.fromArray(acc, id[i] * 3).normalize();
+    out.set([a.x, a.y, a.z], i * 3);
   }
   return out;
 }
@@ -349,6 +390,8 @@ export class Player {
       back: C(JERSEY_ART.width, JERSEY_ART.height),
       // The back number and name, on their own 2048 px canvas so they stay sharp.
       backLetters: C(2048, Math.round((2048 * JERSEY_ART.height) / JERSEY_ART.width)),
+      // The two shoulder (or cuff) numbers, side by side: the player's right on the left half.
+      tv: C(2048, 1024),
       logos: C(PANTS_ART.width, PANTS_ART.height),
       shoe: C(702, 372),
       decal: C(752, 762),
@@ -357,6 +400,7 @@ export class Player {
     this.textures = Object.fromEntries(Object.entries(this.canvases).map(([k, c]) => [k, tex(c, k === 'ball')]));
     // Premultiplied, so the letters' edges filter cleanly over the jersey.
     this.textures.backLetters.premultiplyAlpha = true;
+    this.textures.tv.premultiplyAlpha = true;
     // One set of fabric maps; the jersey and pants each get their own tiling,
     // set from their UV scale in measure().
     const fabricMaps = loadFabricMaps(this.renderer, 'jersey-material/maps/');
@@ -370,12 +414,13 @@ export class Player {
         uArtFront: { value: this.textures.front },
         uArtBack: { value: this.textures.back },
         uBackLetters: { value: this.textures.backLetters },
+        uTv: { value: this.textures.tv },
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.012 },
-        uSmoothRough: { value: SMOOTH_FABRIC.roughness },
+        uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
       },
-      glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 } },
+      glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 }, uSock: { value: new THREE.Color() } },
       shoe: { uShoe: { value: this.textures.shoe }, uShoeBase: { value: new THREE.Color() } },
       shell: {
         uStripe: bandUniforms(),
@@ -396,16 +441,21 @@ export class Player {
     this.m = {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves;
       // the mesh's relief, roughness and hole shading all fade with it.
-      jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey), {
-        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float' },
+      jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
+        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3' },
         uniforms: this.uniforms.jersey,
-        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;',
+        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;',
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
           vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
+          // Shoulder numbers: flat decals, aTv = (across, down, side 1 or 2).
+          if (vaTv.z > 0.5 && all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
+            vec4 tv = texture2D(uTv, vec2((vaTv.z > 1.5 ? 0.5 : 0.0) + vaTv.x * 0.5, vaTv.y));
+            lettering = lettering * (1.0 - tv.a) + tv;
+          }
           float letters = lettering.a;
           diffuseColor.rgb = diffuseColor.rgb * (1.0 - letters) + lettering.rgb;
           // No mesh under the lettering or anything else off the base color.
@@ -417,13 +467,14 @@ export class Player {
           normal_fragment_maps: 'normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));',
         },
       }),
-      pants: extend(applyMeshFabricInPlace(fabric({ name: 'pants' }), this.fabricMaps.pants), {
+      pants: extend(applyMeshFabricInPlace(fabric({ name: 'pants' }), this.fabricMaps.pants, MESH_FABRIC.mesh), {
         attrs: { aSeam: 'float', aLogo: 'vec3', aDown: 'float' },
         uniforms: this.uniforms.pants,
         declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;`,
-        // Side panels stop partway down the leg, cut at an angle like the art.
+        // Side stripes run the full outside seam, waistband to hem; with
+        // uBandEnd < 1 they stop partway down, cut at an angle.
         fragment: /* glsl */ `
-          float bandEnd = uBandEnd - vaSeam * 1.2;
+          float bandEnd = uBandEnd >= 1.0 ? 2.0 : uBandEnd - vaSeam * 1.2;
           float bfw = max(fwidth(vaDown), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, applyBands(diffuseColor.rgb, vaSeam), 1.0 - smoothstep(bandEnd - bfw, bandEnd + bfw, vaDown));
           if (vaLogo.z > 0.5 && vaLogo.x > 0.0 && vaLogo.x < 1.0 && vaLogo.y > 0.0 && vaLogo.y < 1.0) {
@@ -432,7 +483,7 @@ export class Player {
           }
         `,
       }),
-      socks: applySmoothFabricInPlace(fabric({ name: 'socks' })),
+      socks: applySmoothFabricInPlace(fabric({ name: 'socks' }), MESH_FABRIC.smooth),
       cleats: extend(new THREE.MeshPhysicalMaterial({ name: 'cleats', roughness: 0.5, clearcoat: 0.25, clearcoatRoughness: 0.4 }), {
         attrs: { aShoe: 'vec2' },
         uniforms: this.uniforms.shoe,
@@ -443,14 +494,17 @@ export class Player {
         `,
       }),
       skin: extend(new THREE.MeshPhysicalMaterial({ name: 'skin', roughness: 0.55, sheen: 0.25, sheenRoughness: 0.8 }), {
-        attrs: { aGlove: 'float' },
+        attrs: { aGlove: 'float', aSock: 'float' },
         uniforms: this.uniforms.glove,
-        declare: 'uniform vec3 uGlove;\nuniform float uGloveOn;',
-        fragment: 'diffuseColor.rgb = mix(diffuseColor.rgb, uGlove, uGloveOn * smoothstep(0.3, 0.6, vaGlove));',
+        declare: 'uniform vec3 uGlove;\nuniform float uGloveOn;\nuniform vec3 uSock;',
+        fragment: `
+          diffuseColor.rgb = mix(diffuseColor.rgb, uGlove, uGloveOn * smoothstep(0.3, 0.6, vaGlove));
+          diffuseColor.rgb = mix(diffuseColor.rgb, uSock, step(0.5, vaSock));
+        `,
       }),
       belt: new THREE.MeshStandardMaterial({ name: 'belt', roughness: 0.55 }),
       buckle: new THREE.MeshStandardMaterial({ name: 'buckle', color: '#c9ccd1', metalness: 0.9, roughness: 0.3 }),
-      tape: new THREE.MeshStandardMaterial({ name: 'tape', color: '#f4f4f2', roughness: 0.85 }),
+      tape: new THREE.MeshStandardMaterial({ name: 'tape', color: BRAND.white, roughness: 0.85 }),
       armSleeve: fabric({ name: 'armSleeve', roughness: 0.5, sheen: 0.3 }),
       eyes: new THREE.MeshPhysicalMaterial({ name: 'eyes', color: '#1a1410', roughness: 0.15, clearcoat: 1 }),
     };
@@ -459,6 +513,177 @@ export class Player {
     }
     paint.paintBall(this.canvases.ball);
     this.textures.ball.needsUpdate = true;
+  }
+
+  // The model's socks stop short of the pants hem, leaving bare shin. This
+  // stretches the top 6 cm of each sock up to SOCK_TUCK above the hem, so it
+  // tucks under the pants, and pushes the new part out to clear the leg
+  // (the knee is wider than the calf). Done on the rest pose: each moved
+  // vertex is solved back through its own skinning transform, so it skins
+  // exactly as before with the same bone weights. No asset change needed.
+  tuckSocks() {
+    const { socks, pants, skin } = this.parts;
+    if (!socks || !pants || !skin) return;
+    const sw = worldPositions(socks);
+    const pw = worldPositions(pants);
+    const kw = worldPositions(skin);
+    const geo = socks.geometry;
+    const pos = geo.attributes.position;
+    const mid = (this.bones.LeftUpLeg.getWorldPosition(new THREE.Vector3()).x + this.bones.RightUpLeg.getWorldPosition(new THREE.Vector3()).x) / 2;
+    const BAND = 0.06; // the top 6 cm of the sock is stretched
+    const toLocal = new THREE.Matrix4();
+    const skinM = new THREE.Matrix4();
+    const tmp = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const moved = new Map();
+    const aSock = new Float32Array(kw.length / 3);
+    for (const left of [true, false]) {
+      const side = (x) => (x > mid) === left;
+      let hem = Infinity;
+      for (let i = 0; i < pw.length; i += 3) if (side(pw[i])) hem = Math.min(hem, pw[i + 1]);
+      let top = -Infinity;
+      for (let i = 0; i < sw.length; i += 3) if (side(sw[i])) top = Math.max(top, sw[i + 1]);
+      const target = hem + SOCK_TUCK;
+      if (!(target > top)) continue;
+      // The sock's top edge isn't level, so each 15° sector stretches from its own top.
+      let cx = 0;
+      let cz = 0;
+      let cn = 0;
+      for (let i = 0; i < sw.length; i += 3) {
+        if (!side(sw[i]) || sw[i + 1] < top - BAND) continue;
+        cx += sw[i];
+        cz += sw[i + 2];
+        cn++;
+      }
+      cx /= cn;
+      cz /= cn;
+      const sector = (x, z) => (Math.floor(((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
+      const tops = new Float32Array(24).fill(-Infinity);
+      for (let i = 0; i < sw.length; i += 3) {
+        if (side(sw[i]) && sw[i + 1] > top - 2 * BAND) tops[sector(sw[i], sw[i + 2])] = Math.max(tops[sector(sw[i], sw[i + 2])], sw[i + 1]);
+      }
+      for (let b = 0; b < 24; b++) if (!Number.isFinite(tops[b])) tops[b] = top;
+      // The hem isn't level either (it rides up at the back of the knee).
+      const hems = new Float32Array(24).fill(Infinity);
+      for (let i = 0; i < pw.length; i += 3) {
+        if (side(pw[i]) && pw[i + 1] < hem + 0.08) hems[sector(pw[i], pw[i + 2])] = Math.min(hems[sector(pw[i], pw[i + 2])], pw[i + 1]);
+      }
+      const targets = hems.map((h) => (Number.isFinite(h) ? h : hem) + SOCK_TUCK);
+      const tallest = Math.max(...targets);
+      // Skin on the shin, up under the hem, is drawn in the sock color too, so
+      // no skin shows where a low-poly facet of the sock dips under the leg
+      // or the knee bends the hem away.
+      let bottom = Infinity;
+      for (let i = 0; i < sw.length; i += 3) if (side(sw[i])) bottom = Math.min(bottom, sw[i + 1]);
+      for (let i = 0; i < kw.length; i += 3) {
+        if (!side(kw[i]) || kw[i + 1] < bottom || Math.hypot(kw[i] - cx, kw[i + 2] - cz) > 0.12) continue;
+        if (kw[i + 1] < targets[sector(kw[i], kw[i + 2])] - SOCK_TUCK + SOCK_SKIN) aSock[i / 3] = 1;
+      }
+      // The leg's center and outer radius per 1 cm slice and 15° sector.
+      const slices = new Map();
+      for (let i = 0; i < kw.length; i += 3) {
+        const y = kw[i + 1];
+        if (!side(kw[i]) || y < top - 3 * BAND || y > tallest + 0.06) continue;
+        const k = Math.round(y * 100);
+        const sl = slices.get(k) ?? { x: 0, z: 0, n: 0, pts: [] };
+        sl.x += kw[i];
+        sl.z += kw[i + 2];
+        sl.n++;
+        sl.pts.push(kw[i], kw[i + 2]);
+        slices.set(k, sl);
+      }
+      // The pants' inner radius per sector at the same slices, so the
+      // tucked part stays under the hem.
+      const hemR = new Map();
+      for (let i = 0; i < pw.length; i += 3) {
+        const y = pw[i + 1];
+        if (!side(pw[i]) || y > tallest + 0.02) continue;
+        const k = Math.round(y * 100);
+        const list = hemR.get(k) ?? [];
+        list.push(pw[i], pw[i + 2]);
+        hemR.set(k, list);
+      }
+      for (const sl of slices.values()) {
+        sl.x /= sl.n;
+        sl.z /= sl.n;
+        sl.r = new Float32Array(24);
+        for (let j = 0; j < sl.pts.length; j += 2) {
+          const dx = sl.pts[j] - sl.x;
+          const dz = sl.pts[j + 1] - sl.z;
+          if (Math.hypot(dx, dz) > 0.12) continue; // not this leg
+          const b = (Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
+          sl.r[b] = Math.max(sl.r[b], Math.hypot(dx, dz));
+        }
+      }
+      for (let i = 0; i < pos.count; i++) {
+        const x = sw[i * 3];
+        const y = sw[i * 3 + 1];
+        const z = sw[i * 3 + 2];
+        if (!side(x)) continue;
+        const sec = sector(x, z);
+        const t = tops[sec];
+        if (y < t - BAND) continue;
+        const ny = t - BAND + ((y - (t - BAND)) / BAND) * (targets[sec] - (t - BAND));
+        const sl = slices.get(Math.round(ny * 100));
+        let nx = x;
+        let nz = z;
+        if (sl) {
+          const dx = x - sl.x;
+          const dz = z - sl.z;
+          const r = Math.hypot(dx, dz) || 1e-6;
+          const b = (Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
+          // The sock is low-poly, so clear the widest leg within 4 cm above
+          // and below, which its flat facets span.
+          let need = 0;
+          for (let dy = -4; dy <= 4; dy++) {
+            const o = slices.get(Math.round(ny * 100) + dy);
+            if (o) for (const bb of [b, (b + 1) % 24, (b + 23) % 24]) need = Math.max(need, o.r[bb]);
+          }
+          need += 0.004;
+          let nr = Math.max(r, need);
+          // Inside the pants: no wider than the hem in this direction.
+          let pr = Infinity;
+          for (let dy = -1; dy <= 1; dy++) {
+            const ring = hemR.get(Math.round(ny * 100) + dy) ?? [];
+            for (let j = 0; j < ring.length; j += 2) {
+              const px = ring[j] - sl.x;
+              const pz = ring[j + 1] - sl.z;
+              const pb = (Math.floor(((Math.atan2(pz, px) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
+              if ((pb - b + 25) % 24 <= 2) pr = Math.min(pr, Math.hypot(px, pz));
+            }
+          }
+          if (Number.isFinite(pr)) nr = Math.min(nr, pr - 0.006);
+          nx = sl.x + (dx / r) * nr;
+          nz = sl.z + (dz / r) * nr;
+        }
+        // world = matrixWorld * bindMatrixInverse * skin * bindMatrix * local
+        skinM.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        for (let k = 0; k < 4; k++) {
+          const w = geo.attributes.skinWeight.getComponent(i, k);
+          if (!w) continue;
+          const j = geo.attributes.skinIndex.getComponent(i, k);
+          tmp.multiplyMatrices(socks.skeleton.bones[j].matrixWorld, socks.skeleton.boneInverses[j]);
+          for (let e = 0; e < 16; e++) skinM.elements[e] += tmp.elements[e] * w;
+        }
+        toLocal.copy(socks.matrixWorld).multiply(socks.bindMatrixInverse).multiply(skinM).multiply(socks.bindMatrix).invert();
+        v.set(nx, ny, nz).applyMatrix4(toLocal);
+        pos.setXYZ(i, v.x, v.y, v.z);
+        moved.set(i, toLocal.clone());
+      }
+    }
+    pos.needsUpdate = true;
+    // Fresh smooth normals for the stretched part, back in local space.
+    const normals = worldNormals(socks, worldPositions(socks));
+    const nrm = geo.attributes.normal;
+    const m3 = new THREE.Matrix3();
+    for (const [i, m] of moved) {
+      v.fromArray(normals, i * 3).applyMatrix3(m3.setFromMatrix4(m)).normalize();
+      nrm.setXYZ(i, v.x, v.y, v.z);
+    }
+    nrm.needsUpdate = true;
+    skin.geometry.setAttribute('aSock', new THREE.BufferAttribute(aSock, 1));
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
   }
 
   // Tile a mesh's fabric maps so the holes come out round and
@@ -475,6 +700,7 @@ export class Player {
     for (const mesh of Object.values(this.parts)) mesh.skeleton?.update();
     const bonePos = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
     const setAttr = (mesh, name, data) => mesh.geometry.setAttribute(name, new THREE.BufferAttribute(data, 1));
+    this.tuckSocks();
 
     // Jersey: distance from the neckline for the collar piping, and where each
     // vertex lands on the front-view art.
@@ -489,7 +715,11 @@ export class Player {
       const aNeck = new Float32Array(count);
       for (let i = 0; i < count; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
       setAttr(jersey, 'aNeck', aNeck);
-      jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(this.projectJersey(jersey, world, neckEdge, bonePos), 3));
+      const aArt = this.projectJersey(jersey, world, neckEdge, bonePos);
+      jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(aArt, 3));
+      // Kept for placing the shoulder-number decals, which move with the style.
+      this.jerseyRest = { world, normals: worldNormals(jersey, world), art: aArt, neck: bonePos('Neck') };
+      jersey.geometry.setAttribute('aTv', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
       // Dimple mesh on the front below the yoke and on the lower back, faded over 4 cm.
       const uv = jersey.geometry.attributes.uv;
       const aMesh = new Float32Array(count);
@@ -646,6 +876,7 @@ export class Player {
     }
     const xc = (x0 + x1) / 2;
     const scale = (A.bodyWidth - 28) / (x1 - x0); // art pixels per meter; keeps the side outlines off the body
+    this.artScale = scale;
     const stops = [[top, A.shoulderY], [vTip, A.vNeckY], [armpit, A.armpitY]];
     const artY = (y) => {
       if (y >= top) return A.shoulderY - (y - top) * scale;
@@ -696,6 +927,68 @@ export class Player {
       out[i * 3 + 2] = panel[i] === 1 ? 1 : 0;
     }
     return out;
+  }
+
+  // Shoulder (or cuff) numbers as flat decals. Each one is centered where the
+  // style's art letters it, found as the jersey point that projects closest
+  // to that art pixel (the front of the shoulder, or the cuff). Nearby
+  // vertices get planar decal coordinates, shown where they face the same
+  // way as the center, so the
+  // number lies flat on the cloth and crosses the front/back UV seam on top
+  // of the shoulder without a break. Digit tops point at the neck on the
+  // shoulder and up on a cuff. Returns each decal's size in meters.
+  placeTv(style) {
+    const key = JSON.stringify(style.tv ?? []);
+    if (key === this.tvKey) return this.tvSizes;
+    this.tvKey = key;
+    const jersey = this.parts.jersey;
+    const R = this.jerseyRest;
+    if (!jersey || !R) return (this.tvSizes = []);
+    const { world, normals, art, neck } = R;
+    const uv = jersey.geometry.attributes.uv;
+    const attr = jersey.geometry.attributes.aTv;
+    attr.array.fill(0);
+    const count = world.length / 3;
+    const p = new THREE.Vector3();
+    const q = new THREE.Vector3();
+    const n0 = new THREE.Vector3();
+    this.tvSizes = (style.tv ?? []).slice(0, 2).map((tv, side) => {
+      const ax = tv.at[0] / JERSEY_ART.width;
+      const ay = tv.at[1] / JERSEY_ART.height;
+      const onSleeve = tv.at[0] < 205 || tv.at[0] > 1161; // art sleeve columns
+      let best = -1;
+      let bestD = Infinity;
+      for (let i = 0; i < count; i++) {
+        const u = uv.getX(i);
+        if ((u < 0.44) !== onSleeve || (!onSleeve && u >= 0.715)) continue; // sleeves, or the front panel
+        const d = (art[i * 3] - ax) ** 2 + (art[i * 3 + 1] - ay) ** 2;
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      if (best < 0) return 0;
+      const c = new THREE.Vector3().fromArray(world, best * 3);
+      // Average normal around the center.
+      n0.set(0, 0, 0);
+      for (let i = 0; i < count; i++) {
+        if (p.fromArray(world, i * 3).distanceTo(c) < 0.03) n0.add(q.fromArray(normals, i * 3));
+      }
+      n0.normalize();
+      const upHint = onSleeve ? new THREE.Vector3(0, 1, 0) : neck.clone().sub(c);
+      const up = upHint.projectOnPlane(n0).normalize();
+      const right = new THREE.Vector3().crossVectors(up, n0).normalize();
+      const size = (tv.h / this.artScale) * 1.5; // the glyph is drawn 2/3 of the square
+      for (let i = 0; i < count; i++) {
+        p.fromArray(world, i * 3).sub(c);
+        if (p.length() > size) continue;
+        attr.array[i * 3] = p.dot(right) / size + 0.5;
+        attr.array[i * 3 + 1] = 0.5 - p.dot(up) / size;
+        // Coordinates stay valid past the cut, so a triangle across it
+        // clips the glyph cleanly instead of smearing it.
+        attr.array[i * 3 + 2] = q.fromArray(normals, i * 3).dot(n0) > 0.2 ? side + 1 : 0;
+      }
+      return size;
+    });
+    attr.needsUpdate = true;
+    return this.tvSizes;
   }
 
   attachHelmet(helmet) {
@@ -753,7 +1046,7 @@ export class Player {
       strap: new THREE.MeshStandardMaterial({ name: 'strap', roughness: 0.65 }),
       cup: new THREE.MeshPhysicalMaterial({ name: 'cup', roughness: 0.35, clearcoat: 0.5 }),
       bumper: new THREE.MeshStandardMaterial({ name: 'bumper', roughness: 0.45 }),
-      trim: new THREE.MeshStandardMaterial({ name: 'trim', color: '#141416', roughness: 0.6 }),
+      trim: new THREE.MeshStandardMaterial({ name: 'trim', color: BRAND.black, roughness: 0.6 }),
       pads: new THREE.MeshStandardMaterial({ name: 'pads', color: '#1b1b1e', roughness: 0.9 }),
       hardware: new THREE.MeshStandardMaterial({ name: 'hardware', color: '#b8bbc1', metalness: 0.55, roughness: 0.35 }),
     };
@@ -880,8 +1173,9 @@ export class Player {
     m.pants.sheenColor.copy(sheen(p.base));
     setBands(u.pants, p.bands);
     u.pants.uBandEnd.value = p.bandEnd ?? 1;
-    m.belt.color.set(p.base === '#000000' ? '#0b0b0c' : '#111113');
+    m.belt.color.set(BRAND.black);
     m.socks.color.set(look.socks);
+    u.glove.uSock.value.set(look.socks);
     m.socks.sheenColor.copy(sheen(look.socks));
     m.cleats.color.set('#ffffff');
     u.shoe.uShoeBase.value.set(look.cleats);
@@ -895,7 +1189,7 @@ export class Player {
 
     // Helmet.
     const finish = {
-      gloss: { metalness: 0, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03 },
+      gloss: { metalness: 0, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03 },
       satin: { metalness: 0.1, roughness: 0.45, clearcoat: 0.45, clearcoatRoughness: 0.3 },
       matte: { metalness: 0, roughness: 0.78, clearcoat: 0, clearcoatRoughness: 1 },
     }[h.finish] ?? {};
@@ -908,10 +1202,10 @@ export class Player {
     u.shell.uDecalSize.value.set(h.decalArt.width, h.decalArt.height);
     u.shell.uDecalMetal.value = h.decalMetal;
     hm.mask.color.set(look.facemask);
-    const strap = look.facemask === '#000000' ? '#111113' : '#f2f2f0';
+    const strap = look.facemask === BRAND.black ? BRAND.black : BRAND.white;
     hm.strap.color.set(strap);
     hm.cup.color.set(strap);
-    hm.bumper.color.set('#111113');
+    hm.bumper.color.set(BRAND.black);
 
     const visor = {
       none: null,
@@ -943,8 +1237,10 @@ export class Player {
     ]);
     if (token !== this.artToken) return;
     paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
-    paint.paintJerseyBack(this.canvases.back, look.jersey.spec, look.jersey.style, look.number);
+    paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
     paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.number, look.name);
+    this.placeTv(look.jersey.style);
+    paint.paintTvDecals(this.canvases.tv, look.jersey.spec, look.jersey.style, look.number);
     const lc = this.canvases.logos.getContext('2d');
     lc.clearRect(0, 0, this.canvases.logos.width, this.canvases.logos.height);
     lc.drawImage(logos, 0, 0, this.canvases.logos.width, this.canvases.logos.height);
@@ -958,7 +1254,7 @@ export class Player {
     const shc = this.canvases.shoe.getContext('2d');
     shc.clearRect(0, 0, 702, 372);
     shc.drawImage(shoe, 0, 0, 702, 372);
-    for (const k of ['front', 'back', 'backLetters', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
+    for (const k of ['front', 'back', 'backLetters', 'tv', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
   }
 
   // ---------- poses ----------

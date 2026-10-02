@@ -59,15 +59,16 @@ const MESH_DEFAULTS = {
   sheen: 0.5,         // polyester sheen strength
   sheenRoughness: 0.5,
   envMapIntensity: 0.8,
+  roughness: 1.0,     // scales the roughness map; above 1 makes the fabric more matte
 };
 
 /** Give a MeshPhysicalMaterial the mesh fabric look, in place. */
 export function applyMeshFabricInPlace(m, maps, opts = {}) {
-  const { normalScale, aoIntensity, sheen, sheenRoughness, envMapIntensity } = { ...MESH_DEFAULTS, ...opts };
+  const { normalScale, aoIntensity, sheen, sheenRoughness, envMapIntensity, roughness } = { ...MESH_DEFAULTS, ...opts };
   m.normalMap = maps.normal;
   m.normalScale.set(normalScale, normalScale);
   m.roughnessMap = maps.rough;
-  m.roughness = 1.0;              // roughnessMap drives the value
+  m.roughness = roughness;        // roughnessMap drives the value
   m.metalness = 0.0;
   m.aoMap = maps.detail;
   m.aoMapIntensity = aoIntensity;
@@ -96,14 +97,14 @@ const SMOOTH_DEFAULTS = { sheen: 0.7, roughness: 0.45, envMapIntensity: 0.9 };
 
 /** Smooth "dazzle" fabric, in place. */
 export function applySmoothFabricInPlace(m, opts = {}) {
-  const { sheen, roughness, envMapIntensity } = { ...SMOOTH_DEFAULTS, ...opts };
+  const { sheen, roughness, envMapIntensity, sheenRoughness = 0.4 } = { ...SMOOTH_DEFAULTS, ...opts };
   m.normalMap = null;
   m.roughnessMap = null;
   m.aoMap = null;
   m.roughness = roughness;
   m.metalness = 0.0;
   m.sheen = sheen;
-  m.sheenRoughness = 0.4;
+  m.sheenRoughness = sheenRoughness;
   m.sheenColor = new THREE.Color(0xffffff);
   m.envMapIntensity = envMapIntensity;
   m.needsUpdate = true;
@@ -119,8 +120,6 @@ export function applySmoothFabric(material, opts = {}) {
   m.copy(material);
   return applySmoothFabricInPlace(m, opts);
 }
-
-export const SMOOTH_FABRIC = SMOOTH_DEFAULTS;
 
 /**
  * Example usage after your GLB loads.

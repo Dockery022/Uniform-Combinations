@@ -5,8 +5,10 @@ export const FONTS = {
   jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
   block: '"Graduate", "Arial Black", Impact, sans-serif',
   display: '"Anton", "Arial Narrow", Impact, sans-serif',
-  // Back names: a heavy, wide sans like the game nameplates (weight 800).
-  name: '"Montserrat", "Arial Black", Arial, sans-serif',
+  // Back names: Oswald 700, slightly spaced, like the game nameplates.
+  name: '"Oswald", "Arial Narrow", Arial, sans-serif',
+  // Back numbers: Anton with a heavy black outline.
+  backNumber: '"Anton", "Arial Narrow", Impact, sans-serif',
   sans: '"Gotham SSm A", "Gotham SSm B", "Gotham", "Montserrat", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif',
 };
 
@@ -62,7 +64,7 @@ function textWidth(ctx, text, family, height, weight = '', spacing = 0) {
 // narrower than the font's, other digits a little wider, and a gap between
 // them. Block numerals are squeezed so "10" fills the art's number width.
 function letterNumber(ctx, number, { cx, cy, height, width }, spec, style) {
-  const { fill, outline } = spec.number;
+  const { fill, outline } = numberColors(spec);
   const outlines = [{ color: outline, width: height * 0.02 }];
   const draw = (text, x, sx) => {
     if (style.shadow) drawText(ctx, text, { family, cx: x + height * 0.03, cy: cy + height * 0.022, height, sx, fill: outline, outlines });
@@ -86,25 +88,32 @@ function letterNumber(ctx, number, { cx, cy, height, width }, spec, style) {
   });
 }
 
-// Shoulder or cuff numbers, where the art puts them.
-// `mirror` places them for the back panel, which is projected mirrored, so
-// each shoulder carries the same digit front and back.
-function letterTv(ctx, number, spec, style, k, mirror = false) {
+// Shoulder or cuff numbers, drawn flat for the decals the model places on
+// each shoulder (see Player.placeTv): the style's first entry (the player's
+// right) on the left half of the canvas, the second on the right half. Each
+// glyph fills two thirds of its half's height, upright, in the jersey's
+// numerals with the number's outline.
+export function paintTvDecals(canvas, spec, style, number) {
+  const ctx = canvas.getContext('2d');
+  const { width: W, height: H } = canvas;
+  ctx.clearRect(0, 0, W, H);
   const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
-  for (const tv of style.tv ?? []) {
+  (style.tv ?? []).slice(0, 2).forEach((tv, i) => {
     const text = tv.digits === 'all' ? number : tv.digits === 'first' ? number[0] : number[number.length - 1];
-    const x = mirror ? spec.art.width - tv.at[0] : tv.at[0];
+    const height = H / 1.5;
+    const w = textWidth(ctx, text, family, height);
     drawText(ctx, text, {
-      family, cx: x * k, cy: tv.at[1] * k, height: tv.h * k, rotate: mirror ? -tv.turn : tv.turn,
-      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 6 * k }],
+      family, cx: W * (i + 0.5) / 2, cy: H / 2, height, sx: Math.min(1, (W / 2 - 80) / w),
+      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: height * 0.035 }],
     });
-  }
+  });
 }
 
 // The jersey's front art, ready to project. The V-neck is filled with the
 // body color, because the 3D jersey's neckline is shallower than the drawing's
 // and gets its own piping from the collar shader. The art's "10" (chest and
-// shoulders) is painted out and the chosen number lettered in its place.
+// shoulders) is painted out; the chosen number is lettered on the chest, and
+// the shoulder numbers go on as decals (paintTvDecals).
 // Coordinates are art pixels (1366 x 1408), drawn at the canvas's scale.
 export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   const ctx = canvas.getContext('2d');
@@ -136,25 +145,21 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   letterNumber(ctx, number, {
     cx: ((x0 + x1) / 2) * k, cy: ((y0 + y1) / 2) * k, height: (y1 - y0) * 0.94 * k, width: (x1 - x0) * 0.94 * k,
   }, spec, style);
-  letterTv(ctx, number, spec, style, k);
 }
 
-// The back panel: the body color and the shoulder numbers, which show from
-// behind too. The number and name are lettered separately, by
-// paintBackLettering, on their own sharper canvas.
-export function paintJerseyBack(canvas, spec, style, number) {
+// The back panel: the body color. The number and name are lettered
+// separately, by paintBackLettering, and the shoulder numbers are decals.
+export function paintJerseyBack(canvas, spec) {
   const ctx = canvas.getContext('2d');
-  const k = canvas.width / spec.art.width;
   ctx.fillStyle = spec.base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  letterTv(ctx, number, spec, style, k, true);
 }
 
 // The back number, larger and higher than on the front, and an optional
 // name between the collar and the number, on a transparent canvas laid over
-// the back panel. As on the game jerseys, the name is a heavy, slightly
-// spaced block, about a sixth of the number's height, black on white jerseys
-// and in the number's fill on dark ones.
+// the back panel. Doc's spec: the name in Oswald 700 with 8 px tracking at
+// 150 px, the number in Anton with a 70 px black stroke at 900 px. The name
+// is black on white jerseys and in the number's fill on dark ones.
 export function paintBackLettering(canvas, spec, style, number, name) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
@@ -162,19 +167,38 @@ export function paintBackLettering(canvas, spec, style, number, name) {
   const [x0, y0, x1, y1] = spec.number.box;
   const height = (y1 - y0) * 1.12;
   const top = name ? 430 : 400;
-  letterNumber(ctx, number, {
-    cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
-  }, spec, style);
-  if (name) {
-    const nameH = height * 0.17;
-    const spacing = 6;
-    const maxW = (x1 - x0) * 1.15;
-    const w = textWidth(ctx, name, FONTS.name, nameH, 800, spacing);
-    drawText(ctx, name, {
-      family: FONTS.name, weight: 800, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 34) * k, height: nameH * k,
-      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? spec.number.outline : spec.number.fill,
+  if (style.font === 'block') {
+    letterNumber(ctx, number, {
+      cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
+    }, spec, style);
+  } else {
+    // Anton's caps are about 0.71 em, so a 70 px stroke at 900 px is ~0.055
+    // of the cap height on each side.
+    const h = height * k;
+    const w = textWidth(ctx, number, FONTS.backNumber, h);
+    drawText(ctx, number, {
+      family: FONTS.backNumber, cx: canvas.width / 2, cy: (top + height / 2) * k, height: h,
+      sx: Math.min(1, ((x1 - x0) * 1.25 * k) / w),
+      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: h * 0.055 }],
     });
   }
+  if (name) {
+    const nameH = height * 0.17;
+    const spacing = 8 * (100 / 150); // drawText sets the font at 100 px
+    const maxW = (x1 - x0) * 1.15;
+    const w = textWidth(ctx, name, FONTS.name, nameH, 700, spacing);
+    drawText(ctx, name, {
+      family: FONTS.name, weight: 700, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 34) * k, height: nameH * k,
+      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill,
+    });
+  }
+}
+
+// Number fill and outline. The spec's colors are already on the brand
+// palette (tools/palette.py): Cardinal Red #C9001F on #000000 for the white
+// sets, White or Silver fills on the dark ones, gold on the two gold alternates.
+export function numberColors(spec) {
+  return { fill: spec.number.fill, outline: spec.number.outline };
 }
 
 function isLight(hex) {
