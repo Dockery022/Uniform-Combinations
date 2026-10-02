@@ -249,7 +249,6 @@ export class Player {
     this.root = new THREE.Group();
     this.body = assets.player.scene;
     this.root.add(this.body);
-    this.pose = { current: 'idle', previous: 'idle', switchedAt: -10 };
     this.tmpV = new THREE.Vector3();
     this.tmpQ = new THREE.Quaternion();
 
@@ -260,10 +259,7 @@ export class Player {
     this.attachHelmet(assets.helmet.scene);
     this.addProps();
     this.captureRest();
-
-    this.mixer = new THREE.AnimationMixer(this.body);
-    const clip = assets.player.animations[0];
-    if (clip) this.mixer.clipAction(clip).play();
+    this.buildActions(assets.player.animations[0]);
   }
 
   fitBody() {
@@ -753,6 +749,7 @@ export class Player {
       return new THREE.Vector2(Math.max(0.003, 0.086 * Math.pow(Math.max(0, 1 - (y / 0.14) ** 2), 0.45)), y);
     });
     this.ball = new THREE.Mesh(new THREE.LatheGeometry(prof, 40), new THREE.MeshStandardMaterial({ map: this.textures.ball, roughness: 0.6 }));
+    this.ball.name = 'poseBall';
     this.ball.castShadow = true;
     this.ball.visible = false;
     const hand = this.bones.RightHand;
@@ -887,11 +884,74 @@ export class Player {
 
   // ---------- poses ----------
 
-  setPose(name, time) {
-    if (name === this.pose.current) return;
-    this.pose.previous = this.pose.current;
-    this.pose.current = name;
-    this.pose.switchedAt = time;
+  // Every pose is an AnimationAction on one AnimationMixer: idle is the
+  // model's own Mixamo clip, the others are baked from POSES into looping
+  // clips. All actions keep playing; switching poses fades their weights.
+  buildActions(idleClip) {
+    this.mixer = new THREE.AnimationMixer(this.body);
+    // The mixer animates this empty's height to lift the player off the turf.
+    this.liftNode = new THREE.Object3D();
+    this.liftNode.name = 'poseLift';
+    this.body.add(this.liftNode);
+
+    const clips = { idle: idleClip ?? new THREE.AnimationClip('idle', 0, []) };
+    for (const name of Object.keys(POSES)) clips[name] = this.bakePose(name, clips.idle);
+    this.actions = {};
+    this.weights = {};
+    for (const [name, clip] of Object.entries(clips)) {
+      this.weights[name] = Number(name === 'idle');
+      this.actions[name] = this.mixer.clipAction(clip).setEffectiveWeight(this.weights[name]).play();
+    }
+    this.pose = 'idle';
+  }
+
+  // Sample a POSES function over one loop into keyframe tracks. Bones the pose
+  // leaves alone (fingers, collarbones, toes) hold the idle clip's first frame.
+  bakePose(name, idleClip) {
+    const duration = POSE_LOOPS[name];
+    const steps = Math.max(2, Math.ceil(duration * POSE_FPS));
+    const times = Array.from({ length: steps + 1 }, (_, i) => (i / steps) * duration);
+    const frames = times.map((t) => POSES[name](t));
+    const tracks = [];
+
+    const driven = new Map();
+    for (const [joint, target] of Object.entries(JOINT_BONES)) {
+      if (!(joint in frames[0])) continue;
+      const bones = (Array.isArray(target) ? target : [target]).filter((b) => this.bones[b]);
+      for (const b of bones) driven.set(b, { joint, share: 1 / bones.length });
+    }
+    const q = new THREE.Quaternion();
+    for (const [b, { joint, share }] of driven) {
+      const values = [];
+      const prev = new THREE.Quaternion();
+      frames.forEach((f, i) => {
+        this.poseQuat(b, f[joint].map((v) => v * share), q);
+        // Keep neighbouring keys in the same hemisphere so slerp takes the short way.
+        if (i > 0 && q.dot(prev) < 0) q.set(-q.x, -q.y, -q.z, -q.w);
+        prev.copy(q);
+        values.push(q.x, q.y, q.z, q.w);
+      });
+      tracks.push(new THREE.QuaternionKeyframeTrack(`${this.bones[b].name}.quaternion`, times, values));
+    }
+
+    for (const track of idleClip.tracks) {
+      const [node, prop] = track.name.split('.');
+      const bone = this.bones[node.replace(/^mixamorig_?/, '')];
+      if (prop !== 'quaternion' || !bone || driven.has(node.replace(/^mixamorig_?/, ''))) continue;
+      tracks.push(new THREE.QuaternionKeyframeTrack(track.name, [0], Array.from(track.values.slice(0, 4))));
+    }
+
+    // Procedural poses stand on the rest hips; idle keeps the clip's sway.
+    tracks.push(new THREE.VectorKeyframeTrack(`${this.bones.Hips.name}.position`, [0], this.rest.Hips.pos.toArray()));
+    tracks.push(new THREE.VectorKeyframeTrack('poseLift.position', times, frames.flatMap((f) => [0, f.lift ?? 0, 0])));
+    tracks.push(new THREE.BooleanKeyframeTrack('poseBall.visible', [0], [Boolean(frames[0].ball)]));
+    return new THREE.AnimationClip(name, duration, tracks);
+  }
+
+  // Fade toward `name`. Weights ramp from wherever they are, so picking a new
+  // pose mid-fade never snaps.
+  setPose(name) {
+    if (this.actions[name]) this.pose = name;
   }
 
   // Local rotation for a bone given a delta in character axes, applied on
@@ -904,56 +964,33 @@ export class Player {
     return out.copy(parentRest).invert().multiply(delta).multiply(r.world);
   }
 
-  sample(name, time) {
-    if (name === 'idle') return null; // the animation clip drives idle
-    const raw = POSES[name](time);
-    const out = new Map();
-    for (const [joint, euler] of Object.entries(raw)) {
-      const target = JOINT_BONES[joint];
-      if (!target) continue;
-      const bones = Array.isArray(target) ? target : [target];
-      const share = 1 / bones.length;
-      for (const b of bones) {
-        if (!this.bones[b]) continue;
-        out.set(b, this.poseQuat(b, euler.map((v) => v * share), new THREE.Quaternion()));
-      }
+  // `hold` freezes each pose on its current frame (reduced motion) while
+  // still letting a pose change fade through.
+  update(dt, hold = false) {
+    const step = dt / POSE_FADE;
+    let total = 0;
+    for (const name of Object.keys(this.actions)) {
+      const target = name === this.pose ? 1 : 0;
+      const w = this.weights[name] + Math.max(-step, Math.min(step, target - this.weights[name]));
+      this.weights[name] = w;
+      total += w;
     }
-    out.lift = raw.lift ?? 0;
-    out.ball = Boolean(raw.ball);
-    return out;
-  }
-
-  update(time, dt) {
+    // Normalize so the blend always sums to one full pose.
+    for (const [name, action] of Object.entries(this.actions)) {
+      action.paused = hold;
+      action.setEffectiveWeight(total > 0 ? this.weights[name] / total : Number(name === this.pose));
+    }
     this.mixer.update(dt);
-    const w = Math.min(1, (time - this.pose.switchedAt) / 0.6);
-    const ease = w * w * (3 - 2 * w);
-    const a = this.sample(this.pose.previous, time);
-    const b = this.sample(this.pose.current, time);
-    const hips = this.bones.Hips;
-    const clipHips = hips.position.clone();
-
-    const names = new Set([...(a?.keys() ?? []), ...(b?.keys() ?? [])]);
-    for (const n of names) {
-      const bone = this.bones[n];
-      const clipQ = bone.quaternion.clone();
-      const qa = a?.get(n) ?? (a ? this.rest[n].local : clipQ);
-      const qb = b?.get(n) ?? (b ? this.rest[n].local : clipQ);
-      bone.quaternion.copy(qa).slerp(qb, ease);
-    }
-    // Procedural poses stand on the rest hips; idle keeps the clip's sway.
-    const posA = a ? this.rest.Hips.pos : clipHips;
-    const posB = b ? this.rest.Hips.pos : clipHips;
-    hips.position.lerpVectors(posA, posB, ease);
-
-    const lift = (a?.lift ?? 0) + ((b?.lift ?? 0) - (a?.lift ?? 0)) * ease;
-    this.ball.visible = ease > 0.5 ? Boolean(b?.ball) : Boolean(a?.ball);
 
     // Keep the lowest foot on the turf.
     this.root.position.y = 0;
     this.root.updateMatrixWorld(true);
-    this.root.position.y = this.restFeet - this.feetHeight() + lift;
+    this.root.position.y = this.restFeet - this.feetHeight() + this.liftNode.position.y;
   }
 }
+
+const POSE_FADE = 0.6; // seconds to cross-fade between poses
+const POSE_FPS = 30; // keyframes per second when baking POSES into clips
 
 // Which bones each pose joint drives. Spine bends are shared across three bones.
 const JOINT_BONES = {
@@ -1040,4 +1077,12 @@ export const POSES = {
       ball: true,
     };
   },
+};
+
+// One loop of each pose, in seconds: the period of its motion in POSES.
+const POSE_LOOPS = {
+  ready: (2 * Math.PI) / 2.4,
+  run: (2 * Math.PI) / 9,
+  celebrate: (2 * Math.PI) / 4.2,
+  heisman: (2 * Math.PI) / 1.4,
 };

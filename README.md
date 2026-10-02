@@ -24,7 +24,7 @@ Opening `index.html` straight from disk (`file://`) won't work, because browsers
 - **Your art on the 3D player.** The jersey front art is projected onto the jersey (sleeves included), the back gets the number set larger plus an optional name in the Louisville jersey face, helmet decals are cut from the side-view art and placed on both sides (birds face forward, scripts read forward), and the pants get their hip logos and side stripes. Shell finishes (gloss, satin, matte), chrome decals and stripes follow each helmet.
 - **The game:** vs/at, opponent, date, kickoff, network, venue and the crest, used by the graphic.
 - **Game graphic:** a live 1080 × 1080 preview of the design's "The Combo" template with the 3D render in place of the flat art, and a Download button. Plain sets show their color (RED, WHITE, BLACK); alternate sets show their own name (ALI, HALLOWEEN, IRON WINGS, RED GOLD).
-- **Poses** (Idle, Ready, Run, Celebrate, Heisman), **camera views** (3/4, Front, Back, Side, Helmet), drag to turn, scroll or pinch to zoom, and a turntable spin.
+- **Poses** (Idle, Ready, Run, Celebrate, Heisman), all played through one three.js `AnimationMixer` that fades smoothly between them, **camera views** (3/4, Front, Back, Side, Helmet), drag to turn, scroll or pinch to zoom, and a turntable spin.
 - **Saved combos** stay in the browser, and the page address carries the current combo. **Copy link** puts that address on the clipboard so it reopens the same combo.
 - **Number and name.** The player wears No. 12 by default. Change it under the jerseys: the art's "10" is painted out on the chest, shoulders and back and the new number lettered in each jersey's own style (the Louisville jersey numerals, or block numerals for the Black 2026 and Halloween sets, with drop shadows where the art has them). Where the numbers sit is `JERSEY_NUMBERS` in `src/team.js`.
 - **On the 3D player only:** gloves, visor and skin tone, under Accessories.
@@ -81,6 +81,8 @@ npm run prepare:helmet -- helmet-raw.glb assets/helmet.glb
 ```
 
 The art is mapped from measurements taken on the model at load time (`measure()` in `src/model.js`), so it follows the cloth as the player moves.
+
+Idle is the model's own Mixamo clip. The other poses are written as joint angles in `POSES` (`src/model.js`) and baked into looping `AnimationClip`s when the player loads (`bakePose()`), so every pose is an `AnimationAction` on the same mixer. A new Mixamo clip (a touchdown dance, say) can join them the same way: add its clip to `buildActions()` and a button in `POSE_LABELS` (`src/main.js`).
 
 Make sure you have the rights to publish the models, the art, the marks and the jersey font (`assets/fonts/louisville-jersey.otf`) before making the repository or the page public.
 
