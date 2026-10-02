@@ -194,7 +194,7 @@ const clock = new THREE.Clock();
 let pose = 'idle';
 segmented(document.getElementById('poses'), Object.entries(POSE_LABELS), pose, (p) => {
   pose = p;
-  player?.setPose(p, clock.elapsedTime);
+  player?.setPose(p);
 });
 segmented(document.getElementById('views'), Object.entries(VIEWS).map(([k, v]) => [k, v.label]), 'three', (v) => orbit.flyTo(v));
 orbit.onInteract = () => {
@@ -437,9 +437,8 @@ async function fontsReady() {
 
 function frame() {
   const dt = clock.getDelta();
-  const t = clock.elapsedTime;
   const still = reduceMotion && pose !== 'run' && pose !== 'celebrate';
-  player.update(still ? 0 : t, still ? 0 : Math.min(dt, 0.1));
+  player.update(Math.min(dt, 0.1), still);
   orbit.update(Math.min(dt, 0.25), reduceMotion);
   if (mode === '3d') renderer.render(scene, camera);
   requestAnimationFrame(frame);
