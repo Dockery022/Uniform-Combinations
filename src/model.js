@@ -77,6 +77,19 @@ const SHOE_ART = { heel: 0.012, toe: 0.997, top: 0.03, bottom: 0.95 };
 // Pants art (1084 x 1994): the hip logos, cut into a 1084 x 600 strip.
 const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidth: 666 };
 
+// Dimple mesh on the jersey body (assets/fabric/, made by tools/make-mesh-maps.py).
+// The jersey's UVs run about 2.5 times longer across than down, so the tile
+// repeats more across to keep the holes round. The yoke and sleeves are
+// smooth fabric, like a real game jersey, and so are the numbers and
+// lettering (anything in the art that isn't the jersey's base color).
+const MESH_FABRIC = {
+  repeat: [16, 6.3],
+  normalScale: 0.6, // how deep the holes read
+  holeShade: 0.55, // how much the holes darken the color (0 to 1)
+  smoothRoughness: 0.5, // yoke and sleeves
+  yokeDrop: 0.07, // meters below the armpits where the mesh starts
+};
+
 // ---------- shader helpers ----------
 
 // Adds antialiased bands across a per-vertex distance. Up to three bands,
@@ -125,7 +138,8 @@ function setBands(u, bands) {
 
 // Wires a per-vertex attribute into a material and lets `fragment` adjust
 // diffuseColor after the base map is applied.
-function extend(material, { attrs = {}, uniforms = {}, declare = '', fragment = '', vertexWorld = false }) {
+// `after` adds code after other fragment chunks, keyed by chunk name.
+function extend(material, { attrs = {}, uniforms = {}, declare = '', fragment = '', after = {}, vertexWorld = false }) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     const attrDecl = Object.entries(attrs).map(([n, t]) => `attribute ${t} ${n};\nvarying ${t} v${n};`).join('\n');
@@ -137,6 +151,9 @@ function extend(material, { attrs = {}, uniforms = {}, declare = '', fragment = 
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${varyDecl}${vertexWorld ? '\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : ''}\n${declare}`)
       .replace('#include <map_fragment>', `#include <map_fragment>\n${fragment}`);
+    for (const [chunk, code] of Object.entries(after)) {
+      shader.fragmentShader = shader.fragmentShader.replace(`#include <${chunk}>`, `#include <${chunk}>\n${code}`);
+    }
     material.userData.shader = shader;
   };
   material.customProgramCacheKey = () => `${material.name}-ext`;
@@ -309,7 +326,7 @@ export class Player {
     };
     this.textures = Object.fromEntries(Object.entries(this.canvases).map(([k, c]) => [k, tex(c, k === 'ball')]));
     const normals = {
-      knit: paint.fabricNormal('knit'), twill: paint.fabricNormal('twill'),
+      twill: paint.fabricNormal('twill'),
     };
     const ntex = (canvas, rx, ry) => {
       const t = new THREE.CanvasTexture(canvas);
@@ -318,6 +335,16 @@ export class Player {
       t.flipY = false;
       return t;
     };
+
+    const fabricMap = (name) => {
+      const t = new THREE.TextureLoader().load(`assets/fabric/${name}.webp`);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(...MESH_FABRIC.repeat);
+      t.flipY = false;
+      t.anisotropy = aniso;
+      return t;
+    };
+    const mesh = { normal: fabricMap('mesh-normal'), rough: fabricMap('mesh-roughness'), detail: fabricMap('mesh-detail') };
 
     const fabric = (extra) => new THREE.MeshPhysicalMaterial({ roughness: 0.82, sheen: 0.45, sheenRoughness: 0.6, ...extra });
     const pantsU = bandUniforms();
@@ -329,6 +356,9 @@ export class Player {
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.012 },
+        uMeshDetail: { value: mesh.detail },
+        uHoleShade: { value: MESH_FABRIC.holeShade },
+        uSmoothRough: { value: MESH_FABRIC.smoothRoughness },
       },
       glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 } },
       shoe: { uShoe: { value: this.textures.shoe }, uShoeBase: { value: new THREE.Color() } },
@@ -349,16 +379,26 @@ export class Player {
     };
 
     this.m = {
-      jersey: extend(fabric({ name: 'jersey', normalMap: ntex(normals.knit, 70, 28), normalScale: new THREE.Vector2(0.3, 0.3) }), {
-        attrs: { aArt: 'vec3', aNeck: 'float' },
+      // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves.
+      jersey: extend(fabric({
+        name: 'jersey', roughness: 1, normalMap: mesh.normal, roughnessMap: mesh.rough,
+        normalScale: new THREE.Vector2(MESH_FABRIC.normalScale, MESH_FABRIC.normalScale), sheen: 0.5, sheenRoughness: 0.5,
+      }), {
+        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float' },
         uniforms: this.uniforms.jersey,
-        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;',
+        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform sampler2D uMeshDetail;\nuniform float uHoleShade;\nuniform float uSmoothRough;',
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
+          float meshAmt = vaMesh * (1.0 - smoothstep(0.12, 0.25, distance(diffuseColor.rgb, uBase)));
+          diffuseColor.rgb *= mix(1.0, texture2D(uMeshDetail, vRoughnessMapUv).g, uHoleShade * meshAmt);
         `,
+        after: {
+          roughnessmap_fragment: 'roughnessFactor = mix(uSmoothRough, roughnessFactor, meshAmt);',
+          normal_fragment_maps: 'normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));',
+        },
       }),
       pants: extend(fabric({ name: 'pants', roughness: 0.6, sheen: 0.3, normalMap: ntex(normals.twill, 60, 60), normalScale: new THREE.Vector2(0.06, 0.06) }), {
         attrs: { aSeam: 'float', aLogo: 'vec3', aDown: 'float' },
@@ -425,6 +465,15 @@ export class Player {
       for (let i = 0; i < count; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
       setAttr(jersey, 'aNeck', aNeck);
       jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(this.projectJersey(jersey, world, neckEdge, bonePos), 3));
+      // Dimple mesh on the front and back below the yoke, faded over 4 cm.
+      const meshTop = this.jerseyArmpit - MESH_FABRIC.yokeDrop;
+      const uv = jersey.geometry.attributes.uv;
+      const aMesh = new Float32Array(count);
+      for (let i = 0; i < count; i++) {
+        if (uv.getX(i) < 0.44) continue; // sleeve
+        aMesh[i] = THREE.MathUtils.smoothstep(meshTop - world[i * 3 + 1], -0.02, 0.02);
+      }
+      setAttr(jersey, 'aMesh', aMesh);
     }
 
     // Pants: signed arc distance from the outer seam of each leg.
@@ -556,6 +605,7 @@ export class Player {
       if (panel[i] === 0) top = Math.max(top, y);
       if (panel[i] === 2) armpit = Math.min(armpit, y);
     }
+    this.jerseyArmpit = armpit;
     const neckZ = bonePos('Neck').z;
     const front = neckEdge.filter((p) => p.z > neckZ);
     const vTip = front.length ? Math.min(...front.map((p) => p.y)) : top - 0.075;
