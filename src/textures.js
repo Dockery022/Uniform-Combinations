@@ -205,8 +205,8 @@ export function paintJerseyBack(canvas, spec) {
 // name between the collar and the number, on a transparent canvas laid over
 // the back panel. The number matches the front's lettering. The name is set
 // in the same face as the chest LOUISVILLE wordmark (the Louisville Jersey
-// capitals are its heavy, slanted letters), in the number's fill with a
-// thick outline, so the nameplate reads as the wordmark's family.
+// capitals are its heavy, slanted letters), black on light jerseys and in
+// the number's fill on dark ones, like the real nameplates.
 export function paintBackLettering(canvas, spec, style, number, name) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
@@ -223,10 +223,9 @@ export function paintBackLettering(canvas, spec, style, number, name) {
     const spacing = 2;
     const maxW = (x1 - x0) * 1.2;
     const w = textWidth(ctx, name, FONTS.jersey, nameH, '', spacing);
-    const { fill, outline } = numberColors(spec);
     drawText(ctx, name, {
       family: FONTS.jersey, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 40) * k, height: nameH * k,
-      sx: Math.min(1, maxW / w), fill, outlines: [{ color: outline, width: nameH * 0.09 * k }],
+      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill,
     });
   }
 }
