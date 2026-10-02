@@ -10,7 +10,7 @@
 // per-vertex measurements, so they follow the cloth when the player moves.
 import * as THREE from './three.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
-import { SKIN_TONES } from './team.js';
+import { SKIN_TONES, BRAND } from './team.js';
 import * as paint from './textures.js';
 import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
@@ -504,7 +504,7 @@ export class Player {
       }),
       belt: new THREE.MeshStandardMaterial({ name: 'belt', roughness: 0.55 }),
       buckle: new THREE.MeshStandardMaterial({ name: 'buckle', color: '#c9ccd1', metalness: 0.9, roughness: 0.3 }),
-      tape: new THREE.MeshStandardMaterial({ name: 'tape', color: '#f4f4f2', roughness: 0.85 }),
+      tape: new THREE.MeshStandardMaterial({ name: 'tape', color: BRAND.white, roughness: 0.85 }),
       armSleeve: fabric({ name: 'armSleeve', roughness: 0.5, sheen: 0.3 }),
       eyes: new THREE.MeshPhysicalMaterial({ name: 'eyes', color: '#1a1410', roughness: 0.15, clearcoat: 1 }),
     };
@@ -1046,7 +1046,7 @@ export class Player {
       strap: new THREE.MeshStandardMaterial({ name: 'strap', roughness: 0.65 }),
       cup: new THREE.MeshPhysicalMaterial({ name: 'cup', roughness: 0.35, clearcoat: 0.5 }),
       bumper: new THREE.MeshStandardMaterial({ name: 'bumper', roughness: 0.45 }),
-      trim: new THREE.MeshStandardMaterial({ name: 'trim', color: '#141416', roughness: 0.6 }),
+      trim: new THREE.MeshStandardMaterial({ name: 'trim', color: BRAND.black, roughness: 0.6 }),
       pads: new THREE.MeshStandardMaterial({ name: 'pads', color: '#1b1b1e', roughness: 0.9 }),
       hardware: new THREE.MeshStandardMaterial({ name: 'hardware', color: '#b8bbc1', metalness: 0.55, roughness: 0.35 }),
     };
@@ -1173,7 +1173,7 @@ export class Player {
     m.pants.sheenColor.copy(sheen(p.base));
     setBands(u.pants, p.bands);
     u.pants.uBandEnd.value = p.bandEnd ?? 1;
-    m.belt.color.set(p.base === '#000000' ? '#0b0b0c' : '#111113');
+    m.belt.color.set(BRAND.black);
     m.socks.color.set(look.socks);
     u.glove.uSock.value.set(look.socks);
     m.socks.sheenColor.copy(sheen(look.socks));
@@ -1202,10 +1202,10 @@ export class Player {
     u.shell.uDecalSize.value.set(h.decalArt.width, h.decalArt.height);
     u.shell.uDecalMetal.value = h.decalMetal;
     hm.mask.color.set(look.facemask);
-    const strap = look.facemask === '#000000' ? '#111113' : '#f2f2f0';
+    const strap = look.facemask === BRAND.black ? BRAND.black : BRAND.white;
     hm.strap.color.set(strap);
     hm.cup.color.set(strap);
-    hm.bumper.color.set('#111113');
+    hm.bumper.color.set(BRAND.black);
 
     const visor = {
       none: null,

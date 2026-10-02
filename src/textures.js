@@ -189,7 +189,7 @@ export function paintBackLettering(canvas, spec, style, number, name) {
     const w = textWidth(ctx, name, FONTS.name, nameH, 700, spacing);
     drawText(ctx, name, {
       family: FONTS.name, weight: 700, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 34) * k, height: nameH * k,
-      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#111111' : numberColors(spec).fill,
+      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill,
     });
   }
 }

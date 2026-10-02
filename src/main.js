@@ -242,7 +242,7 @@ function renderCutout(w, h) {
   return out;
 }
 
-const INK = { Red: BRAND.red, White: '#ffffff', Gray: '#8f9195', Black: '#111111' };
+const INK = { Red: BRAND.red, White: BRAND.white, Gray: BRAND.silver, Black: BRAND.black };
 
 // Text with tracking (letter-spacing in px), left aligned at x.
 function tracked(ctx, text, x, y, spacing) {

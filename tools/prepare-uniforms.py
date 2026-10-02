@@ -20,6 +20,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
+sys.path.insert(0, str(Path(__file__).parent))
+from palette import BLACK, RED, snap  # noqa: E402
+
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else 'uni-src')
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / 'assets' / 'uni'
@@ -38,13 +41,13 @@ HELMETS = {
     'helmet-whitealt-20': {'finish': 'satin', 'threshold': 45},
     'helmet-script': {'finish': 'gloss', 'mirror': False},
     'helmet-redscript': {'finish': 'gloss', 'mirror': False},
-    'helmet-whitestripe': {'finish': 'gloss', 'stripe': [{'at': 0, 'w': 0.06, 'color': '#c8102e'}]},
+    'helmet-whitestripe': {'finish': 'gloss', 'stripe': [{'at': 0, 'w': 0.06, 'color': RED}]},
     'helmet-halloween': {'finish': 'satin'},
     'helmet-redgold': {'finish': 'gloss'},
     'helmet-blackchrome': {'finish': 'gloss', 'decalMetal': 1},
     'helmet-blackmatte': {'finish': 'matte', 'threshold': 10},
     'helmet-blackstripe': {'finish': 'gloss', 'stripe': [
-        {'at': -0.026, 'w': 0.012, 'color': '#ffffff'}, {'at': 0, 'w': 0.04, 'color': '#c8102e'},
+        {'at': -0.026, 'w': 0.012, 'color': '#ffffff'}, {'at': 0, 'w': 0.04, 'color': RED},
         {'at': 0.026, 'w': 0.012, 'color': '#ffffff'}]},
     'helmet-black23': {'finish': 'satin', 'threshold': 18},
     'helmet-blackmattechrome': {'finish': 'matte', 'decalMetal': 1},
@@ -62,8 +65,8 @@ PANEL_END = {'pants-red': 1.0, 'pants-white': 1.0, 'pants-black': 1.0}
 # Stripes set by hand instead of read from the art: Doc's red stripe with a
 # thin black edge on both sides for the white 2026 pants (meters; drawn in
 # order, so the black band sits under the red one).
-BANDS = {'pants-white': [{'at': 0.0107, 'w': 0.0567, 'color': '#111113'},
-                         {'at': 0.0107, 'w': 0.0447, 'color': '#c9001f'}]}
+BANDS = {'pants-white': [{'at': 0.0107, 'w': 0.0567, 'color': BLACK},
+                         {'at': 0.0107, 'w': 0.0447, 'color': RED}]}
 SOCKS = ['socks-red', 'socks-white', 'socks-black', 'socks-gray',
          'socks-red-20', 'socks-white-20', 'socks-black-20', 'socks-gray-20']
 SHOES = ['shoes-black', 'shoes-white', 'shoes-red', 'shoes-gray']
@@ -74,7 +77,7 @@ def load(name):
 
 
 def hexof(rgb):
-    return '#%02x%02x%02x' % tuple(int(v) for v in rgb[:3])
+    return snap('#%02x%02x%02x' % tuple(int(v) for v in rgb[:3]))
 
 
 def median(a, box):
