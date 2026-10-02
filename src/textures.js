@@ -61,7 +61,32 @@ function textWidth(ctx, text, family, height, weight = '', spacing = 0) {
 // numerals are set digit by digit the way the art sets its "10": a "1"
 // narrower than the font's, other digits a little wider, and a gap between
 // them. Block numerals are squeezed so "10" fills the art's number width.
-function letterNumber(ctx, number, { cx, cy, height, width }, spec, style) {
+function letterNumber(ctx, number, box, spec, style) {
+  // Set it on a scratch canvas, then center its ink on cx: the numerals'
+  // side bearings differ (a "1" sits left in its advance), so centering by
+  // advance widths leaves numbers like 19 and 12 off the centerline.
+  const { width: W, height: H } = ctx.canvas;
+  const scratch = makeCanvas(W, H);
+  const sctx = scratch.getContext('2d');
+  setNumber(sctx, number, box, spec, style);
+  const y0 = Math.max(0, Math.floor(box.cy - box.height * 0.7));
+  const y1 = Math.min(H, Math.ceil(box.cy + box.height * 0.7));
+  const data = sctx.getImageData(0, y0, W, y1 - y0).data;
+  let x0 = W;
+  let x1 = -1;
+  for (let y = 0; y < y1 - y0; y += 2) {
+    for (let x = 0; x < W; x++) {
+      if (data[(y * W + x) * 4 + 3] > 40) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+      }
+    }
+  }
+  const shift = x1 >= x0 ? box.cx - (x0 + x1 + 1) / 2 : 0;
+  ctx.drawImage(scratch, Math.round(shift), 0);
+}
+
+function setNumber(ctx, number, { cx, cy, height, width }, spec, style) {
   const { fill, outline } = numberColors(spec);
   const outlines = [{ color: outline, width: height * 0.02 }];
   const draw = (text, x, sx) => {
