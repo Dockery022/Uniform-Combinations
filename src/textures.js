@@ -5,8 +5,6 @@ export const FONTS = {
   jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
   block: '"Graduate", "Arial Black", Impact, sans-serif',
   display: '"Anton", "Arial Narrow", Impact, sans-serif',
-  // Back names: Oswald 700, slightly spaced, like the game nameplates.
-  name: '"Oswald", "Arial Narrow", Arial, sans-serif',
   sans: '"Gotham SSm A", "Gotham SSm B", "Gotham", "Montserrat", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif',
 };
 
@@ -205,27 +203,28 @@ export function paintJerseyBack(canvas, spec) {
 
 // The back number, larger and higher than on the front, and an optional
 // name between the collar and the number, on a transparent canvas laid over
-// the back panel. The number matches the front's lettering; the name is
-// Oswald 700 with 8 px tracking at 150 px (Doc's spec), black on white
-// jerseys and in the number's fill on dark ones.
+// the back panel. The number matches the front's lettering. The name is set
+// in the same face as the chest LOUISVILLE wordmark (the Louisville Jersey
+// capitals are its heavy, slanted letters), black on light jerseys and in
+// the number's fill on dark ones, like the real nameplates.
 export function paintBackLettering(canvas, spec, style, number, name) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const [x0, y0, x1, y1] = spec.number.box;
   const height = (y1 - y0) * 1.12;
-  const top = name ? 430 : 400;
+  const top = name ? 450 : 400;
   // Lettered exactly like the chest number (same numerals, fill and outline), only larger.
   letterNumber(ctx, number, {
     cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
   }, spec, style);
   if (name) {
-    const nameH = height * 0.17;
-    const spacing = 8 * (100 / 150); // drawText sets the font at 100 px
-    const maxW = (x1 - x0) * 1.15;
-    const w = textWidth(ctx, name, FONTS.name, nameH, 700, spacing);
+    const nameH = height * 0.2;
+    const spacing = 2;
+    const maxW = (x1 - x0) * 1.2;
+    const w = textWidth(ctx, name, FONTS.jersey, nameH, '', spacing);
     drawText(ctx, name, {
-      family: FONTS.name, weight: 700, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 34) * k, height: nameH * k,
+      family: FONTS.jersey, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 40) * k, height: nameH * k,
       sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill,
     });
   }
