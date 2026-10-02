@@ -3,8 +3,8 @@
 
 Cardinal Red #C9001F, Black #000000, White #FFFFFF, Metallic Silver #8A8D8F.
 Beak yellow #FDB913 belongs to the bird logo only, so it is never produced
-here; gold accents on alternate uniforms (Red Gold, Halloween) are kept as
-the art has them.
+here. Gold accents on the Red Gold and Halloween alternates are kept as the
+art has them (Doc's call, 2026-10-02).
 
 prepare-uniforms.py runs every sampled color through snap(). To snap an
 existing spec without the source art:

@@ -194,19 +194,11 @@ export function paintBackLettering(canvas, spec, style, number, name) {
   }
 }
 
-// Doc's number colors: the red sampled from the art (#c80818 and its
-// neighbors) is Cardinal Red #C9001F, and near-black is pure #000000.
-// Other colors (white, gold, gray) stay as the art has them.
-const CARDINAL = '#C9001F';
-function brandColor(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
-  if (r > 150 && g < 60 && b < 70) return CARDINAL;
-  if (r < 56 && g < 56 && b < 56) return '#000000';
-  return hex;
-}
+// Number fill and outline. The spec's colors are already on the brand
+// palette (tools/palette.py): Cardinal Red #C9001F on #000000 for the white
+// sets, White or Silver fills on the dark ones, gold on the two gold alternates.
 export function numberColors(spec) {
-  return { fill: brandColor(spec.number.fill), outline: brandColor(spec.number.outline) };
+  return { fill: spec.number.fill, outline: spec.number.outline };
 }
 
 function isLight(hex) {
