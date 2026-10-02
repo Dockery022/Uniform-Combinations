@@ -86,6 +86,11 @@ const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidt
 // size everywhere.
 // Tuned to Doc's game-photo notes: nearly matte cloth, small faint holes
 // that fade out at full-body distance, little sheen.
+// How far above the pants hem the socks reach, tucked under the pants, and
+// how far up under the hem the shin is drawn in the sock color.
+const SOCK_TUCK = 0.015;
+const SOCK_SKIN = 0.04;
+
 const MESH_FABRIC = {
   holesPerMeter: 200, // each map tile is 20 holes across
   mesh: { normalScale: 0.25, aoIntensity: 0.35, sheen: 0.2, sheenRoughness: 0.7, envMapIntensity: 0.6, roughness: 1.35 },
@@ -415,7 +420,7 @@ export class Player {
         uCollarW: { value: 0.012 },
         uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
       },
-      glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 } },
+      glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 }, uSock: { value: new THREE.Color() } },
       shoe: { uShoe: { value: this.textures.shoe }, uShoeBase: { value: new THREE.Color() } },
       shell: {
         uStripe: bandUniforms(),
@@ -489,10 +494,13 @@ export class Player {
         `,
       }),
       skin: extend(new THREE.MeshPhysicalMaterial({ name: 'skin', roughness: 0.55, sheen: 0.25, sheenRoughness: 0.8 }), {
-        attrs: { aGlove: 'float' },
+        attrs: { aGlove: 'float', aSock: 'float' },
         uniforms: this.uniforms.glove,
-        declare: 'uniform vec3 uGlove;\nuniform float uGloveOn;',
-        fragment: 'diffuseColor.rgb = mix(diffuseColor.rgb, uGlove, uGloveOn * smoothstep(0.3, 0.6, vaGlove));',
+        declare: 'uniform vec3 uGlove;\nuniform float uGloveOn;\nuniform vec3 uSock;',
+        fragment: `
+          diffuseColor.rgb = mix(diffuseColor.rgb, uGlove, uGloveOn * smoothstep(0.3, 0.6, vaGlove));
+          diffuseColor.rgb = mix(diffuseColor.rgb, uSock, step(0.5, vaSock));
+        `,
       }),
       belt: new THREE.MeshStandardMaterial({ name: 'belt', roughness: 0.55 }),
       buckle: new THREE.MeshStandardMaterial({ name: 'buckle', color: '#c9ccd1', metalness: 0.9, roughness: 0.3 }),
@@ -505,6 +513,177 @@ export class Player {
     }
     paint.paintBall(this.canvases.ball);
     this.textures.ball.needsUpdate = true;
+  }
+
+  // The model's socks stop short of the pants hem, leaving bare shin. This
+  // stretches the top 6 cm of each sock up to SOCK_TUCK above the hem, so it
+  // tucks under the pants, and pushes the new part out to clear the leg
+  // (the knee is wider than the calf). Done on the rest pose: each moved
+  // vertex is solved back through its own skinning transform, so it skins
+  // exactly as before with the same bone weights. No asset change needed.
+  tuckSocks() {
+    const { socks, pants, skin } = this.parts;
+    if (!socks || !pants || !skin) return;
+    const sw = worldPositions(socks);
+    const pw = worldPositions(pants);
+    const kw = worldPositions(skin);
+    const geo = socks.geometry;
+    const pos = geo.attributes.position;
+    const mid = (this.bones.LeftUpLeg.getWorldPosition(new THREE.Vector3()).x + this.bones.RightUpLeg.getWorldPosition(new THREE.Vector3()).x) / 2;
+    const BAND = 0.06; // the top 6 cm of the sock is stretched
+    const toLocal = new THREE.Matrix4();
+    const skinM = new THREE.Matrix4();
+    const tmp = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const moved = new Map();
+    const aSock = new Float32Array(kw.length / 3);
+    for (const left of [true, false]) {
+      const side = (x) => (x > mid) === left;
+      let hem = Infinity;
+      for (let i = 0; i < pw.length; i += 3) if (side(pw[i])) hem = Math.min(hem, pw[i + 1]);
+      let top = -Infinity;
+      for (let i = 0; i < sw.length; i += 3) if (side(sw[i])) top = Math.max(top, sw[i + 1]);
+      const target = hem + SOCK_TUCK;
+      if (!(target > top)) continue;
+      // The sock's top edge isn't level, so each 15° sector stretches from its own top.
+      let cx = 0;
+      let cz = 0;
+      let cn = 0;
+      for (let i = 0; i < sw.length; i += 3) {
+        if (!side(sw[i]) || sw[i + 1] < top - BAND) continue;
+        cx += sw[i];
+        cz += sw[i + 2];
+        cn++;
+      }
+      cx /= cn;
+      cz /= cn;
+      const sector = (x, z) => (Math.floor(((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
+      const tops = new Float32Array(24).fill(-Infinity);
+      for (let i = 0; i < sw.length; i += 3) {
+        if (side(sw[i]) && sw[i + 1] > top - 2 * BAND) tops[sector(sw[i], sw[i + 2])] = Math.max(tops[sector(sw[i], sw[i + 2])], sw[i + 1]);
+      }
+      for (let b = 0; b < 24; b++) if (!Number.isFinite(tops[b])) tops[b] = top;
+      // The hem isn't level either (it rides up at the back of the knee).
+      const hems = new Float32Array(24).fill(Infinity);
+      for (let i = 0; i < pw.length; i += 3) {
+        if (side(pw[i]) && pw[i + 1] < hem + 0.08) hems[sector(pw[i], pw[i + 2])] = Math.min(hems[sector(pw[i], pw[i + 2])], pw[i + 1]);
+      }
+      const targets = hems.map((h) => (Number.isFinite(h) ? h : hem) + SOCK_TUCK);
+      const tallest = Math.max(...targets);
+      // Skin on the shin, up under the hem, is drawn in the sock color too, so
+      // no skin shows where a low-poly facet of the sock dips under the leg
+      // or the knee bends the hem away.
+      let bottom = Infinity;
+      for (let i = 0; i < sw.length; i += 3) if (side(sw[i])) bottom = Math.min(bottom, sw[i + 1]);
+      for (let i = 0; i < kw.length; i += 3) {
+        if (!side(kw[i]) || kw[i + 1] < bottom || Math.hypot(kw[i] - cx, kw[i + 2] - cz) > 0.12) continue;
+        if (kw[i + 1] < targets[sector(kw[i], kw[i + 2])] - SOCK_TUCK + SOCK_SKIN) aSock[i / 3] = 1;
+      }
+      // The leg's center and outer radius per 1 cm slice and 15° sector.
+      const slices = new Map();
+      for (let i = 0; i < kw.length; i += 3) {
+        const y = kw[i + 1];
+        if (!side(kw[i]) || y < top - 3 * BAND || y > tallest + 0.06) continue;
+        const k = Math.round(y * 100);
+        const sl = slices.get(k) ?? { x: 0, z: 0, n: 0, pts: [] };
+        sl.x += kw[i];
+        sl.z += kw[i + 2];
+        sl.n++;
+        sl.pts.push(kw[i], kw[i + 2]);
+        slices.set(k, sl);
+      }
+      // The pants' inner radius per sector at the same slices, so the
+      // tucked part stays under the hem.
+      const hemR = new Map();
+      for (let i = 0; i < pw.length; i += 3) {
+        const y = pw[i + 1];
+        if (!side(pw[i]) || y > tallest + 0.02) continue;
+        const k = Math.round(y * 100);
+        const list = hemR.get(k) ?? [];
+        list.push(pw[i], pw[i + 2]);
+        hemR.set(k, list);
+      }
+      for (const sl of slices.values()) {
+        sl.x /= sl.n;
+        sl.z /= sl.n;
+        sl.r = new Float32Array(24);
+        for (let j = 0; j < sl.pts.length; j += 2) {
+          const dx = sl.pts[j] - sl.x;
+          const dz = sl.pts[j + 1] - sl.z;
+          if (Math.hypot(dx, dz) > 0.12) continue; // not this leg
+          const b = (Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
+          sl.r[b] = Math.max(sl.r[b], Math.hypot(dx, dz));
+        }
+      }
+      for (let i = 0; i < pos.count; i++) {
+        const x = sw[i * 3];
+        const y = sw[i * 3 + 1];
+        const z = sw[i * 3 + 2];
+        if (!side(x)) continue;
+        const sec = sector(x, z);
+        const t = tops[sec];
+        if (y < t - BAND) continue;
+        const ny = t - BAND + ((y - (t - BAND)) / BAND) * (targets[sec] - (t - BAND));
+        const sl = slices.get(Math.round(ny * 100));
+        let nx = x;
+        let nz = z;
+        if (sl) {
+          const dx = x - sl.x;
+          const dz = z - sl.z;
+          const r = Math.hypot(dx, dz) || 1e-6;
+          const b = (Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
+          // The sock is low-poly, so clear the widest leg within 4 cm above
+          // and below, which its flat facets span.
+          let need = 0;
+          for (let dy = -4; dy <= 4; dy++) {
+            const o = slices.get(Math.round(ny * 100) + dy);
+            if (o) for (const bb of [b, (b + 1) % 24, (b + 23) % 24]) need = Math.max(need, o.r[bb]);
+          }
+          need += 0.004;
+          let nr = Math.max(r, need);
+          // Inside the pants: no wider than the hem in this direction.
+          let pr = Infinity;
+          for (let dy = -1; dy <= 1; dy++) {
+            const ring = hemR.get(Math.round(ny * 100) + dy) ?? [];
+            for (let j = 0; j < ring.length; j += 2) {
+              const px = ring[j] - sl.x;
+              const pz = ring[j + 1] - sl.z;
+              const pb = (Math.floor(((Math.atan2(pz, px) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
+              if ((pb - b + 25) % 24 <= 2) pr = Math.min(pr, Math.hypot(px, pz));
+            }
+          }
+          if (Number.isFinite(pr)) nr = Math.min(nr, pr - 0.006);
+          nx = sl.x + (dx / r) * nr;
+          nz = sl.z + (dz / r) * nr;
+        }
+        // world = matrixWorld * bindMatrixInverse * skin * bindMatrix * local
+        skinM.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        for (let k = 0; k < 4; k++) {
+          const w = geo.attributes.skinWeight.getComponent(i, k);
+          if (!w) continue;
+          const j = geo.attributes.skinIndex.getComponent(i, k);
+          tmp.multiplyMatrices(socks.skeleton.bones[j].matrixWorld, socks.skeleton.boneInverses[j]);
+          for (let e = 0; e < 16; e++) skinM.elements[e] += tmp.elements[e] * w;
+        }
+        toLocal.copy(socks.matrixWorld).multiply(socks.bindMatrixInverse).multiply(skinM).multiply(socks.bindMatrix).invert();
+        v.set(nx, ny, nz).applyMatrix4(toLocal);
+        pos.setXYZ(i, v.x, v.y, v.z);
+        moved.set(i, toLocal.clone());
+      }
+    }
+    pos.needsUpdate = true;
+    // Fresh smooth normals for the stretched part, back in local space.
+    const normals = worldNormals(socks, worldPositions(socks));
+    const nrm = geo.attributes.normal;
+    const m3 = new THREE.Matrix3();
+    for (const [i, m] of moved) {
+      v.fromArray(normals, i * 3).applyMatrix3(m3.setFromMatrix4(m)).normalize();
+      nrm.setXYZ(i, v.x, v.y, v.z);
+    }
+    nrm.needsUpdate = true;
+    skin.geometry.setAttribute('aSock', new THREE.BufferAttribute(aSock, 1));
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
   }
 
   // Tile a mesh's fabric maps so the holes come out round and
@@ -521,6 +700,7 @@ export class Player {
     for (const mesh of Object.values(this.parts)) mesh.skeleton?.update();
     const bonePos = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
     const setAttr = (mesh, name, data) => mesh.geometry.setAttribute(name, new THREE.BufferAttribute(data, 1));
+    this.tuckSocks();
 
     // Jersey: distance from the neckline for the collar piping, and where each
     // vertex lands on the front-view art.
@@ -995,6 +1175,7 @@ export class Player {
     u.pants.uBandEnd.value = p.bandEnd ?? 1;
     m.belt.color.set(p.base === '#000000' ? '#0b0b0c' : '#111113');
     m.socks.color.set(look.socks);
+    u.glove.uSock.value.set(look.socks);
     m.socks.sheenColor.copy(sheen(look.socks));
     m.cleats.color.set('#ffffff');
     u.shoe.uShoeBase.value.set(look.cleats);
