@@ -7,8 +7,6 @@ export const FONTS = {
   display: '"Anton", "Arial Narrow", Impact, sans-serif',
   // Back names: Oswald 700, slightly spaced, like the game nameplates.
   name: '"Oswald", "Arial Narrow", Arial, sans-serif',
-  // Back numbers: Anton with a heavy black outline.
-  backNumber: '"Anton", "Arial Narrow", Impact, sans-serif',
   sans: '"Gotham SSm A", "Gotham SSm B", "Gotham", "Montserrat", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif',
 };
 
@@ -109,6 +107,31 @@ export function paintTvDecals(canvas, spec, style, number) {
   });
 }
 
+// The back of the helmet, as seen from behind: the number centered on the
+// shell and LOUISVILLE across the rear bumper. `area` gives the canvas's
+// extent in helmet units (half-width x, top and bottom y). The number is
+// Cardinal Red on light shells and white on red or black ones; the bumper
+// lettering is white on the black bumper.
+export function paintHelmetBack(canvas, area, number, shell) {
+  const ctx = canvas.getContext('2d');
+  const { width: W, height: H } = canvas;
+  ctx.clearRect(0, 0, W, H);
+  const k = H / (area.top - area.bottom); // px per helmet unit
+  const y = (v) => (area.top - v) * k;
+  const numberH = 0.22 * k;
+  drawText(ctx, number, {
+    family: FONTS.jersey, cx: W / 2, cy: y(0.1), height: numberH,
+    sx: Math.min(1, (0.3 * k) / textWidth(ctx, number, FONTS.jersey, numberH)),
+    fill: isLight(shell) ? '#C9001F' : '#FFFFFF',
+  });
+  const wordH = 0.05 * k;
+  drawText(ctx, 'LOUISVILLE', {
+    family: FONTS.display, cx: W / 2, cy: y(-0.5), height: wordH, spacing: 4,
+    sx: Math.min(1, (0.46 * k) / textWidth(ctx, 'LOUISVILLE', FONTS.display, wordH, '', 4)),
+    fill: '#FFFFFF',
+  });
+}
+
 // The jersey's front art, ready to project. The V-neck is filled with the
 // body color, because the 3D jersey's neckline is shallower than the drawing's
 // and gets its own piping from the collar shader. The art's "10" (chest and
@@ -157,9 +180,9 @@ export function paintJerseyBack(canvas, spec) {
 
 // The back number, larger and higher than on the front, and an optional
 // name between the collar and the number, on a transparent canvas laid over
-// the back panel. Doc's spec: the name in Oswald 700 with 8 px tracking at
-// 150 px, the number in Anton with a 70 px black stroke at 900 px. The name
-// is black on white jerseys and in the number's fill on dark ones.
+// the back panel. The number matches the front's lettering; the name is
+// Oswald 700 with 8 px tracking at 150 px (Doc's spec), black on white
+// jerseys and in the number's fill on dark ones.
 export function paintBackLettering(canvas, spec, style, number, name) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
@@ -167,21 +190,10 @@ export function paintBackLettering(canvas, spec, style, number, name) {
   const [x0, y0, x1, y1] = spec.number.box;
   const height = (y1 - y0) * 1.12;
   const top = name ? 430 : 400;
-  if (style.font === 'block') {
-    letterNumber(ctx, number, {
-      cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
-    }, spec, style);
-  } else {
-    // Anton's caps are about 0.71 em, so a 70 px stroke at 900 px is ~0.055
-    // of the cap height on each side.
-    const h = height * k;
-    const w = textWidth(ctx, number, FONTS.backNumber, h);
-    drawText(ctx, number, {
-      family: FONTS.backNumber, cx: canvas.width / 2, cy: (top + height / 2) * k, height: h,
-      sx: Math.min(1, ((x1 - x0) * 1.25 * k) / w),
-      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: h * 0.055 }],
-    });
-  }
+  // Lettered exactly like the chest number (same numerals, fill and outline), only larger.
+  letterNumber(ctx, number, {
+    cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
+  }, spec, style);
   if (name) {
     const nameH = height * 0.17;
     const spacing = 8 * (100 / 150); // drawText sets the font at 100 px

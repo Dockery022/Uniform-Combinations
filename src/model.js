@@ -145,6 +145,21 @@ function setBands(u, bands) {
   u.uBandW.value.set(...w);
 }
 
+// The helmet's rear art (number and bumper lettering), projected straight
+// on from behind onto whatever faces backward. The canvas spans HELMET_BACK
+// in helmet units; the viewer's right is the helmet's -x.
+const HELMET_BACK = { x: 0.32, top: 0.35, bottom: -0.65 };
+const HELMET_BACK_GLSL = /* glsl */ `
+  uniform sampler2D uBack;
+  vec4 helmetBack(vec3 p, vec3 n) {
+    float facing = -normalize(n).z;
+    if (facing < 0.25) return vec4(0.0);
+    vec2 uv = vec2((${HELMET_BACK.x.toFixed(3)} - p.x) / ${(2 * HELMET_BACK.x).toFixed(3)}, (${HELMET_BACK.top.toFixed(3)} - p.y) / ${(HELMET_BACK.top - HELMET_BACK.bottom).toFixed(3)});
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec4(0.0);
+    return texture2D(uBack, uv) * smoothstep(0.25, 0.45, facing); // premultiplied
+  }
+`;
+
 // Wires a per-vertex attribute into a material and lets `fragment` adjust
 // diffuseColor after the base map is applied.
 // `after` adds code after other fragment chunks, keyed by chunk name;
@@ -395,12 +410,15 @@ export class Player {
       logos: C(PANTS_ART.width, PANTS_ART.height),
       shoe: C(702, 372),
       decal: C(752, 762),
+      // The back of the helmet: the number on the shell and LOUISVILLE on the bumper.
+      helmetBack: C(1024, 1600),
       ball: C(512, 256),
     };
     this.textures = Object.fromEntries(Object.entries(this.canvases).map(([k, c]) => [k, tex(c, k === 'ball')]));
     // Premultiplied, so the letters' edges filter cleanly over the jersey.
     this.textures.backLetters.premultiplyAlpha = true;
     this.textures.tv.premultiplyAlpha = true;
+    this.textures.helmetBack.premultiplyAlpha = true;
     // One set of fabric maps; the jersey and pants each get their own tiling,
     // set from their UV scale in measure().
     const fabricMaps = loadFabricMaps(this.renderer, 'jersey-material/maps/');
@@ -417,7 +435,7 @@ export class Player {
         uTv: { value: this.textures.tv },
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
-        uCollarW: { value: 0.012 },
+        uCollarW: { value: 0.008 },
         uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
       },
       glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 }, uSock: { value: new THREE.Color() } },
@@ -425,6 +443,7 @@ export class Player {
       shell: {
         uStripe: bandUniforms(),
         uDecal: { value: this.textures.decal },
+        uBack: { value: this.textures.helmetBack },
         uDecalOn: { value: 0 },
         // x, y: art pixel of the shell's front and top; z: art pixels per helmet unit.
         uDecalArt: { value: new THREE.Vector3(85, 5, 541.7) },
@@ -1017,7 +1036,8 @@ export class Player {
           uniform float uDecalFlip;
           uniform float uDecalMetal;
           float paintMask = 0.0;
-          float decalMask = 0.0;`,
+          float decalMask = 0.0;
+          ${HELMET_BACK_GLSL}`,
         // The decal art is a side view from the player's left: art x runs
         // from the shell's front toward its back, art y down from its top.
         fragment: /* glsl */ `
@@ -1039,13 +1059,26 @@ export class Player {
                 diffuseColor.rgb = mix(diffuseColor.rgb, d.rgb, decalMask);
               }
             }
+            if (outer) {
+              vec4 back = helmetBack(vObjPos, vObjNormal);
+              diffuseColor.rgb = diffuseColor.rgb * (1.0 - back.a) + back.rgb;
+              paintMask = max(paintMask, back.a);
+            }
           }
         `,
       }),
       mask: new THREE.MeshPhysicalMaterial({ name: 'mask', roughness: 0.3, metalness: 0.15, clearcoat: 0.7, clearcoatRoughness: 0.2 }),
       strap: new THREE.MeshStandardMaterial({ name: 'strap', roughness: 0.65 }),
       cup: new THREE.MeshPhysicalMaterial({ name: 'cup', roughness: 0.35, clearcoat: 0.5 }),
-      bumper: new THREE.MeshStandardMaterial({ name: 'bumper', roughness: 0.45 }),
+      bumper: extend(new THREE.MeshPhysicalMaterial({ name: 'bumper', roughness: 0.45 }), {
+        uniforms: { uBack: h.uBack },
+        vertexWorld: true,
+        declare: HELMET_BACK_GLSL,
+        fragment: /* glsl */ `
+          vec4 back = helmetBack(vObjPos, vObjNormal);
+          diffuseColor.rgb = diffuseColor.rgb * (1.0 - back.a) + back.rgb;
+        `,
+      }),
       trim: new THREE.MeshStandardMaterial({ name: 'trim', color: BRAND.black, roughness: 0.6 }),
       pads: new THREE.MeshStandardMaterial({ name: 'pads', color: '#1b1b1e', roughness: 0.9 }),
       hardware: new THREE.MeshStandardMaterial({ name: 'hardware', color: '#b8bbc1', metalness: 0.55, roughness: 0.35 }),
@@ -1241,6 +1274,7 @@ export class Player {
     paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.number, look.name);
     this.placeTv(look.jersey.style);
     paint.paintTvDecals(this.canvases.tv, look.jersey.spec, look.jersey.style, look.number);
+    paint.paintHelmetBack(this.canvases.helmetBack, HELMET_BACK, look.number, look.helmet.spec.shell);
     const lc = this.canvases.logos.getContext('2d');
     lc.clearRect(0, 0, this.canvases.logos.width, this.canvases.logos.height);
     lc.drawImage(logos, 0, 0, this.canvases.logos.width, this.canvases.logos.height);
@@ -1254,7 +1288,7 @@ export class Player {
     const shc = this.canvases.shoe.getContext('2d');
     shc.clearRect(0, 0, 702, 372);
     shc.drawImage(shoe, 0, 0, 702, 372);
-    for (const k of ['front', 'back', 'backLetters', 'tv', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
+    for (const k of ['front', 'back', 'backLetters', 'tv', 'helmetBack', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
   }
 
   // ---------- poses ----------
