@@ -226,7 +226,7 @@ button { cursor: pointer; }
 }
 .site-opt[aria-pressed="true"] { background: var(--cardinal); color: #ffffff; }
 .game-grid, .lettering { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.lettering { grid-template-columns: 96px minmax(0, 1fr); }
+.lettering { grid-template-columns: 72px 72px minmax(0, 1fr); }
 
 .toggle-row { display: flex; align-items: center; justify-content: space-between; min-height: var(--hit); cursor: pointer; position: relative; }
 .toggle-input { position: absolute; opacity: 0; width: 1px; height: 1px; }

@@ -45,7 +45,7 @@ test('team tables only name pieces that exist', () => {
 });
 
 test('share codes round-trip and reject junk', () => {
-  const state = { ...DEFAULT_STATE, helmet: 'Black Chrome', facemask: 'Black', jersey: 'Halloween 26', number: '88', name: "O'NEIL" };
+  const state = { ...DEFAULT_STATE, helmet: 'Black Chrome', facemask: 'Black', jersey: 'Halloween 26', number: '88', backNumber: '7', name: "O'NEIL" };
   assert.deepEqual(decodeState(encodeState(state)), state);
   assert.deepEqual(decodeState(encodeState(DEFAULT_STATE)), DEFAULT_STATE);
   const junk = cleanState({ helmet: 'Purple', skin: 99, site: 'home', number: 'abc', extra: '<script>' });
