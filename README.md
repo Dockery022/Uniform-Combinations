@@ -51,7 +51,7 @@ Checks that every piece in `LIB` has its art and sampled colors, that the team t
 | Helmet finish, stripes, chrome decals, scripts that shouldn't mirror | `HELMETS` in `tools/prepare-uniforms.py` |
 | How far down the leg a pants side panel runs, where game photos differ from the art | `PANEL_END` in `tools/prepare-uniforms.py` |
 | Sleeve bands, where game photos differ from the art (Black 2026) | `JERSEY_SLEEVES` in `src/team.js` |
-| Jersey dimple mesh: hole size, depth, hole shading, where the smooth yoke ends | `MESH_FABRIC` in `src/model.js`; the maps come from `python3 tools/make-mesh-maps.py` (`--style tricot` for a tighter practice mesh) |
+| Fabric: dimple mesh on the jersey body and pants, smooth yoke, sleeves and socks | `jersey-material/jerseyMaterial.js` (depth, hole shading, sheen) and `MESH_FABRIC` in `src/model.js` (hole size, where the smooth yoke ends); the maps come from `python3 jersey-material/make_mesh_maps.py` (`--style tricot` for a tighter practice mesh) |
 
 To add or update art, put the design's PNGs in a folder with their original names (`helmet-red-mask-red.png`, `jersey-red.png`, `pants-red.png`, `socks-red.png`, `shoes-red.png`, plus `1912-crest-outline.png` and `bird_master.png`) and run:
 
@@ -93,7 +93,7 @@ Make sure you have the rights to publish the models, the art, the marks and the 
 index.html            page shell
 src/main.js           renderer, lighting, turf, wiring, game graphic, saved combos
 src/model.js          loads the player and helmet, dresses them in the art, poses the rig
-src/textures.js       jersey art for projection, back lettering, ball, turf, fabric normals
+src/textures.js       jersey art for projection, back lettering, ball, turf
 src/ui.js             The Uniform, The Game and Saved Combos panels
 src/combo.js          state checks, piece names, the 3D look for a combo, share links
 src/team.js           the uniform library and brand colors (edit this one)
@@ -102,6 +102,7 @@ src/orbit.js          camera controls and preset views
 src/vendor/           three.js GLTFLoader (MIT), sharing src/three.js
 src/styles.css        styles
 assets/               player.glb, helmet.glb, uni/ art, fonts/
+jersey-material/      Doc's fabric kit: jerseyMaterial.js, its maps/ and the script that makes them
 tools/                scripts that build the models and the art
 test/                 npm test checks for the combo data and share links
 server.mjs            zero-dependency static server for local and Codespaces use

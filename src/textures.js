@@ -1,5 +1,5 @@
-// Canvas painters: the jersey art for projection, back lettering, the ball,
-// the turf and fabric normal maps.
+// Canvas painters: the jersey art for projection, back lettering, the ball
+// and the turf.
 
 export const FONTS = {
   jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
@@ -191,41 +191,6 @@ export function alphaCenterX(canvas) {
   return x1 >= x0 ? (x0 + x1) / 2 : W / 2;
 }
 
-// Tileable tangent-space normal maps for fabric: a knit mesh for jerseys and
-// diagonal twill for pants.
-export function fabricNormal(kind, size = 128) {
-  const height = new Float32Array(size * size);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const u = (x / size) * Math.PI * 2;
-      const v = (y / size) * Math.PI * 2;
-      let h;
-      if (kind === 'knit') h = Math.pow(Math.max(0, Math.sin(u * 8) * Math.sin(v * 8)), 0.6) - 0.15 * Math.cos(v * 16);
-      else h = Math.sin((u + v) * 12);
-      height[y * size + x] = h;
-    }
-  }
-  const canvas = makeCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(size, size);
-  const at = (x, y) => height[((y + size) % size) * size + ((x + size) % size)];
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = (at(x + 1, y) - at(x - 1, y)) * 1.5;
-      const dy = (at(x, y + 1) - at(x, y - 1)) * 1.5;
-      const len = Math.hypot(dx, dy, 1);
-      const i = (y * size + x) * 4;
-      img.data[i] = ((-dx / len) * 0.5 + 0.5) * 255;
-      img.data[i + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
-      img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
-      img.data[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return canvas;
-}
-
-// Leather ball: half-stripes near each tip and a lace row.
 export function paintBall(canvas) {
   const ctx = canvas.getContext('2d');
   const { width: W, height: H } = canvas;
