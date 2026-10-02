@@ -87,7 +87,8 @@ const MESH_FABRIC = {
   normalScale: 0.6, // how deep the holes read
   holeShade: 0.55, // how much the holes darken the color (0 to 1)
   smoothRoughness: 0.5, // yoke and sleeves
-  yokeDrop: 0.07, // meters below the armpits where the mesh starts
+  yokeDrop: 0.07, // meters below the armpits where the mesh starts on the front
+  backDrop: 0.25, // and on the back, where it only covers the lower back, under the number
 };
 
 // ---------- shader helpers ----------
@@ -465,12 +466,13 @@ export class Player {
       for (let i = 0; i < count; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
       setAttr(jersey, 'aNeck', aNeck);
       jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(this.projectJersey(jersey, world, neckEdge, bonePos), 3));
-      // Dimple mesh on the front and back below the yoke, faded over 4 cm.
-      const meshTop = this.jerseyArmpit - MESH_FABRIC.yokeDrop;
+      // Dimple mesh on the front below the yoke and on the lower back, faded over 4 cm.
       const uv = jersey.geometry.attributes.uv;
       const aMesh = new Float32Array(count);
       for (let i = 0; i < count; i++) {
-        if (uv.getX(i) < 0.44) continue; // sleeve
+        const u = uv.getX(i);
+        if (u < 0.44) continue; // sleeve
+        const meshTop = this.jerseyArmpit - (u < 0.715 ? MESH_FABRIC.yokeDrop : MESH_FABRIC.backDrop);
         aMesh[i] = THREE.MathUtils.smoothstep(meshTop - world[i * 3 + 1], -0.02, 0.02);
       }
       setAttr(jersey, 'aMesh', aMesh);

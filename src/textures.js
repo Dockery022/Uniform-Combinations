@@ -5,6 +5,8 @@ export const FONTS = {
   jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
   block: '"Graduate", "Arial Black", Impact, sans-serif',
   display: '"Anton", "Arial Narrow", Impact, sans-serif',
+  // Back names: a heavy, wide sans like the game nameplates (weight 800).
+  name: '"Montserrat", "Arial Black", Arial, sans-serif',
   sans: '"Gotham SSm A", "Gotham SSm B", "Gotham", "Montserrat", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif',
 };
 
@@ -17,9 +19,10 @@ export function makeCanvas(w, h) {
 
 // Draw text centered on (cx, cy) with a given cap height in pixels, an
 // optional horizontal squeeze, and outline layers drawn outside-in.
-function drawText(ctx, text, { family, cx, cy, height, sx = 1, fill, outlines = [], skew = 0, rotate = 0 }) {
+function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill, outlines = [], skew = 0, rotate = 0, spacing = 0 }) {
   ctx.save();
-  ctx.font = `100px ${family}`;
+  ctx.font = `${weight} 100px ${family}`;
+  ctx.letterSpacing = `${spacing}px`;
   const m = ctx.measureText(text);
   const asc = m.actualBoundingBoxAscent || 72;
   const desc = m.actualBoundingBoxDescent || 0;
@@ -44,9 +47,10 @@ function drawText(ctx, text, { family, cx, cy, height, sx = 1, fill, outlines = 
 }
 
 // Width of `text` drawn by drawText at a given height, before any squeeze.
-function textWidth(ctx, text, family, height) {
+function textWidth(ctx, text, family, height, weight = '', spacing = 0) {
   ctx.save();
-  ctx.font = `100px ${family}`;
+  ctx.font = `${weight} 100px ${family}`;
+  ctx.letterSpacing = `${spacing}px`;
   const m = ctx.measureText(text);
   ctx.restore();
   return (m.width * height) / ((m.actualBoundingBoxAscent || 72) + (m.actualBoundingBoxDescent || 0));
@@ -136,7 +140,10 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
 }
 
 // The back: the body color, the number larger and higher than on the front,
-// the shoulder numbers, and an optional name, in the number's colors.
+// the shoulder numbers, and an optional name between the collar and the
+// number. As on the game jerseys, the name is a heavy, slightly spaced block,
+// about a sixth of the number's height, black on white jerseys and in the
+// number's fill on dark ones.
 export function paintJerseyBack(canvas, spec, style, number, name) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
@@ -144,19 +151,27 @@ export function paintJerseyBack(canvas, spec, style, number, name) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const [x0, y0, x1, y1] = spec.number.box;
   const height = (y1 - y0) * 1.12;
-  const top = name ? 470 : 400;
+  const top = name ? 430 : 400;
   letterNumber(ctx, number, {
     cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
   }, spec, style);
   // Shoulder numbers show from behind too.
   letterTv(ctx, number, spec, style, k, true);
-  // Names are set in an upright condensed block with no outline, as on the
-  // game jerseys.
   if (name) {
+    const nameH = height * 0.17;
+    const spacing = 6;
+    const maxW = (x1 - x0) * 1.15;
+    const w = textWidth(ctx, name, FONTS.name, nameH, 800, spacing);
     drawText(ctx, name, {
-      family: FONTS.display, cx: canvas.width / 2, cy: 400 * k, height: 66 * k, sx: 0.92, fill: spec.number.fill,
+      family: FONTS.name, weight: 800, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 34) * k, height: nameH * k,
+      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? spec.number.outline : spec.number.fill,
     });
   }
+}
+
+function isLight(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 160;
 }
 
 // Horizontal center of the opaque pixels, in canvas pixels.
