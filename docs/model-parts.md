@@ -31,7 +31,11 @@ Skinned to one Mixamo skeleton, with one clip, `idle` (34 channels).
 | `Eyes` | `eyes` | 804 | Eyes |
 | `shoes` | `cleats` | 41,490 | Cleats |
 
-The jersey's UVs split it into panels by U: sleeves below 0.44, the front from 0.44 to 0.715, the back above.
+The jersey's UVs split it into four islands: the right sleeve (U 0.02–0.21), the left sleeve (U 0.23–0.42), the front (U 0.45–0.71) and the back (U 0.72–0.98). Every triangle has the same winding (no mirrored islands) and no islands overlap. The front and back meet along the top of each shoulder, so the shoulder numbers are placed as planar decals (`Player.placeTv`) rather than painted per island.
+
+The pants have three islands: the hip band (U 0.01–0.59, V 0.91–0.99, the top ~29% of the leg) and one per leg (left U 0.61–0.79, right U 0.79–0.99). The side stripe is placed by arc distance from each leg's outer seam (`aSeam`), so it crosses from the hip band onto the leg islands without a break.
+
+The socks stop short of the pants hem in the model; `Player.tuckSocks` stretches their tops up under the hem at load time, and the shin under the hem is drawn in the sock color.
 
 ## helmet.glb
 
