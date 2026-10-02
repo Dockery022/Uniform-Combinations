@@ -83,12 +83,15 @@ function letterNumber(ctx, number, { cx, cy, height, width }, spec, style) {
 }
 
 // Shoulder or cuff numbers, where the art puts them.
-function letterTv(ctx, number, spec, style, k) {
+// `mirror` places them for the back panel, which is projected mirrored, so
+// each shoulder carries the same digit front and back.
+function letterTv(ctx, number, spec, style, k, mirror = false) {
   const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
   for (const tv of style.tv ?? []) {
     const text = tv.digits === 'all' ? number : tv.digits === 'first' ? number[0] : number[number.length - 1];
+    const x = mirror ? spec.art.width - tv.at[0] : tv.at[0];
     drawText(ctx, text, {
-      family, cx: tv.at[0] * k, cy: tv.at[1] * k, height: tv.h * k, rotate: tv.turn,
+      family, cx: x * k, cy: tv.at[1] * k, height: tv.h * k, rotate: mirror ? -tv.turn : tv.turn,
       fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 6 * k }],
     });
   }
@@ -146,7 +149,7 @@ export function paintJerseyBack(canvas, spec, style, number, name) {
     cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
   }, spec, style);
   // Shoulder numbers show from behind too.
-  letterTv(ctx, number, spec, style, k);
+  letterTv(ctx, number, spec, style, k, true);
   // Names are set in an upright condensed block with no outline, as on the
   // game jerseys.
   if (name) {
