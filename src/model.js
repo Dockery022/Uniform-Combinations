@@ -83,6 +83,7 @@ const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidt
 // smooth fabric, like a real game jersey, and so are the numbers and
 // lettering (anything in the art that isn't the jersey's base color).
 const MESH_FABRIC = {
+  relief: false, // the holes' normal map and hole shading; off at Doc's request, the jersey reads as smooth fabric
   repeat: [16, 6.3],
   normalScale: 0.6, // how deep the holes read
   holeShade: 0.55, // how much the holes darken the color (0 to 1)
@@ -345,7 +346,7 @@ export class Player {
       t.anisotropy = aniso;
       return t;
     };
-    const mesh = { normal: fabricMap('mesh-normal'), rough: fabricMap('mesh-roughness'), detail: fabricMap('mesh-detail') };
+    const mesh = { normal: MESH_FABRIC.relief ? fabricMap('mesh-normal') : null, rough: fabricMap('mesh-roughness'), detail: fabricMap('mesh-detail') };
 
     const fabric = (extra) => new THREE.MeshPhysicalMaterial({ roughness: 0.82, sheen: 0.45, sheenRoughness: 0.6, ...extra });
     const pantsU = bandUniforms();
@@ -358,7 +359,7 @@ export class Player {
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.012 },
         uMeshDetail: { value: mesh.detail },
-        uHoleShade: { value: MESH_FABRIC.holeShade },
+        uHoleShade: { value: MESH_FABRIC.relief ? MESH_FABRIC.holeShade : 0 },
         uSmoothRough: { value: MESH_FABRIC.smoothRoughness },
       },
       glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 } },
@@ -382,7 +383,7 @@ export class Player {
     this.m = {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves.
       jersey: extend(fabric({
-        name: 'jersey', roughness: 1, normalMap: mesh.normal, roughnessMap: mesh.rough,
+        name: 'jersey', roughness: 1, normalMap: MESH_FABRIC.relief ? mesh.normal : null, roughnessMap: mesh.rough,
         normalScale: new THREE.Vector2(MESH_FABRIC.normalScale, MESH_FABRIC.normalScale), sheen: 0.5, sheenRoughness: 0.5,
       }), {
         attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float' },
