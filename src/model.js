@@ -96,7 +96,7 @@ const MESH_FABRIC = {
   mesh: { normalScale: 0.25, aoIntensity: 0.35, sheen: 0.2, sheenRoughness: 0.7, envMapIntensity: 0.6, roughness: 1.35 },
   smooth: { sheen: 0.2, sheenRoughness: 0.7, roughness: 0.7, envMapIntensity: 0.6 }, // yoke, sleeves, socks
   yokeDrop: 0.07, // meters below the armpits where the mesh starts on the front
-  backDrop: 0.25, // and on the back, where it only covers the lower back, under the number
+  backDrop: 0.07, // and on the back: the same as the front, so the two match
 };
 
 // ---------- shader helpers ----------
@@ -907,7 +907,10 @@ export class Player {
       }
       return A.armpitY;
     };
-    const torso = (x, y, back) => [A.centerX + (back ? -1 : 1) * (x - xc) * scale, artY(y)];
+    // The back has no V-neck, so it maps at one scale throughout; the front's
+    // piecewise fit to the art's V would stretch the back number vertically
+    // where it rises above the armpits.
+    const torso = (x, y, back) => [A.centerX + (back ? -1 : 1) * (x - xc) * scale, back ? A.armpitY + (armpit - y) * scale : artY(y)];
 
     // Sleeve extents per side, in 1 cm rows, so a hanging, slightly splayed
     // arm still spans the art box from its outer to its inner side.
