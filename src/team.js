@@ -171,5 +171,5 @@ export const DEFAULT_STATE = {
   helmetNote: 'Heisman Louie',
   site: 'vs', opponent: 'NC State', date: 'Sat · Oct 3', kickoff: '3:30 PM', network: 'ACCN',
   venue: 'Carter-Finley Stadium', showCrest: true,
-  number: '12', name: 'SOCIETY', gloves: 'Black', visor: 'smoke', skin: 3,
+  number: '19', backNumber: '12', name: 'SOCIETY', gloves: 'Black', visor: 'smoke', skin: 3,
 };

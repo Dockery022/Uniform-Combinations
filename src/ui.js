@@ -175,6 +175,14 @@ export class Panel {
       },
       onblur: (e) => { e.target.value = this.getState().number; },
     });
+    const backNumber = el('input', {
+      class: 'input', id: 'back-number', type: 'text', inputmode: 'numeric', value: s.backNumber, maxlength: 2, autocomplete: 'off',
+      oninput: (e) => {
+        const n = sanitizeNumber(e.target.value);
+        if (n) this.set({ backNumber: n }, false);
+      },
+      onblur: (e) => { e.target.value = this.getState().backNumber; },
+    });
     const name = el('input', {
       class: 'input', id: 'name', type: 'text', value: s.name, maxlength: 14, autocomplete: 'off', spellcheck: 'false',
       placeholder: 'No name',
@@ -184,7 +192,8 @@ export class Panel {
     return el('div', { class: 'group' }, [
       el('div', { class: 'group-head' }, [el('span', { class: 'eyebrow', text: 'On the 3D player' })]),
       el('div', { class: 'lettering' }, [
-        el('label', { class: 'field' }, [el('span', { class: 'eyebrow', text: 'Number' }), number]),
+        el('label', { class: 'field' }, [el('span', { class: 'eyebrow', text: 'Front #' }), number]),
+        el('label', { class: 'field' }, [el('span', { class: 'eyebrow', text: 'Back #' }), backNumber]),
         el('label', { class: 'field' }, [el('span', { class: 'eyebrow', text: 'Name on back' }), name]),
       ]),
     ]);

@@ -29,6 +29,7 @@ export function cleanState(patch) {
   }
   if (typeof patch.name === 'string') out.name = sanitizeName(patch.name);
   if (typeof patch.number === 'string' && sanitizeNumber(patch.number)) out.number = sanitizeNumber(patch.number);
+  if (typeof patch.backNumber === 'string' && sanitizeNumber(patch.backNumber)) out.backNumber = sanitizeNumber(patch.backNumber);
   return out;
 }
 
@@ -106,7 +107,8 @@ export function resolveLook(state) {
     gloves: GLOVES.find(([n]) => n === state.gloves)?.[1] ?? null,
     visor: state.visor,
     skin: state.skin,
-    number: state.number,
+    number: state.number, // chest and shoulders
+    backNumber: state.backNumber || state.number, // back and helmet
     name: state.name,
   };
 }
