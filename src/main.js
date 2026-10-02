@@ -44,7 +44,7 @@ function studioEnvironment() {
   box(3.5, 2.4, [4, 3, 4], 5);
   box(7, 1.2, [0, 3.9, 0], 3.2);
   box(2, 4, [-5, 2, 2], 1.6, '#dfe6ff');
-  box(1.4, 4, [-4, 2, -4.5], 4, '#ff2b48');
+  box(1.4, 4, [-4, 2, -4.5], 0.8, '#ff2b48');
   box(1.4, 4, [4.5, 2, -4], 2.2, '#cfd8ff');
   const pmrem = new THREE.PMREMGenerator(renderer);
   const tex = pmrem.fromScene(env, 0.035).texture;
@@ -65,11 +65,15 @@ key.shadow.radius = 4;
 scene.add(key, key.target);
 key.target.position.set(0, 0.9, 0);
 
-const rimRed = new THREE.DirectionalLight('#ff2a46', 1.7);
+// The red rim is kept faint so white jerseys stay white from behind; a
+// neutral fill lights the back views.
+const rimRed = new THREE.DirectionalLight('#ff2a46', 0.35);
 rimRed.position.set(-3.2, 2.6, -2.6);
 const rimCool = new THREE.DirectionalLight('#c7d6ff', 1.5);
 rimCool.position.set(3.2, 2.2, -3);
-scene.add(rimRed, rimCool, new THREE.HemisphereLight('#d6dcea', '#1b1310', 0.35));
+const backFill = new THREE.DirectionalLight('#fff6ee', 1.6);
+backFill.position.set(-1.5, 3.5, -3.5);
+scene.add(rimRed, rimCool, backFill, new THREE.HemisphereLight('#d6dcea', '#1b1310', 0.35));
 
 const turfCanvas = makeCanvas(1024, 1024);
 paintTurf(turfCanvas);
@@ -431,7 +435,7 @@ const s2slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replac
 // ---------- boot ----------
 
 async function fontsReady() {
-  const loads = [`100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`, `600 20px ${FONTS.sans}`].map((f) => document.fonts.load(f));
+  const loads = [`100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`, `800 100px ${FONTS.name}`, `600 20px ${FONTS.sans}`].map((f) => document.fonts.load(f));
   await Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 2500))]);
 }
 
