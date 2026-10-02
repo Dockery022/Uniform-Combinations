@@ -1043,6 +1043,23 @@ export class Player {
     return out.copy(parentRest).invert().multiply(delta).multiply(r.world);
   }
 
+  // A subtle procedural sway on top of the idle clip: the spine leans a
+  // degree side to side and the chest breathes, on slow, unrelated periods
+  // so it never looks like a loop. The mixer rewrites these bones every
+  // frame, so the offset is added after it and never accumulates.
+  idleSway(dt, weight) {
+    this.swayT = (this.swayT ?? 0) + dt;
+    if (weight <= 0.001) return;
+    const t = this.swayT;
+    const lean = Math.sin((t * Math.PI * 2) / 4.3) * 0.018 * weight;
+    const breathe = Math.sin((t * Math.PI * 2) / 3.1) * 0.012 * weight;
+    const turn = Math.sin((t * Math.PI * 2) / 6.7 + 1.3) * 0.015 * weight;
+    const e = new THREE.Euler();
+    const q = this.tmpQ;
+    if (this.bones.Spine) this.bones.Spine.quaternion.multiply(q.setFromEuler(e.set(0, turn, lean)));
+    if (this.bones.Spine1) this.bones.Spine1.quaternion.multiply(q.setFromEuler(e.set(breathe, 0, lean * 0.5)));
+  }
+
   // `hold` freezes each pose on its current frame (reduced motion) while
   // still letting a pose change fade through.
   update(dt, hold = false) {
@@ -1060,6 +1077,7 @@ export class Player {
       action.setEffectiveWeight(total > 0 ? this.weights[name] / total : Number(name === this.pose));
     }
     this.mixer.update(dt);
+    if (!hold) this.idleSway(dt, total > 0 ? this.weights.idle / total : 0);
 
     // Keep the lowest foot on the turf.
     this.root.position.y = 0;
@@ -1068,7 +1086,7 @@ export class Player {
   }
 }
 
-const POSE_FADE = 0.6; // seconds to cross-fade between poses
+const POSE_FADE = 0.25; // seconds to cross-fade between poses
 const POSE_FPS = 30; // keyframes per second when baking POSES into clips
 
 // Which bones each pose joint drives. Spine bends are shared across three bones.
