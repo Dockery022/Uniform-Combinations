@@ -5,8 +5,10 @@ export const FONTS = {
   jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
   block: '"Graduate", "Arial Black", Impact, sans-serif',
   display: '"Anton", "Arial Narrow", Impact, sans-serif',
-  // Back names: a heavy, wide sans like the game nameplates (weight 800).
-  name: '"Montserrat", "Arial Black", Arial, sans-serif',
+  // Back names: Oswald 700, slightly spaced, like the game nameplates.
+  name: '"Oswald", "Arial Narrow", Arial, sans-serif',
+  // Back numbers: Anton with a heavy black outline.
+  backNumber: '"Anton", "Arial Narrow", Impact, sans-serif',
   sans: '"Gotham SSm A", "Gotham SSm B", "Gotham", "Montserrat", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif',
 };
 
@@ -152,9 +154,9 @@ export function paintJerseyBack(canvas, spec, style, number) {
 
 // The back number, larger and higher than on the front, and an optional
 // name between the collar and the number, on a transparent canvas laid over
-// the back panel. As on the game jerseys, the name is a heavy, slightly
-// spaced block, about a sixth of the number's height, black on white jerseys
-// and in the number's fill on dark ones.
+// the back panel. Doc's spec: the name in Oswald 700 with 8 px tracking at
+// 150 px, the number in Anton with a 70 px black stroke at 900 px. The name
+// is black on white jerseys and in the number's fill on dark ones.
 export function paintBackLettering(canvas, spec, style, number, name) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
@@ -162,17 +164,29 @@ export function paintBackLettering(canvas, spec, style, number, name) {
   const [x0, y0, x1, y1] = spec.number.box;
   const height = (y1 - y0) * 1.12;
   const top = name ? 430 : 400;
-  letterNumber(ctx, number, {
-    cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
-  }, spec, style);
+  if (style.font === 'block') {
+    letterNumber(ctx, number, {
+      cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
+    }, spec, style);
+  } else {
+    // Anton's caps are about 0.71 em, so a 70 px stroke at 900 px is ~0.055
+    // of the cap height on each side.
+    const h = height * k;
+    const w = textWidth(ctx, number, FONTS.backNumber, h);
+    drawText(ctx, number, {
+      family: FONTS.backNumber, cx: canvas.width / 2, cy: (top + height / 2) * k, height: h,
+      sx: Math.min(1, ((x1 - x0) * 1.25 * k) / w),
+      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: h * 0.055 }],
+    });
+  }
   if (name) {
     const nameH = height * 0.17;
-    const spacing = 6;
+    const spacing = 8 * (100 / 150); // drawText sets the font at 100 px
     const maxW = (x1 - x0) * 1.15;
-    const w = textWidth(ctx, name, FONTS.name, nameH, 800, spacing);
+    const w = textWidth(ctx, name, FONTS.name, nameH, 700, spacing);
     drawText(ctx, name, {
-      family: FONTS.name, weight: 800, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 34) * k, height: nameH * k,
-      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? spec.number.outline : spec.number.fill,
+      family: FONTS.name, weight: 700, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 34) * k, height: nameH * k,
+      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#111111' : spec.number.fill,
     });
   }
 }

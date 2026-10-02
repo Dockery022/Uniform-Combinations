@@ -435,7 +435,7 @@ const s2slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replac
 // ---------- boot ----------
 
 async function fontsReady() {
-  const loads = [`100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`, `800 100px ${FONTS.name}`, `600 20px ${FONTS.sans}`].map((f) => document.fonts.load(f));
+  const loads = [`100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`, `700 100px ${FONTS.name}`, `100px ${FONTS.backNumber}`, `600 20px ${FONTS.sans}`].map((f) => document.fonts.load(f));
   await Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 2500))]);
 }
 
