@@ -88,25 +88,32 @@ function letterNumber(ctx, number, { cx, cy, height, width }, spec, style) {
   });
 }
 
-// Shoulder or cuff numbers, where the art puts them.
-// `mirror` places them for the back panel, which is projected mirrored, so
-// each shoulder carries the same digit front and back.
-function letterTv(ctx, number, spec, style, k, mirror = false) {
+// Shoulder or cuff numbers, drawn flat for the decals the model places on
+// each shoulder (see Player.placeTv): the style's first entry (the player's
+// right) on the left half of the canvas, the second on the right half. Each
+// glyph fills two thirds of its half's height, upright, in the jersey's
+// numerals with the number's outline.
+export function paintTvDecals(canvas, spec, style, number) {
+  const ctx = canvas.getContext('2d');
+  const { width: W, height: H } = canvas;
+  ctx.clearRect(0, 0, W, H);
   const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
-  for (const tv of style.tv ?? []) {
+  (style.tv ?? []).slice(0, 2).forEach((tv, i) => {
     const text = tv.digits === 'all' ? number : tv.digits === 'first' ? number[0] : number[number.length - 1];
-    const x = mirror ? spec.art.width - tv.at[0] : tv.at[0];
+    const height = H / 1.5;
+    const w = textWidth(ctx, text, family, height);
     drawText(ctx, text, {
-      family, cx: x * k, cy: tv.at[1] * k, height: tv.h * k, rotate: mirror ? -tv.turn : tv.turn,
-      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: 6 * k }],
+      family, cx: W * (i + 0.5) / 2, cy: H / 2, height, sx: Math.min(1, (W / 2 - 80) / w),
+      fill: spec.number.fill, outlines: [{ color: spec.number.outline, width: height * 0.035 }],
     });
-  }
+  });
 }
 
 // The jersey's front art, ready to project. The V-neck is filled with the
 // body color, because the 3D jersey's neckline is shallower than the drawing's
 // and gets its own piping from the collar shader. The art's "10" (chest and
-// shoulders) is painted out and the chosen number lettered in its place.
+// shoulders) is painted out; the chosen number is lettered on the chest, and
+// the shoulder numbers go on as decals (paintTvDecals).
 // Coordinates are art pixels (1366 x 1408), drawn at the canvas's scale.
 export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   const ctx = canvas.getContext('2d');
@@ -138,18 +145,14 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   letterNumber(ctx, number, {
     cx: ((x0 + x1) / 2) * k, cy: ((y0 + y1) / 2) * k, height: (y1 - y0) * 0.94 * k, width: (x1 - x0) * 0.94 * k,
   }, spec, style);
-  letterTv(ctx, number, spec, style, k);
 }
 
-// The back panel: the body color and the shoulder numbers, which show from
-// behind too. The number and name are lettered separately, by
-// paintBackLettering, on their own sharper canvas.
-export function paintJerseyBack(canvas, spec, style, number) {
+// The back panel: the body color. The number and name are lettered
+// separately, by paintBackLettering, and the shoulder numbers are decals.
+export function paintJerseyBack(canvas, spec) {
   const ctx = canvas.getContext('2d');
-  const k = canvas.width / spec.art.width;
   ctx.fillStyle = spec.base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  letterTv(ctx, number, spec, style, k, true);
 }
 
 // The back number, larger and higher than on the front, and an optional

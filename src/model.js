@@ -184,6 +184,38 @@ function worldPositions(mesh) {
   return out;
 }
 
+// Smooth vertex normals for rest-pose world positions (welded by position,
+// so UV seams don't crease them).
+function worldNormals(mesh, world) {
+  const index = mesh.geometry.index;
+  const count = world.length / 3;
+  const weld = new Map();
+  const id = new Int32Array(count);
+  for (let i = 0; i < count; i++) {
+    const k = `${world[i * 3].toFixed(4)},${world[i * 3 + 1].toFixed(4)},${world[i * 3 + 2].toFixed(4)}`;
+    if (!weld.has(k)) weld.set(k, weld.size);
+    id[i] = weld.get(k);
+  }
+  const acc = new Float32Array(weld.size * 3);
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const tris = index ? index.array : Array.from({ length: count }, (_, i) => i);
+  for (let t = 0; t < tris.length; t += 3) {
+    a.fromArray(world, tris[t] * 3);
+    b.fromArray(world, tris[t + 1] * 3).sub(a);
+    c.fromArray(world, tris[t + 2] * 3).sub(a);
+    b.cross(c); // area-weighted face normal
+    for (let k = 0; k < 3; k++) for (let j = 0; j < 3; j++) acc[id[tris[t + k]] * 3 + j] += b.getComponent(j);
+  }
+  const out = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    a.fromArray(acc, id[i] * 3).normalize();
+    out.set([a.x, a.y, a.z], i * 3);
+  }
+  return out;
+}
+
 // Sum of skin weights on bones whose names pass `test`.
 function boneWeight(mesh, test) {
   const idx = mesh.geometry.attributes.skinIndex;
@@ -353,6 +385,8 @@ export class Player {
       back: C(JERSEY_ART.width, JERSEY_ART.height),
       // The back number and name, on their own 2048 px canvas so they stay sharp.
       backLetters: C(2048, Math.round((2048 * JERSEY_ART.height) / JERSEY_ART.width)),
+      // The two shoulder (or cuff) numbers, side by side: the player's right on the left half.
+      tv: C(2048, 1024),
       logos: C(PANTS_ART.width, PANTS_ART.height),
       shoe: C(702, 372),
       decal: C(752, 762),
@@ -361,6 +395,7 @@ export class Player {
     this.textures = Object.fromEntries(Object.entries(this.canvases).map(([k, c]) => [k, tex(c, k === 'ball')]));
     // Premultiplied, so the letters' edges filter cleanly over the jersey.
     this.textures.backLetters.premultiplyAlpha = true;
+    this.textures.tv.premultiplyAlpha = true;
     // One set of fabric maps; the jersey and pants each get their own tiling,
     // set from their UV scale in measure().
     const fabricMaps = loadFabricMaps(this.renderer, 'jersey-material/maps/');
@@ -374,6 +409,7 @@ export class Player {
         uArtFront: { value: this.textures.front },
         uArtBack: { value: this.textures.back },
         uBackLetters: { value: this.textures.backLetters },
+        uTv: { value: this.textures.tv },
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.012 },
@@ -401,15 +437,20 @@ export class Player {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves;
       // the mesh's relief, roughness and hole shading all fade with it.
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
-        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float' },
+        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3' },
         uniforms: this.uniforms.jersey,
-        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;',
+        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;',
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
           vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
+          // Shoulder numbers: flat decals, aTv = (across, down, side 1 or 2).
+          if (vaTv.z > 0.5 && all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
+            vec4 tv = texture2D(uTv, vec2((vaTv.z > 1.5 ? 0.5 : 0.0) + vaTv.x * 0.5, vaTv.y));
+            lettering = lettering * (1.0 - tv.a) + tv;
+          }
           float letters = lettering.a;
           diffuseColor.rgb = diffuseColor.rgb * (1.0 - letters) + lettering.rgb;
           // No mesh under the lettering or anything else off the base color.
@@ -494,7 +535,11 @@ export class Player {
       const aNeck = new Float32Array(count);
       for (let i = 0; i < count; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
       setAttr(jersey, 'aNeck', aNeck);
-      jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(this.projectJersey(jersey, world, neckEdge, bonePos), 3));
+      const aArt = this.projectJersey(jersey, world, neckEdge, bonePos);
+      jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(aArt, 3));
+      // Kept for placing the shoulder-number decals, which move with the style.
+      this.jerseyRest = { world, normals: worldNormals(jersey, world), art: aArt, neck: bonePos('Neck') };
+      jersey.geometry.setAttribute('aTv', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
       // Dimple mesh on the front below the yoke and on the lower back, faded over 4 cm.
       const uv = jersey.geometry.attributes.uv;
       const aMesh = new Float32Array(count);
@@ -651,6 +696,7 @@ export class Player {
     }
     const xc = (x0 + x1) / 2;
     const scale = (A.bodyWidth - 28) / (x1 - x0); // art pixels per meter; keeps the side outlines off the body
+    this.artScale = scale;
     const stops = [[top, A.shoulderY], [vTip, A.vNeckY], [armpit, A.armpitY]];
     const artY = (y) => {
       if (y >= top) return A.shoulderY - (y - top) * scale;
@@ -701,6 +747,68 @@ export class Player {
       out[i * 3 + 2] = panel[i] === 1 ? 1 : 0;
     }
     return out;
+  }
+
+  // Shoulder (or cuff) numbers as flat decals. Each one is centered where the
+  // style's art letters it, found as the jersey point that projects closest
+  // to that art pixel (the front of the shoulder, or the cuff). Nearby
+  // vertices get planar decal coordinates, shown where they face the same
+  // way as the center, so the
+  // number lies flat on the cloth and crosses the front/back UV seam on top
+  // of the shoulder without a break. Digit tops point at the neck on the
+  // shoulder and up on a cuff. Returns each decal's size in meters.
+  placeTv(style) {
+    const key = JSON.stringify(style.tv ?? []);
+    if (key === this.tvKey) return this.tvSizes;
+    this.tvKey = key;
+    const jersey = this.parts.jersey;
+    const R = this.jerseyRest;
+    if (!jersey || !R) return (this.tvSizes = []);
+    const { world, normals, art, neck } = R;
+    const uv = jersey.geometry.attributes.uv;
+    const attr = jersey.geometry.attributes.aTv;
+    attr.array.fill(0);
+    const count = world.length / 3;
+    const p = new THREE.Vector3();
+    const q = new THREE.Vector3();
+    const n0 = new THREE.Vector3();
+    this.tvSizes = (style.tv ?? []).slice(0, 2).map((tv, side) => {
+      const ax = tv.at[0] / JERSEY_ART.width;
+      const ay = tv.at[1] / JERSEY_ART.height;
+      const onSleeve = tv.at[0] < 205 || tv.at[0] > 1161; // art sleeve columns
+      let best = -1;
+      let bestD = Infinity;
+      for (let i = 0; i < count; i++) {
+        const u = uv.getX(i);
+        if ((u < 0.44) !== onSleeve || (!onSleeve && u >= 0.715)) continue; // sleeves, or the front panel
+        const d = (art[i * 3] - ax) ** 2 + (art[i * 3 + 1] - ay) ** 2;
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      if (best < 0) return 0;
+      const c = new THREE.Vector3().fromArray(world, best * 3);
+      // Average normal around the center.
+      n0.set(0, 0, 0);
+      for (let i = 0; i < count; i++) {
+        if (p.fromArray(world, i * 3).distanceTo(c) < 0.03) n0.add(q.fromArray(normals, i * 3));
+      }
+      n0.normalize();
+      const upHint = onSleeve ? new THREE.Vector3(0, 1, 0) : neck.clone().sub(c);
+      const up = upHint.projectOnPlane(n0).normalize();
+      const right = new THREE.Vector3().crossVectors(up, n0).normalize();
+      const size = (tv.h / this.artScale) * 1.5; // the glyph is drawn 2/3 of the square
+      for (let i = 0; i < count; i++) {
+        p.fromArray(world, i * 3).sub(c);
+        if (p.length() > size) continue;
+        attr.array[i * 3] = p.dot(right) / size + 0.5;
+        attr.array[i * 3 + 1] = 0.5 - p.dot(up) / size;
+        // Coordinates stay valid past the cut, so a triangle across it
+        // clips the glyph cleanly instead of smearing it.
+        attr.array[i * 3 + 2] = q.fromArray(normals, i * 3).dot(n0) > 0.2 ? side + 1 : 0;
+      }
+      return size;
+    });
+    attr.needsUpdate = true;
+    return this.tvSizes;
   }
 
   attachHelmet(helmet) {
@@ -948,8 +1056,10 @@ export class Player {
     ]);
     if (token !== this.artToken) return;
     paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
-    paint.paintJerseyBack(this.canvases.back, look.jersey.spec, look.jersey.style, look.number);
+    paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
     paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.number, look.name);
+    this.placeTv(look.jersey.style);
+    paint.paintTvDecals(this.canvases.tv, look.jersey.spec, look.jersey.style, look.number);
     const lc = this.canvases.logos.getContext('2d');
     lc.clearRect(0, 0, this.canvases.logos.width, this.canvases.logos.height);
     lc.drawImage(logos, 0, 0, this.canvases.logos.width, this.canvases.logos.height);
@@ -963,7 +1073,7 @@ export class Player {
     const shc = this.canvases.shoe.getContext('2d');
     shc.clearRect(0, 0, 702, 372);
     shc.drawImage(shoe, 0, 0, 702, 372);
-    for (const k of ['front', 'back', 'backLetters', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
+    for (const k of ['front', 'back', 'backLetters', 'tv', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
   }
 
   // ---------- poses ----------
