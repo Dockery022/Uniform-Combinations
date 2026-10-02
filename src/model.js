@@ -12,7 +12,7 @@ import * as THREE from './three.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { SKIN_TONES } from './team.js';
 import * as paint from './textures.js';
-import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace, SMOOTH_FABRIC } from '../jersey-material/jerseyMaterial.js';
+import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
 const PLAYER_HEIGHT = 1.88; // rest-pose height of the body in meters, without helmet
 
@@ -84,8 +84,12 @@ const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidt
 // the yoke and sleeves. The numbers and lettering stay smooth too. Each mesh
 // gets its own tiling from its UV scale, so the holes are round and the same
 // size everywhere.
+// Tuned to Doc's game-photo notes: nearly matte cloth, small faint holes
+// that fade out at full-body distance, little sheen.
 const MESH_FABRIC = {
-  holesPerMeter: 160, // each map tile is 20 holes across
+  holesPerMeter: 200, // each map tile is 20 holes across
+  mesh: { normalScale: 0.25, aoIntensity: 0.35, sheen: 0.2, sheenRoughness: 0.7, envMapIntensity: 0.6, roughness: 1.35 },
+  smooth: { sheen: 0.2, sheenRoughness: 0.7, roughness: 0.7, envMapIntensity: 0.6 }, // yoke, sleeves, socks
   yokeDrop: 0.07, // meters below the armpits where the mesh starts on the front
   backDrop: 0.25, // and on the back, where it only covers the lower back, under the number
 };
@@ -373,7 +377,7 @@ export class Player {
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.012 },
-        uSmoothRough: { value: SMOOTH_FABRIC.roughness },
+        uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
       },
       glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 } },
       shoe: { uShoe: { value: this.textures.shoe }, uShoeBase: { value: new THREE.Color() } },
@@ -396,7 +400,7 @@ export class Player {
     this.m = {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves;
       // the mesh's relief, roughness and hole shading all fade with it.
-      jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey), {
+      jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
         attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float' },
         uniforms: this.uniforms.jersey,
         declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;',
@@ -417,7 +421,7 @@ export class Player {
           normal_fragment_maps: 'normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));',
         },
       }),
-      pants: extend(applyMeshFabricInPlace(fabric({ name: 'pants' }), this.fabricMaps.pants), {
+      pants: extend(applyMeshFabricInPlace(fabric({ name: 'pants' }), this.fabricMaps.pants, MESH_FABRIC.mesh), {
         attrs: { aSeam: 'float', aLogo: 'vec3', aDown: 'float' },
         uniforms: this.uniforms.pants,
         declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;`,
@@ -432,7 +436,7 @@ export class Player {
           }
         `,
       }),
-      socks: applySmoothFabricInPlace(fabric({ name: 'socks' })),
+      socks: applySmoothFabricInPlace(fabric({ name: 'socks' }), MESH_FABRIC.smooth),
       cleats: extend(new THREE.MeshPhysicalMaterial({ name: 'cleats', roughness: 0.5, clearcoat: 0.25, clearcoatRoughness: 0.4 }), {
         attrs: { aShoe: 'vec2' },
         uniforms: this.uniforms.shoe,
@@ -895,7 +899,7 @@ export class Player {
 
     // Helmet.
     const finish = {
-      gloss: { metalness: 0, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.03 },
+      gloss: { metalness: 0, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03 },
       satin: { metalness: 0.1, roughness: 0.45, clearcoat: 0.45, clearcoatRoughness: 0.3 },
       matte: { metalness: 0, roughness: 0.78, clearcoat: 0, clearcoatRoughness: 1 },
     }[h.finish] ?? {};
