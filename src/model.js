@@ -425,9 +425,10 @@ export class Player {
         attrs: { aSeam: 'float', aLogo: 'vec3', aDown: 'float' },
         uniforms: this.uniforms.pants,
         declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;`,
-        // Side panels stop partway down the leg, cut at an angle like the art.
+        // Side stripes run the full outside seam, waistband to hem; with
+        // uBandEnd < 1 they stop partway down, cut at an angle.
         fragment: /* glsl */ `
-          float bandEnd = uBandEnd - vaSeam * 1.2;
+          float bandEnd = uBandEnd >= 1.0 ? 2.0 : uBandEnd - vaSeam * 1.2;
           float bfw = max(fwidth(vaDown), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, applyBands(diffuseColor.rgb, vaSeam), 1.0 - smoothstep(bandEnd - bfw, bandEnd + bfw, vaDown));
           if (vaLogo.z > 0.5 && vaLogo.x > 0.0 && vaLogo.x < 1.0 && vaLogo.y > 0.0 && vaLogo.y < 1.0) {

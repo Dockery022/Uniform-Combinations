@@ -57,8 +57,13 @@ PANTS = ['pants-red', 'pants-white', 'pants-black', 'pants-red-script', 'pants-w
          'pants-halloween', 'pants-ironwings', 'pants-redgold', 'pants-black-23']
 # Where a side panel stops, as a fraction of the way from waist to the
 # bottom of the pants, when game photos disagree with the drawing: the 2026
-# panels run nearly to the knee, though the art stops them at mid-thigh.
-PANEL_END = {'pants-red': 0.92, 'pants-white': 0.92, 'pants-black': 0.92}
+# stripes run the full outside seam, waistband to hem (1.0 = no cut).
+PANEL_END = {'pants-red': 1.0, 'pants-white': 1.0, 'pants-black': 1.0}
+# Stripes set by hand instead of read from the art: Doc's red stripe with a
+# thin black edge on both sides for the white 2026 pants (meters; drawn in
+# order, so the black band sits under the red one).
+BANDS = {'pants-white': [{'at': 0.0107, 'w': 0.0567, 'color': '#111113'},
+                         {'at': 0.0107, 'w': 0.0447, 'color': '#c9001f'}]}
 SOCKS = ['socks-red', 'socks-white', 'socks-black', 'socks-gray',
          'socks-red-20', 'socks-white-20', 'socks-black-20', 'socks-gray-20']
 SHOES = ['shoes-black', 'shoes-white', 'shoes-red', 'shoes-gray']
@@ -271,6 +276,7 @@ for name in PANTS:
             y += 10
         end = y
     band_end = PANEL_END.get(name, round((end - 5) / 1375, 3))
+    bands = BANDS.get(name, bands)
     # Hip logos: ink in the top of the pants that isn't part of an edge stripe.
     h, w = a.shape[:2]
     yy, xx = np.mgrid[0:h, 0:w]

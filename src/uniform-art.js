@@ -565,7 +565,7 @@ export const ART = {
      "color": "#111113"
     }
    ],
-   "bandEnd": 0.92,
+   "bandEnd": 1.0,
    "logos": "logos-pants-red",
    "logoArt": {
     "width": 1084,
@@ -578,16 +578,16 @@ export const ART = {
    "bands": [
     {
      "at": 0.0107,
-     "w": 0.0447,
-     "color": "#c9001f"
+     "w": 0.0567,
+     "color": "#111113"
     },
     {
-     "at": -0.0164,
-     "w": 0.0094,
-     "color": "#111113"
+     "at": 0.0107,
+     "w": 0.0447,
+     "color": "#c9001f"
     }
    ],
-   "bandEnd": 0.92,
+   "bandEnd": 1.0,
    "logos": "logos-pants-white",
    "logoArt": {
     "width": 1084,
@@ -609,7 +609,7 @@ export const ART = {
      "color": "#f2f2f0"
     }
    ],
-   "bandEnd": 0.92,
+   "bandEnd": 1.0,
    "logos": "logos-pants-black",
    "logoArt": {
     "width": 1084,
