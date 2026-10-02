@@ -307,21 +307,24 @@ export class Player {
 
   buildMaterials() {
     const C = paint.makeCanvas;
-    const aniso = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    const aniso = this.renderer.capabilities.getMaxAnisotropy(); // keeps the art sharp at an angle
     const tex = (canvas, flipY = false) => {
       const t = new THREE.CanvasTexture(canvas);
       t.colorSpace = THREE.SRGBColorSpace;
       t.flipY = flipY;
       t.anisotropy = aniso;
+      t.generateMipmaps = true;
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.magFilter = THREE.LinearFilter;
       t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
       return t;
     };
-    // Art canvases: jersey front and back at half the art's size, the hip
-    // logos, the helmet decal and the ball.
+    // Art canvases: jersey front and back at the art's full size, so the
+    // lettering stays crisp up close, the hip logos, the helmet decal and the ball.
     this.canvases = {
-      front: C(JERSEY_ART.width / 2, JERSEY_ART.height / 2),
-      back: C(JERSEY_ART.width / 2, JERSEY_ART.height / 2),
-      logos: C(PANTS_ART.width / 2, PANTS_ART.height / 2),
+      front: C(JERSEY_ART.width, JERSEY_ART.height),
+      back: C(JERSEY_ART.width, JERSEY_ART.height),
+      logos: C(PANTS_ART.width, PANTS_ART.height),
       shoe: C(702, 372),
       decal: C(752, 762),
       ball: C(512, 256),
