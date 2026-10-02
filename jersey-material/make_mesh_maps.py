@@ -1,17 +1,15 @@
 """
 Generates tileable football-jersey mesh maps (original, no third-party assets).
 
-Outputs (in assets/fabric/, read by the jersey material in src/model.js):
-  mesh-normal.webp     tangent-space normal map (OpenGL / three.js convention)
-  mesh-roughness.webp  roughness map (green channel used by three.js)
-  mesh-detail.webp     grayscale multiply map (weave shading + hole darkening)
+Outputs (in jersey-material/maps/):
+  mesh_normal.png     tangent-space normal map (OpenGL / three.js convention)
+  mesh_roughness.png  roughness map (green channel used by three.js)
+  mesh_detail.png     grayscale multiply map (weave shading + hole darkening)
 
 Usage:
-  python3 tools/make-mesh-maps.py                  # defaults
-  python3 tools/make-mesh-maps.py --size 1024 --cells 24 --style dimple
-  python3 tools/make-mesh-maps.py --style tricot --cells 28   # tighter, flatter "practice jersey" mesh
-
-How big the holes look on the player is MESH_FABRIC.repeat in src/model.js.
+  python make_mesh_maps.py                  # defaults
+  python make_mesh_maps.py --size 1024 --cells 24 --style dimple
+  python make_mesh_maps.py --style tricot   # tighter, flatter "practice jersey" mesh
 """
 import argparse
 import os
@@ -94,28 +92,28 @@ def main():
     ap.add_argument("--style", choices=["dimple", "tricot"], default="dimple")
     ap.add_argument("--strength", type=float, default=14.0, help="normal map strength")
     ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--out", default="assets/fabric")
+    ap.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "maps"))
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
     h, hole, weave = make_height(args.size, args.cells, args.style, args.seed)
 
     normal = height_to_normal(h, args.strength)
-    Image.fromarray(normal, "RGB").save(os.path.join(args.out, "mesh-normal.webp"), quality=92, method=6)
+    Image.fromarray(normal, "RGB").save(os.path.join(args.out, "mesh_normal.png"))
 
     # Roughness: polyester is fairly smooth with a slight sheen; holes/edges rougher.
     rough = 0.52 + 0.18 * hole + 0.08 * weave
     rough = np.clip(rough, 0, 1)
     r8 = (rough * 255).astype(np.uint8)
     Image.fromarray(np.stack([r8, r8, r8], -1), "RGB").save(
-        os.path.join(args.out, "mesh-roughness.webp"), lossless=True
+        os.path.join(args.out, "mesh_roughness.png")
     )
 
     # Detail/multiply: darken holes (you see the body/undershirt through them)
     detail = 1.0 - 0.45 * hole - 0.06 * weave
     d8 = (np.clip(detail, 0, 1) * 255).astype(np.uint8)
     Image.fromarray(np.stack([d8, d8, d8], -1), "RGB").save(
-        os.path.join(args.out, "mesh-detail.webp"), lossless=True
+        os.path.join(args.out, "mesh_detail.png")
     )
     print(f"Wrote 3 maps to {args.out}/ ({args.size}px, {args.cells} cells, {args.style})")
 

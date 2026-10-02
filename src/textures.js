@@ -1,5 +1,5 @@
-// Canvas painters: the jersey art for projection, back lettering, the ball,
-// the turf and fabric normal maps.
+// Canvas painters: the jersey art for projection, back lettering, the ball
+// and the turf.
 
 export const FONTS = {
   jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
@@ -139,24 +139,32 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   letterTv(ctx, number, spec, style, k);
 }
 
-// The back: the body color, the number larger and higher than on the front,
-// the shoulder numbers, and an optional name between the collar and the
-// number. As on the game jerseys, the name is a heavy, slightly spaced block,
-// about a sixth of the number's height, black on white jerseys and in the
-// number's fill on dark ones.
-export function paintJerseyBack(canvas, spec, style, number, name) {
+// The back panel: the body color and the shoulder numbers, which show from
+// behind too. The number and name are lettered separately, by
+// paintBackLettering, on their own sharper canvas.
+export function paintJerseyBack(canvas, spec, style, number) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.fillStyle = spec.base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  letterTv(ctx, number, spec, style, k, true);
+}
+
+// The back number, larger and higher than on the front, and an optional
+// name between the collar and the number, on a transparent canvas laid over
+// the back panel. As on the game jerseys, the name is a heavy, slightly
+// spaced block, about a sixth of the number's height, black on white jerseys
+// and in the number's fill on dark ones.
+export function paintBackLettering(canvas, spec, style, number, name) {
+  const ctx = canvas.getContext('2d');
+  const k = canvas.width / spec.art.width;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   const [x0, y0, x1, y1] = spec.number.box;
   const height = (y1 - y0) * 1.12;
   const top = name ? 430 : 400;
   letterNumber(ctx, number, {
     cx: (spec.art.width / 2) * k, cy: (top + height / 2) * k, height: height * k, width: (x1 - x0) * 1.12 * k,
   }, spec, style);
-  // Shoulder numbers show from behind too.
-  letterTv(ctx, number, spec, style, k, true);
   if (name) {
     const nameH = height * 0.17;
     const spacing = 6;
@@ -191,41 +199,6 @@ export function alphaCenterX(canvas) {
   return x1 >= x0 ? (x0 + x1) / 2 : W / 2;
 }
 
-// Tileable tangent-space normal maps for fabric: a knit mesh for jerseys and
-// diagonal twill for pants.
-export function fabricNormal(kind, size = 128) {
-  const height = new Float32Array(size * size);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const u = (x / size) * Math.PI * 2;
-      const v = (y / size) * Math.PI * 2;
-      let h;
-      if (kind === 'knit') h = Math.pow(Math.max(0, Math.sin(u * 8) * Math.sin(v * 8)), 0.6) - 0.15 * Math.cos(v * 16);
-      else h = Math.sin((u + v) * 12);
-      height[y * size + x] = h;
-    }
-  }
-  const canvas = makeCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(size, size);
-  const at = (x, y) => height[((y + size) % size) * size + ((x + size) % size)];
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = (at(x + 1, y) - at(x - 1, y)) * 1.5;
-      const dy = (at(x, y + 1) - at(x, y - 1)) * 1.5;
-      const len = Math.hypot(dx, dy, 1);
-      const i = (y * size + x) * 4;
-      img.data[i] = ((-dx / len) * 0.5 + 0.5) * 255;
-      img.data[i + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
-      img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
-      img.data[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return canvas;
-}
-
-// Leather ball: half-stripes near each tip and a lace row.
 export function paintBall(canvas) {
   const ctx = canvas.getContext('2d');
   const { width: W, height: H } = canvas;
