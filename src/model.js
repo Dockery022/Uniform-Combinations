@@ -100,8 +100,12 @@ const WEAVE_GLSL = /* glsl */ `
   normal = normalize(normal + tbn * vec3(weaveN.xy * uWeaveStrength * weaveAmt, 0.0));
 `;
 // How far the jersey sits out from its rest shape (meters), so it clears the
-// body and pads; it tapers to nothing where it tucks into the pants.
+// body and pads.
 const JERSEY_PUFF = 0.006;
+// Doc's fit, in meters: the untucked hem's drop below the belt and its
+// clearance over the pants and belt, where it starts flaring out above the
+// pants, the shoulder broadening, and the pants' fullness.
+const JERSEY_FIT = { belowBelt: 0.075, clear: 0.012, blend: 0.08, shoulders: 0.015, thigh: 0.012, knee: 0.009 };
 // Skin within this distance under the jersey or pants is never drawn.
 const COVER_DEPTH = 0.08;
 const COVER_SIDE = 0.02;
@@ -207,6 +211,53 @@ function extend(material, { attrs = {}, uniforms = {}, declare = '', fragment = 
 }
 
 // ---------- geometry measurements (rest pose, world meters) ----------
+
+// Move skinned vertices to new rest-pose world positions (Map index ->
+// Vector3), solving each back through its own skinning so it keeps its bone
+// weights, then give the moved vertices fresh smooth normals.
+function moveRest(mesh, moved) {
+  if (!moved.size) return;
+  const geo = mesh.geometry;
+  // Quantized positions (normalized integers) can't hold points outside the
+  // mesh's original box, so edit a float copy.
+  if (!(geo.attributes.position.array instanceof Float32Array)) {
+    const q = geo.attributes.position;
+    const f = new Float32Array(q.count * 3);
+    for (let i = 0; i < q.count; i++) f.set([q.getX(i), q.getY(i), q.getZ(i)], i * 3);
+    geo.setAttribute('position', new THREE.BufferAttribute(f, 3));
+  }
+  const pos = geo.attributes.position;
+  const toLocal = new Map();
+  const skinM = new THREE.Matrix4();
+  const tmp = new THREE.Matrix4();
+  const v = new THREE.Vector3();
+  for (const [i, world] of moved) {
+    // world = matrixWorld * bindMatrixInverse * skin * bindMatrix * local
+    skinM.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    for (let k = 0; k < 4; k++) {
+      const w = geo.attributes.skinWeight.getComponent(i, k);
+      if (!w) continue;
+      const j = geo.attributes.skinIndex.getComponent(i, k);
+      tmp.multiplyMatrices(mesh.skeleton.bones[j].matrixWorld, mesh.skeleton.boneInverses[j]);
+      for (let e = 0; e < 16; e++) skinM.elements[e] += tmp.elements[e] * w;
+    }
+    const m = mesh.matrixWorld.clone().multiply(mesh.bindMatrixInverse).multiply(skinM).multiply(mesh.bindMatrix).invert();
+    v.copy(world).applyMatrix4(m);
+    pos.setXYZ(i, v.x, v.y, v.z);
+    toLocal.set(i, m);
+  }
+  pos.needsUpdate = true;
+  const normals = worldNormals(mesh, worldPositions(mesh));
+  const nrm = geo.attributes.normal;
+  const m3 = new THREE.Matrix3();
+  for (const [i, m] of toLocal) {
+    v.fromArray(normals, i * 3).applyMatrix3(m3.setFromMatrix4(m)).normalize();
+    nrm.setXYZ(i, v.x, v.y, v.z);
+  }
+  nrm.needsUpdate = true;
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+}
 
 // 1 for vertices at least `rings` edges in from an open boundary (welded by
 // position, so UV seams aren't boundaries), else 0.
@@ -619,14 +670,9 @@ export class Player {
     const sw = worldPositions(socks);
     const pw = worldPositions(pants);
     const kw = worldPositions(skin);
-    const geo = socks.geometry;
-    const pos = geo.attributes.position;
+    const pos = socks.geometry.attributes.position;
     const mid = (this.bones.LeftUpLeg.getWorldPosition(new THREE.Vector3()).x + this.bones.RightUpLeg.getWorldPosition(new THREE.Vector3()).x) / 2;
     const BAND = 0.06; // the top 6 cm of the sock is stretched
-    const toLocal = new THREE.Matrix4();
-    const skinM = new THREE.Matrix4();
-    const tmp = new THREE.Matrix4();
-    const v = new THREE.Vector3();
     const moved = new Map();
     const aSock = new Float32Array(kw.length / 3);
     for (const left of [true, false]) {
@@ -748,34 +794,160 @@ export class Player {
           nx = sl.x + (dx / r) * nr;
           nz = sl.z + (dz / r) * nr;
         }
-        // world = matrixWorld * bindMatrixInverse * skin * bindMatrix * local
-        skinM.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        for (let k = 0; k < 4; k++) {
-          const w = geo.attributes.skinWeight.getComponent(i, k);
-          if (!w) continue;
-          const j = geo.attributes.skinIndex.getComponent(i, k);
-          tmp.multiplyMatrices(socks.skeleton.bones[j].matrixWorld, socks.skeleton.boneInverses[j]);
-          for (let e = 0; e < 16; e++) skinM.elements[e] += tmp.elements[e] * w;
-        }
-        toLocal.copy(socks.matrixWorld).multiply(socks.bindMatrixInverse).multiply(skinM).multiply(socks.bindMatrix).invert();
-        v.set(nx, ny, nz).applyMatrix4(toLocal);
-        pos.setXYZ(i, v.x, v.y, v.z);
-        moved.set(i, toLocal.clone());
+        moved.set(i, new THREE.Vector3(nx, ny, nz));
       }
     }
-    pos.needsUpdate = true;
-    // Fresh smooth normals for the stretched part, back in local space.
-    const normals = worldNormals(socks, worldPositions(socks));
-    const nrm = geo.attributes.normal;
-    const m3 = new THREE.Matrix3();
-    for (const [i, m] of moved) {
-      v.fromArray(normals, i * 3).applyMatrix3(m3.setFromMatrix4(m)).normalize();
-      nrm.setXYZ(i, v.x, v.y, v.z);
-    }
-    nrm.needsUpdate = true;
+    moveRest(socks, moved);
     skin.geometry.setAttribute('aSock', new THREE.BufferAttribute(aSock, 1));
-    geo.computeBoundingBox();
-    geo.computeBoundingSphere();
+  }
+
+  // Doc's fit (2026-10-03): the jersey hangs untucked, outside the pants,
+  // its hem JERSEY_FIT.belowBelt under the belt; the shoulders are a little
+  // broader; the pants are a little fuller at the thighs and knees. Rest
+  // pose edits, solved back through each vertex's skinning (moveRest).
+  fitUniform() {
+    const { jersey, pants, belt, buckle } = this.parts;
+    const bone = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
+    const sector = (x, z, cx, cz) => (Math.floor(((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * 36) + 36) % 36;
+    if (jersey && pants) {
+      const jw = worldPositions(jersey);
+      const jn = worldNormals(jersey, jw);
+      const uv = jersey.geometry.attributes.uv;
+      const waist = [pants, belt, buckle].filter(Boolean).map((m) => worldPositions(m));
+      const bw = belt ? worldPositions(belt) : waist[0];
+      let cx = 0;
+      let cz = 0;
+      let beltLow = Infinity;
+      for (let i = 0; i < bw.length; i += 3) { cx += bw[i]; cz += bw[i + 2]; beltLow = Math.min(beltLow, bw[i + 1]); }
+      cx /= bw.length / 3;
+      cz /= bw.length / 3;
+      const pantsTop = new THREE.Box3().setFromObject(pants, true).max.y;
+      let hemOld = Infinity;
+      for (let i = 0; i < jw.length / 3; i++) if (uv.getX(i) >= 0.44) hemOld = Math.min(hemOld, jw[i * 3 + 1]);
+      const hemNew = Math.min(hemOld, beltLow - JERSEY_FIT.belowBelt);
+      const top = pantsTop + JERSEY_FIT.blend; // the jersey is untouched above this
+      // Widest the waist gets (pants, belt, buckle) per 10° sector, down to the new hem.
+      const R = new Float32Array(36);
+      for (const w of waist) {
+        for (let i = 0; i < w.length; i += 3) {
+          if (w[i + 1] < hemNew - 0.01 || Math.hypot(w[i] - cx, w[i + 2] - cz) > 0.3) continue;
+          const b = sector(w[i], w[i + 2], cx, cz);
+          R[b] = Math.max(R[b], Math.hypot(w[i] - cx, w[i + 2] - cz));
+        }
+      }
+      // Smooth the sectors so the hem hangs in an even curve.
+      const Rm = R.map((_, b) => Math.max(R[b], R[(b + 1) % 36], R[(b + 35) % 36]) + JERSEY_FIT.clear);
+      const Rs = Rm.map((_, b) => [-2, -1, 0, 1, 2].reduce((sum, o) => sum + Rm[(b + o + 36) % 36], 0) / 5);
+      // Radius at any angle, interpolated between sector centers, so the hem
+      // is a smooth curve rather than 10° steps.
+      const needAt = (x, z) => {
+        const f = ((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * 36 - 0.5;
+        const b0 = Math.floor(f);
+        const t = f - b0;
+        return Rs[(b0 + 36) % 36] * (1 - t) + Rs[(b0 + 37) % 36] * t;
+      };
+      // The tucked part is bunched into folds that double back on
+      // themselves, so it's re-hung by its UV v (which runs straight down the
+      // cloth): per sector, v at the pants top maps to the pants top and the
+      // hem's v to the new hem.
+      const vTop = new Float32Array(36).fill(NaN);
+      const vHem = new Float32Array(36).fill(NaN);
+      {
+        const near = Array.from({ length: 36 }, () => []);
+        for (let i = 0; i < jw.length / 3; i++) {
+          if (uv.getX(i) < 0.44) continue;
+          const b = sector(jw[i * 3], jw[i * 3 + 2], cx, cz);
+          if (Math.abs(jw[i * 3 + 1] - pantsTop) < 0.01) near[b].push(uv.getY(i));
+        }
+        near.forEach((l, b) => { if (l.length) vTop[b] = l.sort((p, q) => p - q)[l.length >> 1]; });
+        for (let i = 0; i < jw.length / 3; i++) {
+          if (uv.getX(i) < 0.44 || jw[i * 3 + 1] > pantsTop) continue;
+          const b = sector(jw[i * 3], jw[i * 3 + 2], cx, cz);
+          const v = uv.getY(i);
+          if (Number.isNaN(vTop[b])) continue;
+          if (Number.isNaN(vHem[b]) || Math.abs(v - vTop[b]) > Math.abs(vHem[b] - vTop[b])) vHem[b] = v;
+        }
+      }
+      const armpit = this.jerseyArmpit ?? bone('LeftArm').y - 0.12;
+      const capTop = bone('LeftArm').y + 0.03;
+      const moved = new Map();
+      for (let i = 0; i < jw.length / 3; i++) {
+        let x = jw[i * 3];
+        let y = jw[i * 3 + 1];
+        let z = jw[i * 3 + 2];
+        const torso = uv.getX(i) >= 0.44;
+        let changed = false;
+        if (torso && y < top) {
+          // Stretch the lower torso down to the new hem, then out over the waist.
+          const b = sector(x, z, cx, cz);
+          const v = uv.getY(i);
+          const span = vHem[b] - vTop[b];
+          if (y < pantsTop && Math.abs(span) > 1e-4) {
+            const f = THREE.MathUtils.clamp((v - vTop[b]) / span, 0, 1);
+            y = pantsTop - f * (pantsTop - hemNew);
+          } else if (y < pantsTop) {
+            y = top - ((top - y) * (top - hemNew)) / (top - hemOld);
+          }
+          const dx = x - cx;
+          const dz = z - cz;
+          const r = Math.hypot(dx, dz) || 1e-6;
+          const need = needAt(x, z);
+          // Over the pants it hangs as a smooth curve at `need` (the folds the
+          // tucked hem had are flattened out), blending back to its own shape above.
+          const flare = 1 - THREE.MathUtils.smoothstep(y, pantsTop, top);
+          const nr = r + (Math.max(need, r * (1 - flare)) - r) * flare;
+          x = cx + (dx / r) * nr;
+          z = cz + (dz / r) * nr;
+          changed = true;
+        }
+        // Broader shoulders: the shoulder caps push out along their normal,
+        // leaning outward, never in toward the body.
+        const side = Math.sign(x - cx);
+        const n = new THREE.Vector3().fromArray(jn, i * 3);
+        // Only the top and outside of the cap; the underarm stays put, so it
+        // doesn't move into the arm when the arm is raised.
+        const w = THREE.MathUtils.smoothstep(Math.abs(x - cx), 0.08, 0.2) * THREE.MathUtils.smoothstep(y, armpit - 0.06, capTop)
+          * THREE.MathUtils.smoothstep(n.y + 0.5 * n.x * side, 0, 0.5);
+        if (w > 0) {
+          if (n.x * side > -0.2) n.x += 0.5 * side;
+          n.normalize().multiplyScalar(JERSEY_FIT.shoulders * w);
+          x += n.x;
+          y += n.y;
+          z += n.z;
+          changed = true;
+        }
+        if (changed) moved.set(i, new THREE.Vector3(x, y, z));
+      }
+      moveRest(jersey, moved);
+    }
+    if (pants) {
+      const pw = worldPositions(pants);
+      const moved = new Map();
+      const legs = [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']].map((l) => l.map(bone));
+      const mid = (legs[0][0].x + legs[1][0].x) / 2;
+      const bell = (v) => Math.exp(-v * v);
+      const axis = new THREE.Vector3();
+      const p = new THREE.Vector3();
+      for (let i = 0; i < pw.length / 3; i++) {
+        p.fromArray(pw, i * 3);
+        const [hip, knee, foot] = legs[(p.x > mid) === (legs[0][0].x > mid) ? 0 : 1];
+        // Nearest point on the leg's hip-knee-ankle line.
+        const seg = p.y > knee.y ? [hip, knee] : [knee, foot];
+        const d = seg[1].clone().sub(seg[0]);
+        const t = THREE.MathUtils.clamp(p.clone().sub(seg[0]).dot(d) / d.lengthSq(), 0, 1);
+        axis.copy(seg[0]).addScaledVector(d, t);
+        const out = p.clone().sub(axis);
+        out.addScaledVector(d, -out.dot(d) / d.lengthSq()); // across the leg only
+        if (out.lengthSq() < 1e-8) continue;
+        out.normalize();
+        const thighMid = (hip.y + knee.y) / 2;
+        let a = JERSEY_FIT.thigh * bell((p.y - thighMid) / 0.16) + JERSEY_FIT.knee * bell((p.y - knee.y) / 0.08);
+        a *= 1 - THREE.MathUtils.smoothstep(p.y, hip.y - 0.14, hip.y - 0.02); // nothing at the waist
+        if ((out.x > 0) !== (axis.x > mid)) a *= 0.35; // little on the inseam, so the legs don't meet
+        if (a > 1e-5) moved.set(i, p.clone().addScaledVector(out, a));
+      }
+      moveRest(pants, moved);
+    }
   }
 
   // Marks the skin under the jersey and pants (aHide = 1) so the skin shader
@@ -833,6 +1005,36 @@ export class Player {
       // rest) and right under that vertex, not off to the side in an opening.
       if (depth < 0.002 && side < COVER_SIDE) aHide[i] = 1;
     }
+    // The upper arm inside each sleeve, whatever the rest pose says: when
+    // the arm is raised it slides up through the sleeve's surface, so all
+    // upper-arm skin short of the cuff (less 2 cm) is dropped too.
+    const jersey = this.parts.jersey;
+    if (jersey) {
+      const jw = worldPositions(jersey);
+      const uv = jersey.geometry.attributes.uv;
+      for (const S of ['Left', 'Right']) {
+        const shoulder = this.bones[`${S}Arm`]?.getWorldPosition(new THREE.Vector3());
+        const elbow = this.bones[`${S}ForeArm`]?.getWorldPosition(new THREE.Vector3());
+        if (!shoulder || !elbow) continue;
+        const axis = elbow.clone().sub(shoulder).normalize();
+        const along = (x, y, z) => (x - shoulder.x) * axis.x + (y - shoulder.y) * axis.y + (z - shoulder.z) * axis.z;
+        let cuff = -Infinity;
+        for (let i = 0; i < jw.length / 3; i++) {
+          if (uv.getX(i) >= 0.44 || Math.sign(jw[i * 3] - shoulder.x) !== Math.sign(axis.x) && Math.abs(jw[i * 3]) < Math.abs(shoulder.x)) continue;
+          if (Math.sign(jw[i * 3]) !== Math.sign(shoulder.x)) continue;
+          cuff = Math.max(cuff, along(jw[i * 3], jw[i * 3 + 1], jw[i * 3 + 2]));
+        }
+        if (!Number.isFinite(cuff)) continue;
+        // Upper arm, plus the deltoid and armpit (the Shoulder bone) away from the neck.
+        const arm = boneWeight(skin, (n) => n.endsWith(`${S}Arm`) || n.endsWith(`${S}Shoulder`));
+        const neckX = this.bones.Neck.getWorldPosition(new THREE.Vector3()).x;
+        for (let i = 0; i < count; i++) {
+          if (arm[i] < 0.5 || Math.abs(kw[i * 3] - neckX) < 0.12) continue;
+          const t = along(kw[i * 3], kw[i * 3 + 1], kw[i * 3 + 2]);
+          if (t < cuff - 0.02) aHide[i] = 1;
+        }
+      }
+    }
     skin.geometry.setAttribute('aHide', new THREE.BufferAttribute(aHide, 1));
   }
 
@@ -850,6 +1052,7 @@ export class Player {
     for (const mesh of Object.values(this.parts)) mesh.skeleton?.update();
     const bonePos = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
     const setAttr = (mesh, name, data) => mesh.geometry.setAttribute(name, new THREE.BufferAttribute(data, 1));
+    this.fitUniform();
     this.tuckSocks();
 
     // Jersey: distance from the neckline for the collar piping, and where each
@@ -881,11 +1084,8 @@ export class Player {
       }
       setAttr(jersey, 'aMesh', aMesh);
       this.tileFabric(this.fabricMaps.jersey, jersey, world);
-      // Full outward offset above the pants, none where the hem tucks in.
-      const pantsTop = this.parts.pants ? new THREE.Box3().setFromObject(this.parts.pants, true).max.y : -Infinity;
-      const aPuff = new Float32Array(count);
-      for (let i = 0; i < count; i++) aPuff[i] = THREE.MathUtils.smoothstep(world[i * 3 + 1], pantsTop, pantsTop + 0.05);
-      setAttr(jersey, 'aPuff', aPuff);
+      // The whole jersey sits out over the body (it hangs outside the pants).
+      setAttr(jersey, 'aPuff', new Float32Array(count).fill(1));
       this.uniforms.jersey.uPuff.value = JERSEY_PUFF / jersey.matrixWorld.getMaxScaleOnAxis();
     }
     this.hideCovered();
