@@ -579,13 +579,13 @@ export class Player {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves;
       // the mesh's relief, roughness and hole shading all fade with it.
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
-        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float' },
+        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float', aPuffN: 'vec3' },
         uniforms: this.uniforms.jersey,
         declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\n${weaveDecl}`,
-        // Pushed out along its skinned normal (uPuff is JERSEY_PUFF in the
+        // Pushed out along its skinned, seam-averaged normal (uPuff is JERSEY_PUFF in the
         // mesh's units), so it rides over the body instead of through it.
         vertexDeclare: 'uniform float uPuff;',
-        vertexAfter: { skinning_vertex: 'transformed += normalize(objectNormal) * uPuff * aPuff;' },
+        vertexAfter: { skinning_vertex: 'transformed += normalize((skinMatrix * vec4(aPuffN, 0.0)).xyz) * uPuff * aPuff;' },
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
@@ -1130,6 +1130,26 @@ export class Player {
       const aPuff = new Float32Array(count);
       for (let i = 0; i < count; i++) aPuff[i] = JERSEY_FIT.untucked ? 1 : THREE.MathUtils.smoothstep(world[i * 3 + 1], pantsTop, pantsTop + 0.05);
       setAttr(jersey, 'aPuff', aPuff);
+      // The direction is the normal averaged over vertices that share a
+      // position, so the cloth doesn't split open along its UV seams.
+      {
+        const pos = jersey.geometry.attributes.position;
+        const nrm = jersey.geometry.attributes.normal;
+        const Q = jersey.matrixWorld.getMaxScaleOnAxis() / 0.002; // 2 mm cells
+        const key = (i) => `${Math.round(pos.getX(i) * Q)},${Math.round(pos.getY(i) * Q)},${Math.round(pos.getZ(i) * Q)}`;
+        const sums = new Map();
+        for (let i = 0; i < count; i++) {
+          const k = key(i);
+          const n = sums.get(k) ?? [0, 0, 0];
+          n[0] += nrm.getX(i);
+          n[1] += nrm.getY(i);
+          n[2] += nrm.getZ(i);
+          sums.set(k, n);
+        }
+        const aPuffN = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) aPuffN.set(sums.get(key(i)), i * 3);
+        jersey.geometry.setAttribute('aPuffN', new THREE.BufferAttribute(aPuffN, 3));
+      }
       this.uniforms.jersey.uPuff.value = JERSEY_PUFF / jersey.matrixWorld.getMaxScaleOnAxis();
     }
     this.hideCovered();
