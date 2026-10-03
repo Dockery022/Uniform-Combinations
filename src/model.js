@@ -94,10 +94,15 @@ const SOCK_SKIN = 0.04;
 
 // The thread weave (jersey-material/maps/weave_normal.png, 16 threads per
 // tile), tiled `repeat` times per dimple-mesh tile: about 0.8 mm threads.
-const WEAVE = { repeat: 8, strength: 0.6 };
+// The weave both bends the normal and shades the color a little (darker
+// between threads), multiplied over the uniform art after it's drawn, so
+// the art and combo colors are never replaced. At a distance the mipmaps
+// average it to a flat, faint tone.
+const WEAVE = { repeat: 8, strength: 0.6, shade: 0.22 };
 const WEAVE_GLSL = /* glsl */ `
   vec3 weaveN = texture2D(uWeave, vNormalMapUv * uWeaveRepeat).xyz * 2.0 - 1.0;
   normal = normalize(normal + tbn * vec3(weaveN.xy * uWeaveStrength * weaveAmt, 0.0));
+  diffuseColor.rgb *= 1.0 - uWeaveShade * weaveAmt * (1.0 - clamp(weaveN.z, 0.0, 1.0));
 `;
 // How far the jersey sits out from its rest shape (meters), so it clears the
 // body and pads.
@@ -533,8 +538,8 @@ export class Player {
     weave.flipY = false;
     weave.colorSpace = THREE.NoColorSpace;
     weave.anisotropy = aniso;
-    const weaveU = { uWeave: { value: weave }, uWeaveRepeat: { value: WEAVE.repeat }, uWeaveStrength: { value: WEAVE.strength } };
-    const weaveDecl = 'uniform sampler2D uWeave;\nuniform float uWeaveRepeat;\nuniform float uWeaveStrength;';
+    const weaveU = { uWeave: { value: weave }, uWeaveRepeat: { value: WEAVE.repeat }, uWeaveStrength: { value: WEAVE.strength }, uWeaveShade: { value: WEAVE.shade } };
+    const weaveDecl = 'uniform sampler2D uWeave;\nuniform float uWeaveRepeat;\nuniform float uWeaveStrength;\nuniform float uWeaveShade;';
     const pantsU = bandUniforms();
     this.uniforms = {
       pants: { ...pantsU, ...weaveU, uLogos: { value: this.textures.logos }, uBandEnd: { value: 1 } },
@@ -621,7 +626,8 @@ export class Player {
         `,
       }),
       socks: applySmoothFabricInPlace(fabric({ name: 'socks' }), MESH_FABRIC.smooth),
-      cleats: extend(new THREE.MeshPhysicalMaterial({ name: 'cleats', roughness: 0.5, clearcoat: 0.25, clearcoatRoughness: 0.4 }), {
+      // Synthetic uppers on rubber soles: semi-matte, with a soft coat.
+      cleats: extend(new THREE.MeshPhysicalMaterial({ name: 'cleats', roughness: 0.55, clearcoat: 0.2, clearcoatRoughness: 0.5 }), {
         attrs: { aShoe: 'vec2' },
         uniforms: this.uniforms.shoe,
         declare: 'uniform sampler2D uShoe;\nuniform vec3 uShoeBase;',
@@ -634,18 +640,24 @@ export class Player {
       // rest is drawn a little behind coincident cloth (polygonOffset), so
       // nothing pokes through the jersey or pants and nothing z-fights.
       skin: extend(new THREE.MeshPhysicalMaterial({
-        name: 'skin', roughness: 0.55, sheen: 0.25, sheenRoughness: 0.8, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2,
+        // Slightly lower roughness than before, softer specular (no flat
+        // shine), and a warm sheen for a soft, subsurface-like edge.
+        name: 'skin', roughness: 0.48, specularIntensity: 0.5, sheen: 0.4, sheenRoughness: 0.6, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2,
       }), {
         attrs: { aGlove: 'float', aSock: 'float', aHide: 'float' },
         uniforms: this.uniforms.glove,
         declare: 'uniform vec3 uGlove;\nuniform float uGloveOn;\nuniform vec3 uSock;',
         fragment: `
           if (vaHide > 0.999) discard; // all three corners under cloth
-          diffuseColor.rgb = mix(diffuseColor.rgb, uGlove, uGloveOn * smoothstep(0.3, 0.6, vaGlove));
+          float gloveAmt = uGloveOn * smoothstep(0.3, 0.6, vaGlove);
+          diffuseColor.rgb = mix(diffuseColor.rgb, uGlove, gloveAmt);
           diffuseColor.rgb = mix(diffuseColor.rgb, uSock, step(0.5, vaSock));
         `,
+        // Gloves: synthetic grip palms, fairly rough; sock-colored shin: cloth.
+        after: { roughnessmap_fragment: 'roughnessFactor = mix(mix(roughnessFactor, 0.62, gloveAmt), 0.9, step(0.5, vaSock));' },
       }),
-      belt: new THREE.MeshStandardMaterial({ name: 'belt', roughness: 0.55 }),
+      // Leather belt: a low sheen in a thin, fairly rough clear coat.
+      belt: new THREE.MeshPhysicalMaterial({ name: 'belt', roughness: 0.5, clearcoat: 0.15, clearcoatRoughness: 0.5 }),
       buckle: new THREE.MeshStandardMaterial({ name: 'buckle', color: '#c9ccd1', metalness: 0.9, roughness: 0.3 }),
       tape: new THREE.MeshStandardMaterial({ name: 'tape', color: BRAND.white, roughness: 0.85 }),
       armSleeve: fabric({ name: 'armSleeve', roughness: 0.5, sheen: 0.3 }),
@@ -1556,14 +1568,16 @@ export class Player {
 
     const skin = SKIN_TONES[look.skin] ?? SKIN_TONES[2];
     m.skin.color.set(skin);
-    m.skin.sheenColor.set(skin);
+    m.skin.sheenColor.set(skin).lerp(new THREE.Color('#ff7a5c'), 0.3); // warm, like light through skin
     u.glove.uGlove.value.set(look.gloves ?? '#000000');
     u.glove.uGloveOn.value = look.gloves ? 1 : 0;
     if (this.parts.armSleeve) this.parts.armSleeve.material = m.skin; // no forearm under the sleeve mesh
 
     // Helmet.
     const finish = {
-      gloss: { metalness: 0, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03 },
+      // Glossy paint under a clear coat; a touch of coat roughness keeps the
+      // HDRI's reflections soft rather than mirror-sharp.
+      gloss: { metalness: 0, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.06 },
       satin: { metalness: 0.1, roughness: 0.45, clearcoat: 0.45, clearcoatRoughness: 0.3 },
       matte: { metalness: 0, roughness: 0.78, clearcoat: 0, clearcoatRoughness: 1 },
     }[h.finish] ?? {};
