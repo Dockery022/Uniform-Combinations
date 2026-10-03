@@ -783,10 +783,12 @@ export class Player {
           const dz = z - sl.z;
           const r = Math.hypot(dx, dz) || 1e-6;
           const b = (Math.floor(((Math.atan2(dz, dx) + Math.PI) / (2 * Math.PI)) * 24) + 24) % 24;
-          // The sock is low-poly, so clear the widest leg within 4 cm above
-          // and below, which its flat facets span.
+          // The sock is low-poly, so under the pants it clears the widest leg
+          // within 4 cm above and below, which its flat facets span. Below the
+          // hem it follows the shin, so the knee's width doesn't bulge it out.
+          const hidden = ny > targets[sec] - SOCK_TUCK;
           let need = 0;
-          for (let dy = -4; dy <= 4; dy++) {
+          for (let dy = hidden ? -4 : -1; dy <= (hidden ? 4 : 1); dy++) {
             const o = slices.get(Math.round(ny * 100) + dy);
             if (o) for (const bb of [b, (b + 1) % 24, (b + 23) % 24]) need = Math.max(need, o.r[bb]);
           }
@@ -824,7 +826,6 @@ export class Player {
     const sector = (x, z, cx, cz) => (Math.floor(((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * 36) + 36) % 36;
     if (jersey && pants) {
       const jw = worldPositions(jersey);
-      const jn = worldNormals(jersey, jw);
       const uv = jersey.geometry.attributes.uv;
       const waist = [pants, belt, buckle].filter(Boolean).map((m) => worldPositions(m));
       const bw = belt ? worldPositions(belt) : waist[0];
@@ -883,6 +884,18 @@ export class Player {
       }
       const armpit = this.jerseyArmpit ?? bone('LeftArm').y - 0.12;
       const capTop = bone('LeftArm').y + 0.03;
+      // Each shoulder joint, its arm's direction, and how far down the arm the
+      // sleeve's cuff is.
+      const joints = ['Left', 'Right'].map((S) => {
+        const p = bone(`${S}Arm`);
+        const axis = bone(`${S}ForeArm`).sub(p).normalize();
+        let cuff = 0;
+        for (let i = 0; i < jw.length / 3; i++) {
+          if (uv.getX(i) >= 0.44 || Math.sign(jw[i * 3] - cx) !== Math.sign(p.x - cx)) continue;
+          cuff = Math.max(cuff, (jw[i * 3] - p.x) * axis.x + (jw[i * 3 + 1] - p.y) * axis.y + (jw[i * 3 + 2] - p.z) * axis.z);
+        }
+        return { p, axis, cuff: Math.max(cuff, 0.05) };
+      });
       const moved = new Map();
       for (let i = 0; i < jw.length / 3; i++) {
         let x = jw[i * 3];
@@ -913,20 +926,19 @@ export class Player {
           z = cz + (dz / r) * nr;
           changed = true;
         }
-        // Broader shoulders: the shoulder caps push out along their normal,
-        // leaning outward, never in toward the body.
-        const side = Math.sign(x - cx);
-        const n = new THREE.Vector3().fromArray(jn, i * 3);
-        // Only the top and outside of the cap; the underarm stays put, so it
-        // doesn't move into the arm when the arm is raised.
+        // Broader shoulders: the shoulder caps push straight out from the
+        // shoulder joint, by position alone, so cloth layers that touch move
+        // together (no rolled edges). Nothing at the underarm, so a raised arm
+        // doesn't meet it, and it fades out before the sleeve's cuff.
+        const sj = joints.find((j) => (j.p.x > cx) === (x > cx)) ?? joints[0];
+        const along = (x - sj.p.x) * sj.axis.x + (y - sj.p.y) * sj.axis.y + (z - sj.p.z) * sj.axis.z;
         const w = THREE.MathUtils.smoothstep(Math.abs(x - cx), 0.08, 0.2) * THREE.MathUtils.smoothstep(y, armpit - 0.06, capTop)
-          * THREE.MathUtils.smoothstep(n.y + 0.5 * n.x * side, 0, 0.5);
+          * (1 - THREE.MathUtils.smoothstep(along, 0, sj.cuff));
         if (w > 0) {
-          if (n.x * side > -0.2) n.x += 0.5 * side;
-          n.normalize().multiplyScalar(JERSEY_FIT.shoulders * w);
-          x += n.x;
-          y += n.y;
-          z += n.z;
+          const d = new THREE.Vector3(x - sj.p.x, y - (sj.p.y - 0.04), z - sj.p.z).normalize().multiplyScalar(JERSEY_FIT.shoulders * w);
+          x += d.x;
+          y += d.y;
+          z += d.z;
           changed = true;
         }
         if (changed) moved.set(i, new THREE.Vector3(x, y, z));
@@ -1084,7 +1096,22 @@ export class Player {
       const aArt = this.projectJersey(jersey, world, neckEdge, bonePos);
       jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(aArt, 3));
       // Kept for placing the shoulder-number decals, which move with the style.
-      this.jerseyRest = { world, normals: worldNormals(jersey, world), art: aArt, neck: bonePos('Neck') };
+      const normals = worldNormals(jersey, world);
+      // Top of each shoulder pad: the highest upward-facing cloth over the
+      // shoulder joint, a little in toward the neck.
+      const neckPos = bonePos('Neck');
+      const tops = ['LeftArm', 'RightArm'].map((b) => {
+        const a = bonePos(b);
+        const tx = a.x + (neckPos.x - a.x) * 0.05;
+        let best = -1;
+        let bestY = -Infinity;
+        for (let i = 0; i < count; i++) {
+          if (normals[i * 3 + 1] < 0.6 || Math.hypot(world[i * 3] - tx, world[i * 3 + 2] - a.z) > 0.03) continue;
+          if (world[i * 3 + 1] > bestY) { bestY = world[i * 3 + 1]; best = i; }
+        }
+        return best < 0 ? null : new THREE.Vector3().fromArray(world, best * 3);
+      });
+      this.jerseyRest = { world, normals, art: aArt, neck: neckPos, tops };
       jersey.geometry.setAttribute('aTv', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
       // Dimple mesh on the front below the yoke and on the lower back, faded over 4 cm.
       const uv = jersey.geometry.attributes.uv;
@@ -1306,9 +1333,10 @@ export class Player {
     return out;
   }
 
-  // Shoulder (or cuff) numbers as flat decals. Each one is centered where the
-  // style's art letters it, found as the jersey point that projects closest
-  // to that art pixel (the front of the shoulder, or the cuff). Nearby
+  // Shoulder (or cuff) numbers as flat decals. A cuff number is centered where
+  // the style's art letters it, found as the jersey point that projects
+  // closest to that art pixel; a shoulder number goes on top of that
+  // shoulder's pad. Nearby
   // vertices get planar decal coordinates, shown where they face the same
   // way as the center, so the
   // number lies flat on the cloth and crosses the front/back UV seam on top
@@ -1342,7 +1370,10 @@ export class Player {
         if (d < bestD) { bestD = d; best = i; }
       }
       if (best < 0) return 0;
-      const c = new THREE.Vector3().fromArray(world, best * 3);
+      let c = new THREE.Vector3().fromArray(world, best * 3);
+      // The art letters the number on the front slope; on the jersey it sits
+      // on top of the shoulder pad, as in the game photos.
+      if (!onSleeve) c = R.tops?.find((t) => t && Math.sign(t.x - neck.x) === Math.sign(c.x - neck.x))?.clone() ?? c;
       // Average normal around the center.
       n0.set(0, 0, 0);
       for (let i = 0; i < count; i++) {
