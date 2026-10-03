@@ -2,6 +2,7 @@
 // graphic and saved combos.
 import * as THREE from './three.js';
 import { loadAssets, loadImage, Player } from './model.js';
+import { loadHDR } from './hdr.js';
 import { Orbit, VIEWS } from './orbit.js';
 import { Panel, el } from './ui.js';
 import { FONTS, makeCanvas, paintTurf } from './textures.js';
@@ -10,6 +11,7 @@ import { BRAND, DEFAULT_STATE } from './team.js';
 
 const POSE_LABELS = { idle: 'Idle', ready: 'Ready', run: 'Run', celebrate: 'Celebrate', heisman: 'Heisman' };
 const SAVED_KEY = 'combo-builder-3d:saved';
+const HDRI_INTENSITY = 0.45;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const stage = document.getElementById('stage');
@@ -21,8 +23,8 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true 
 const pixelRatio = Math.min(window.devicePixelRatio, 2);
 renderer.setPixelRatio(pixelRatio);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.8;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0x000000, 0);
@@ -52,8 +54,18 @@ function studioEnvironment() {
   pmrem.dispose();
   return tex;
 }
+// The studio softboxes light the first frames; the HDRI (a real photo
+// studio, Poly Haven's CC0 "Studio Small 09") replaces them once it loads,
+// giving the cloth's sheen and the helmet's gloss real light to catch.
 scene.environment = studioEnvironment();
 scene.environmentIntensity = 0.7;
+loadHDR('studio_small_09_1k').then((hdr) => {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromEquirectangular(hdr).texture;
+  scene.environmentIntensity = HDRI_INTENSITY;
+  pmrem.dispose();
+  hdr.dispose();
+}).catch((err) => console.warn('Studio HDRI unavailable; keeping the softbox environment', err));
 
 const key = new THREE.DirectionalLight('#fff4ea', 2.4);
 key.position.set(2.4, 4.2, 3.2);
