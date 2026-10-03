@@ -3,6 +3,10 @@
 import * as THREE from './three.js';
 import { loadAssets, loadImage, Player } from './model.js';
 import { loadHDR } from './hdr.js';
+import { EffectComposer } from './vendor/EffectComposer.js';
+import { RenderPass } from './vendor/RenderPass.js';
+import { GTAOPass } from './vendor/GTAOPass.js';
+import { OutputPass } from './vendor/OutputPass.js';
 import { Orbit, VIEWS } from './orbit.js';
 import { Panel, el } from './ui.js';
 import { FONTS, makeCanvas, paintTurf } from './textures.js';
@@ -12,6 +16,21 @@ import { BRAND, DEFAULT_STATE } from './team.js';
 const POSE_LABELS = { idle: 'Idle', ready: 'Ready', run: 'Run', celebrate: 'Celebrate', heisman: 'Heisman' };
 const SAVED_KEY = 'combo-builder-3d:saved';
 const HDRI_INTENSITY = 0.45;
+const QUALITY_KEY = 'combo-builder-3d:quality';
+// High: ambient occlusion, 2048 px soft shadows, up to 2x pixel ratio.
+// Low (the default on phones and small touch screens): no ambient
+// occlusion, 1024 px shadows, at most 1.5x pixel ratio.
+const QUALITY = {
+  high: { ao: true, shadow: 2048, maxRatio: 2 },
+  low: { ao: false, shadow: 1024, maxRatio: 1.5 },
+};
+let quality = (() => {
+  try {
+    const saved = localStorage.getItem(QUALITY_KEY);
+    if (QUALITY[saved]) return saved;
+  } catch { /* storage blocked */ }
+  return matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820 ? 'low' : 'high';
+})();
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const stage = document.getElementById('stage');
@@ -20,7 +39,7 @@ const canvas = document.getElementById('scene');
 // ---------- renderer and scene ----------
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-const pixelRatio = Math.min(window.devicePixelRatio, 2);
+let pixelRatio = Math.min(window.devicePixelRatio, QUALITY[quality].maxRatio);
 renderer.setPixelRatio(pixelRatio);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -67,10 +86,12 @@ loadHDR('studio_small_09_1k').then((hdr) => {
   hdr.dispose();
 }).catch((err) => console.warn('Studio HDRI unavailable; keeping the softbox environment', err));
 
-const key = new THREE.DirectionalLight('#fff4ea', 2.4);
+// One strong key with soft shadows, a subtle rim from behind, and the HDRI
+// for everything else (fill, reflections, sheen).
+const key = new THREE.DirectionalLight('#fff4ea', 2.8);
 key.position.set(2.4, 4.2, 3.2);
 key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
+key.shadow.mapSize.setScalar(QUALITY[quality].shadow);
 Object.assign(key.shadow.camera, { left: -1.4, right: 1.4, top: 2.2, bottom: -0.4, near: 1, far: 10 });
 key.shadow.bias = -0.0004;
 key.shadow.normalBias = 0.02;
@@ -78,16 +99,11 @@ key.shadow.radius = 4;
 scene.add(key, key.target);
 key.target.position.set(0, 0.9, 0);
 
-// The back is lit like the front: a mirror of the key light, so the back
-// number and fabric read the same as the chest from the opposite view. The
-// rims stay faint so white jerseys stay white from behind.
-const rimRed = new THREE.DirectionalLight('#ff2a46', 0.2);
-rimRed.position.set(-3.2, 2.6, -2.6);
-const rimCool = new THREE.DirectionalLight('#c7d6ff', 0.6);
-rimCool.position.set(3.2, 2.2, -3);
-const backFill = new THREE.DirectionalLight('#fff4ea', 2.4);
-backFill.position.set(-2.4, 4.2, -3.2);
-scene.add(rimRed, rimCool, backFill, new THREE.HemisphereLight('#d6dcea', '#1b1310', 0.35));
+// The rim sits high behind the player, so it outlines the shoulders and
+// helmet and still lights the back number enough to read like the front.
+const rim = new THREE.DirectionalLight('#e8eeff', 2.2);
+rim.position.set(-1.6, 3.6, -3.4);
+scene.add(rim, new THREE.HemisphereLight('#d6dcea', '#1b1310', 0.2));
 
 const turfCanvas = makeCanvas(1024, 1024);
 paintTurf(turfCanvas);
@@ -102,14 +118,51 @@ turf.rotation.x = -Math.PI / 2;
 turf.receiveShadow = true;
 scene.add(turf);
 
+// A soft contact shadow under the player, on top of the key light's shadow,
+// so the feet sit on the turf from every angle. Follows the hips.
+const contactCanvas = makeCanvas(256, 256);
+{
+  const ctx = contactCanvas.getContext('2d');
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, 'rgba(0,0,0,0.55)');
+  g.addColorStop(0.45, 'rgba(0,0,0,0.3)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+}
+const contact = new THREE.Mesh(
+  new THREE.PlaneGeometry(1.1, 0.8),
+  new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(contactCanvas), transparent: true, depthWrite: false, toneMapped: false }),
+);
+contact.rotation.x = -Math.PI / 2;
+contact.position.y = 0.003;
+contact.renderOrder = 1;
+scene.add(contact);
 let player = null;
 const orbit = new Orbit(camera, canvas);
+
+// Post-processing for High quality: the scene, ambient occlusion (GTAO,
+// kept subtle), then tone mapping and sRGB output. Low renders directly.
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const ao = new GTAOPass(scene, camera, 1, 1);
+ao.blendIntensity = 0.55;
+ao.updateGtaoMaterial({ radius: 0.2, distanceExponent: 1.5, thickness: 0.6, scale: 1, samples: 12 });
+composer.addPass(ao);
+composer.addPass(new OutputPass());
+
+function draw() {
+  if (QUALITY[quality].ao) composer.render();
+  else renderer.render(scene, camera);
+}
 
 function resize() {
   const { clientWidth: w, clientHeight: h } = stage;
   if (!w || !h) return;
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(w, h, false);
+  composer.setPixelRatio(pixelRatio);
+  composer.setSize(w, h);
   camera.aspect = w / h;
   camera.fov = camera.aspect < 0.8 ? 28 / Math.max(0.55, camera.aspect / 0.8) : 28;
   camera.updateProjectionMatrix();
@@ -225,6 +278,20 @@ function setSpin(on) {
   spinBtn.setAttribute('aria-pressed', String(on));
 }
 spinBtn.addEventListener('click', () => setSpin(!orbit.autoRotate));
+
+const qualityBtn = document.getElementById('quality');
+function setQuality(q) {
+  quality = q;
+  try { localStorage.setItem(QUALITY_KEY, q); } catch { /* storage blocked */ }
+  pixelRatio = Math.min(window.devicePixelRatio, QUALITY[q].maxRatio);
+  key.shadow.mapSize.setScalar(QUALITY[q].shadow);
+  key.shadow.map?.dispose();
+  key.shadow.map = null;
+  qualityBtn.setAttribute('aria-pressed', String(q === 'high'));
+  resize();
+}
+qualityBtn.addEventListener('click', () => setQuality(quality === 'high' ? 'low' : 'high'));
+qualityBtn.setAttribute('aria-pressed', String(quality === 'high'));
 setSpin(!reduceMotion);
 
 // ---------- the game graphic ----------
@@ -235,6 +302,7 @@ const graphic = document.getElementById('graphic');
 function renderCutout(w, h) {
   const saved3d = { pos: camera.position.clone(), quat: camera.quaternion.clone(), fov: camera.fov, aspect: camera.aspect };
   turf.visible = false;
+  contact.visible = false;
   renderer.setPixelRatio(1);
   renderer.setSize(w, h, false);
   camera.fov = 16;
@@ -248,6 +316,7 @@ function renderCutout(w, h) {
   const out = makeCanvas(w, h);
   out.getContext('2d').drawImage(renderer.domElement, 0, 0);
   turf.visible = true;
+  contact.visible = true;
   camera.position.copy(saved3d.pos);
   camera.quaternion.copy(saved3d.quat);
   camera.fov = saved3d.fov;
@@ -467,7 +536,12 @@ function frame() {
   const still = reduceMotion && pose !== 'run' && pose !== 'celebrate';
   player.update(Math.min(dt, 0.1), still);
   orbit.update(Math.min(dt, 0.25), reduceMotion);
-  if (mode === '3d') renderer.render(scene, camera);
+  if (player) {
+    const hips = player.bones.Hips.getWorldPosition(contact.position.clone());
+    contact.position.x = hips.x;
+    contact.position.z = hips.z;
+  }
+  if (mode === '3d') draw();
   requestAnimationFrame(frame);
 }
 

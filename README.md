@@ -53,7 +53,7 @@ Checks that every piece in `LIB` has its art and sampled colors, that the team t
 | Sleeve bands, where game photos differ from the art (Black 2026) | `JERSEY_SLEEVES` in `src/team.js` |
 | Fabric: dimple mesh on the jersey body and pants, smooth yoke, sleeves and socks | `jersey-material/jerseyMaterial.js` (depth, hole shading, sheen) and `MESH_FABRIC` in `src/model.js` (hole size, where the smooth yoke ends); the maps come from `python3 jersey-material/make_mesh_maps.py` (`--style tricot` for a tighter practice mesh) |
 | Thread weave over all the cloth, much finer than the holes | `WEAVE` in `src/model.js`; the map comes from `python3 jersey-material/make_weave_map.py` |
-| Lighting: studio HDRI with ACES tone mapping | `assets/hdri/studio_small_09_1k.hdr` (Poly Haven, CC0), read by `src/hdr.js`; `HDRI_INTENSITY` and the exposure in `src/main.js` |
+| Lighting: studio HDRI (reflections and fill only), one key light with soft shadows, a rim from behind, a contact shadow, ambient occlusion, ACES tone mapping | `src/main.js`; the HDRI is `assets/hdri/studio_small_09_1k.hdr` (Poly Haven, CC0), read by `src/hdr.js`. The HD button switches High quality (ambient occlusion via three's GTAOPass, vendored in `src/vendor/`, 2048 px shadows) and Low (no AO, 1024 px shadows, lower pixel ratio), the default on phones |
 | Fit: untucked jersey hanging over the belt, broader shoulders, fuller thighs and knees | `JERSEY_FIT` and `fitUniform()` in `src/model.js` (rest-pose edits solved back through the skinning) |
 | Body never shows through the clothes | `hideCovered()` cuts away the skin under the jersey and pants, `JERSEY_PUFF` sets the jersey a few millimeters out over the body, and the skin draws behind coincident cloth (polygonOffset) |
 
