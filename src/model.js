@@ -94,10 +94,15 @@ const SOCK_SKIN = 0.04;
 
 // The thread weave (jersey-material/maps/weave_normal.png, 16 threads per
 // tile), tiled `repeat` times per dimple-mesh tile: about 0.8 mm threads.
-const WEAVE = { repeat: 8, strength: 0.6 };
+// The weave both bends the normal and shades the color a little (darker
+// between threads), multiplied over the uniform art after it's drawn, so
+// the art and combo colors are never replaced. At a distance the mipmaps
+// average it to a flat, faint tone.
+const WEAVE = { repeat: 8, strength: 0.6, shade: 0.22 };
 const WEAVE_GLSL = /* glsl */ `
   vec3 weaveN = texture2D(uWeave, vNormalMapUv * uWeaveRepeat).xyz * 2.0 - 1.0;
   normal = normalize(normal + tbn * vec3(weaveN.xy * uWeaveStrength * weaveAmt, 0.0));
+  diffuseColor.rgb *= 1.0 - uWeaveShade * weaveAmt * (1.0 - clamp(weaveN.z, 0.0, 1.0));
 `;
 // How far the jersey sits out from its rest shape (meters), so it clears the
 // body and pads.
@@ -533,8 +538,8 @@ export class Player {
     weave.flipY = false;
     weave.colorSpace = THREE.NoColorSpace;
     weave.anisotropy = aniso;
-    const weaveU = { uWeave: { value: weave }, uWeaveRepeat: { value: WEAVE.repeat }, uWeaveStrength: { value: WEAVE.strength } };
-    const weaveDecl = 'uniform sampler2D uWeave;\nuniform float uWeaveRepeat;\nuniform float uWeaveStrength;';
+    const weaveU = { uWeave: { value: weave }, uWeaveRepeat: { value: WEAVE.repeat }, uWeaveStrength: { value: WEAVE.strength }, uWeaveShade: { value: WEAVE.shade } };
+    const weaveDecl = 'uniform sampler2D uWeave;\nuniform float uWeaveRepeat;\nuniform float uWeaveStrength;\nuniform float uWeaveShade;';
     const pantsU = bandUniforms();
     this.uniforms = {
       pants: { ...pantsU, ...weaveU, uLogos: { value: this.textures.logos }, uBandEnd: { value: 1 } },
