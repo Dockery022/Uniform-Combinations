@@ -92,14 +92,16 @@ export const LIB = {
 // a drop shadow, and the shoulder or cuff numbers. Each `tv` entry gives, in
 // art pixels (1366 x 1408), where the art's digits sit (`clear`), where to
 // letter the new ones (`at`, glyph height `h`, rotation `turn` in radians),
-// and which digits show there.
+// and which digits show there. The 2026 and block jerseys carry the whole
+// number on top of each shoulder pad, read from the side, so from the front
+// only its nearest digit shows, as in the art.
 const TV_2026 = [
-  { clear: [198, 82, 374, 174], at: [286, 128], h: 170, turn: 1.09, digits: 'last' },
-  { clear: [983, 85, 1162, 142], at: [1072, 113], h: 170, turn: -1.26, digits: 'first' },
+  { clear: [190, 76, 382, 180], at: [286, 128], h: 170, turn: 1.09, digits: 'all' },
+  { clear: [975, 78, 1185, 152], at: [1072, 113], h: 170, turn: -1.26, digits: 'all' },
 ];
 const TV_BLOCK = [
-  { clear: [219, 78, 384, 191], at: [301, 134], h: 175, turn: 0.98, digits: 'last' },
-  { clear: [968, 88, 1136, 159], at: [1052, 123], h: 165, turn: -1.18, digits: 'first' },
+  { clear: [219, 78, 384, 191], at: [301, 134], h: 175, turn: 0.98, digits: 'all' },
+  { clear: [968, 88, 1136, 159], at: [1052, 123], h: 165, turn: -1.18, digits: 'all' },
 ];
 const TV_2020 = [
   { clear: [225, 66, 362, 154], at: [293, 110], h: 82, turn: -0.12, digits: 'all' },
