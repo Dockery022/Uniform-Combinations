@@ -110,7 +110,8 @@ const JERSEY_PUFF = 0.006;
 // Doc's fit, in meters: the untucked hem's drop below the belt and its
 // clearance over the pants and belt, where it starts flaring out above the
 // pants, the shoulder broadening, and the pants' fullness.
-const JERSEY_FIT = { belowBelt: 0.075, clear: 0.012, blend: 0.08, shoulders: 0.015, thigh: 0.012, knee: 0.009 };
+// untucked: Doc wants the jersey tucked in (2026-10-03); true hangs it over the belt.
+const JERSEY_FIT = { untucked: false, belowBelt: 0.075, clear: 0.012, blend: 0.08, shoulders: 0.015, thigh: 0.012, knee: 0.009 };
 // Skin within this distance under the jersey or pants is never drawn.
 const COVER_DEPTH = 0.08;
 const COVER_SIDE = 0.02;
@@ -813,8 +814,8 @@ export class Player {
     skin.geometry.setAttribute('aSock', new THREE.BufferAttribute(aSock, 1));
   }
 
-  // Doc's fit (2026-10-03): the jersey hangs untucked, outside the pants,
-  // its hem JERSEY_FIT.belowBelt under the belt; the shoulders are a little
+  // Doc's fit (2026-10-03): the jersey stays tucked in (JERSEY_FIT.untucked
+  // would hang it outside the pants, JERSEY_FIT.belowBelt under the belt); the shoulders are a little
   // broader; the pants are a little fuller at the thighs and knees. Rest
   // pose edits, solved back through each vertex's skinning (moveRest).
   fitUniform() {
@@ -889,7 +890,7 @@ export class Player {
         let z = jw[i * 3 + 2];
         const torso = uv.getX(i) >= 0.44;
         let changed = false;
-        if (torso && y < top) {
+        if (JERSEY_FIT.untucked && torso && y < top) {
           // Stretch the lower torso down to the new hem, then out over the waist.
           const b = sector(x, z, cx, cz);
           const v = uv.getY(i);
@@ -1096,8 +1097,12 @@ export class Player {
       }
       setAttr(jersey, 'aMesh', aMesh);
       this.tileFabric(this.fabricMaps.jersey, jersey, world);
-      // The whole jersey sits out over the body (it hangs outside the pants).
-      setAttr(jersey, 'aPuff', new Float32Array(count).fill(1));
+      // Full outward offset above the pants; tucked in, none where the hem
+      // goes under the pants.
+      const pantsTop = this.parts.pants ? new THREE.Box3().setFromObject(this.parts.pants, true).max.y : -Infinity;
+      const aPuff = new Float32Array(count);
+      for (let i = 0; i < count; i++) aPuff[i] = JERSEY_FIT.untucked ? 1 : THREE.MathUtils.smoothstep(world[i * 3 + 1], pantsTop, pantsTop + 0.05);
+      setAttr(jersey, 'aPuff', aPuff);
       this.uniforms.jersey.uPuff.value = JERSEY_PUFF / jersey.matrixWorld.getMaxScaleOnAxis();
     }
     this.hideCovered();
