@@ -84,17 +84,32 @@ const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidt
 // the yoke and sleeves. The numbers and lettering stay smooth too. Each mesh
 // gets its own tiling from its UV scale, so the holes are round and the same
 // size everywhere.
-// Tuned to Doc's game-photo notes: nearly matte cloth, small faint holes
-// that fade out at full-body distance, little sheen.
+// Tuned to Doc's notes: matte cloth (high roughness, no metalness), small
+// faint holes that fade out at full-body distance, polyester sheen, and a
+// fine thread weave (WEAVE) over everything, much smaller than the holes.
 // How far above the pants hem the socks reach, tucked under the pants, and
 // how far up under the hem the shin is drawn in the sock color.
 const SOCK_TUCK = 0.015;
 const SOCK_SKIN = 0.04;
 
+// The thread weave (jersey-material/maps/weave_normal.png, 16 threads per
+// tile), tiled `repeat` times per dimple-mesh tile: about 0.8 mm threads.
+const WEAVE = { repeat: 8, strength: 0.6 };
+const WEAVE_GLSL = /* glsl */ `
+  vec3 weaveN = texture2D(uWeave, vNormalMapUv * uWeaveRepeat).xyz * 2.0 - 1.0;
+  normal = normalize(normal + tbn * vec3(weaveN.xy * uWeaveStrength * weaveAmt, 0.0));
+`;
+// How far the jersey sits out from its rest shape (meters), so it clears the
+// body and pads; it tapers to nothing where it tucks into the pants.
+const JERSEY_PUFF = 0.006;
+// Skin within this distance under the jersey or pants is never drawn.
+const COVER_DEPTH = 0.08;
+const COVER_SIDE = 0.02;
+
 const MESH_FABRIC = {
   holesPerMeter: 200, // each map tile is 20 holes across
-  mesh: { normalScale: 0.25, aoIntensity: 0.35, sheen: 0.2, sheenRoughness: 0.7, envMapIntensity: 0.6, roughness: 1.35 },
-  smooth: { sheen: 0.2, sheenRoughness: 0.7, roughness: 0.7, envMapIntensity: 0.6 }, // yoke, sleeves, socks
+  mesh: { normalScale: 0.25, aoIntensity: 0.35, sheen: 0.5, sheenRoughness: 0.5, envMapIntensity: 0.6, roughness: 1.35 },
+  smooth: { sheen: 0.5, sheenRoughness: 0.5, roughness: 0.88, envMapIntensity: 0.6 }, // yoke, sleeves, socks
   yokeDrop: 0.07, // meters below the armpits where the mesh starts on the front
   backDrop: 0.07, // and on the back: the same as the front, so the two match
 };
@@ -164,20 +179,23 @@ const HELMET_BACK_GLSL = /* glsl */ `
 // diffuseColor after the base map is applied.
 // `after` adds code after other fragment chunks, keyed by chunk name;
 // `rewrite` replaces a chunk with fn(chunk source).
-function extend(material, { attrs = {}, uniforms = {}, declare = '', fragment = '', after = {}, rewrite = {}, vertexWorld = false }) {
+function extend(material, { attrs = {}, uniforms = {}, declare = '', fragment = '', after = {}, rewrite = {}, vertexAfter = {}, vertexDeclare = '', vertexWorld = false }) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     const attrDecl = Object.entries(attrs).map(([n, t]) => `attribute ${t} ${n};\nvarying ${t} v${n};`).join('\n');
     const attrCopy = Object.keys(attrs).map((n) => `v${n} = ${n};`).join('\n');
     const varyDecl = Object.entries(attrs).map(([n, t]) => `varying ${t} v${n};`).join('\n');
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${attrDecl}${vertexWorld ? '\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : ''}`)
+      .replace('#include <common>', `#include <common>\n${attrDecl}${vertexWorld ? '\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : ''}\n${vertexDeclare}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>\n${attrCopy}${vertexWorld ? '\nvObjPos = position;\nvObjNormal = normal;' : ''}`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${varyDecl}${vertexWorld ? '\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : ''}\n${declare}`)
       .replace('#include <map_fragment>', `#include <map_fragment>\n${fragment}`);
     for (const [chunk, fn] of Object.entries(rewrite)) {
       shader.fragmentShader = shader.fragmentShader.replace(`#include <${chunk}>`, fn(THREE.ShaderChunk[chunk]));
+    }
+    for (const [chunk, code] of Object.entries(vertexAfter)) {
+      shader.vertexShader = shader.vertexShader.replace(`#include <${chunk}>`, `#include <${chunk}>\n${code}`);
     }
     for (const [chunk, code] of Object.entries(after)) {
       shader.fragmentShader = shader.fragmentShader.replace(`#include <${chunk}>`, `#include <${chunk}>\n${code}`);
@@ -189,6 +207,40 @@ function extend(material, { attrs = {}, uniforms = {}, declare = '', fragment = 
 }
 
 // ---------- geometry measurements (rest pose, world meters) ----------
+
+// 1 for vertices at least `rings` edges in from an open boundary (welded by
+// position, so UV seams aren't boundaries), else 0.
+function innerVertices(mesh, world, rings) {
+  const count = world.length / 3;
+  const weld = new Map();
+  const id = new Int32Array(count);
+  for (let i = 0; i < count; i++) {
+    const k = `${world[i * 3].toFixed(4)},${world[i * 3 + 1].toFixed(4)},${world[i * 3 + 2].toFixed(4)}`;
+    if (!weld.has(k)) weld.set(k, weld.size);
+    id[i] = weld.get(k);
+  }
+  const tris = mesh.geometry.index ? mesh.geometry.index.array : Array.from({ length: count }, (_, i) => i);
+  const edges = new Map();
+  for (let t = 0; t < tris.length; t += 3) {
+    for (let e = 0; e < 3; e++) {
+      const a = id[tris[t + e]];
+      const b = id[tris[t + ((e + 1) % 3)]];
+      const k = a < b ? `${a},${b}` : `${b},${a}`;
+      edges.set(k, (edges.get(k) ?? 0) + 1);
+    }
+  }
+  let near = new Uint8Array(weld.size);
+  for (const [k, n] of edges) if (n === 1) for (const v of k.split(',')) near[+v] = 1;
+  for (let r = 1; r < rings; r++) {
+    const next = near.slice();
+    for (let t = 0; t < tris.length; t += 3) {
+      const v = [id[tris[t]], id[tris[t + 1]], id[tris[t + 2]]];
+      if (v.some((x) => near[x])) for (const x of v) next[x] = 1;
+    }
+    near = next;
+  }
+  return Uint8Array.from(id, (w) => 1 - near[w]);
+}
 
 function worldPositions(mesh) {
   const pos = mesh.geometry.attributes.position;
@@ -424,10 +476,17 @@ export class Player {
     const fabricMaps = loadFabricMaps(this.renderer, 'jersey-material/maps/');
     this.fabricMaps = { jersey: withTiling(fabricMaps, 16, 6.3), pants: withTiling(fabricMaps, 6) };
 
-    const fabric = (extra) => new THREE.MeshPhysicalMaterial({ roughness: 0.82, sheen: 0.45, sheenRoughness: 0.6, ...extra });
+    const fabric = (extra) => new THREE.MeshPhysicalMaterial({ roughness: 0.9, metalness: 0, sheen: 0.5, sheenRoughness: 0.5, ...extra });
+    const weave = new THREE.TextureLoader().load('jersey-material/maps/weave_normal.png');
+    weave.wrapS = weave.wrapT = THREE.RepeatWrapping;
+    weave.flipY = false;
+    weave.colorSpace = THREE.NoColorSpace;
+    weave.anisotropy = aniso;
+    const weaveU = { uWeave: { value: weave }, uWeaveRepeat: { value: WEAVE.repeat }, uWeaveStrength: { value: WEAVE.strength } };
+    const weaveDecl = 'uniform sampler2D uWeave;\nuniform float uWeaveRepeat;\nuniform float uWeaveStrength;';
     const pantsU = bandUniforms();
     this.uniforms = {
-      pants: { ...pantsU, uLogos: { value: this.textures.logos }, uBandEnd: { value: 1 } },
+      pants: { ...pantsU, ...weaveU, uLogos: { value: this.textures.logos }, uBandEnd: { value: 1 } },
       jersey: {
         uArtFront: { value: this.textures.front },
         uArtBack: { value: this.textures.back },
@@ -437,6 +496,8 @@ export class Player {
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.008 },
         uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
+        uPuff: { value: 0 },
+        ...weaveU,
       },
       glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 }, uSock: { value: new THREE.Color() } },
       shoe: { uShoe: { value: this.textures.shoe }, uShoeBase: { value: new THREE.Color() } },
@@ -461,9 +522,13 @@ export class Player {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves;
       // the mesh's relief, roughness and hole shading all fade with it.
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
-        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3' },
+        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float' },
         uniforms: this.uniforms.jersey,
-        declare: 'uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;',
+        declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\n${weaveDecl}`,
+        // Pushed out along its skinned normal (uPuff is JERSEY_PUFF in the
+        // mesh's units), so it rides over the body instead of through it.
+        vertexDeclare: 'uniform float uPuff;',
+        vertexAfter: { skinning_vertex: 'transformed += normalize(objectNormal) * uPuff * aPuff;' },
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
@@ -483,13 +548,15 @@ export class Player {
         rewrite: { aomap_fragment: (chunk) => chunk.replace(/aoMapIntensity/g, '(aoMapIntensity * meshAmt)') },
         after: {
           roughnessmap_fragment: 'roughnessFactor = mix(uSmoothRough, roughnessFactor, meshAmt);',
-          normal_fragment_maps: 'normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));',
+          // Twill lettering shows less of the weave than the cloth.
+          normal_fragment_maps: `normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));\nfloat weaveAmt = 1.0 - 0.7 * letters;\n${WEAVE_GLSL}`,
         },
       }),
       pants: extend(applyMeshFabricInPlace(fabric({ name: 'pants' }), this.fabricMaps.pants, MESH_FABRIC.mesh), {
         attrs: { aSeam: 'float', aLogo: 'vec3', aDown: 'float' },
         uniforms: this.uniforms.pants,
-        declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;`,
+        declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;\n${weaveDecl}`,
+        after: { normal_fragment_maps: `float weaveAmt = 1.0;\n${WEAVE_GLSL}` },
         // Side stripes run the full outside seam, waistband to hem; with
         // uBandEnd < 1 they stop partway down, cut at an angle.
         fragment: /* glsl */ `
@@ -512,11 +579,17 @@ export class Player {
           diffuseColor.rgb = mix(uShoeBase, shoe.rgb, shoe.a);
         `,
       }),
-      skin: extend(new THREE.MeshPhysicalMaterial({ name: 'skin', roughness: 0.55, sheen: 0.25, sheenRoughness: 0.8 }), {
-        attrs: { aGlove: 'float', aSock: 'float' },
+      // Skin under the clothes is cut away (aHide, see hideCovered) and the
+      // rest is drawn a little behind coincident cloth (polygonOffset), so
+      // nothing pokes through the jersey or pants and nothing z-fights.
+      skin: extend(new THREE.MeshPhysicalMaterial({
+        name: 'skin', roughness: 0.55, sheen: 0.25, sheenRoughness: 0.8, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2,
+      }), {
+        attrs: { aGlove: 'float', aSock: 'float', aHide: 'float' },
         uniforms: this.uniforms.glove,
         declare: 'uniform vec3 uGlove;\nuniform float uGloveOn;\nuniform vec3 uSock;',
         fragment: `
+          if (vaHide > 0.999) discard; // all three corners under cloth
           diffuseColor.rgb = mix(diffuseColor.rgb, uGlove, uGloveOn * smoothstep(0.3, 0.6, vaGlove));
           diffuseColor.rgb = mix(diffuseColor.rgb, uSock, step(0.5, vaSock));
         `,
@@ -705,6 +778,64 @@ export class Player {
     geo.computeBoundingSphere();
   }
 
+  // Marks the skin under the jersey and pants (aHide = 1) so the skin shader
+  // can drop it: a body vertex is covered when it lies behind the nearest
+  // cloth vertex's surface, within COVER_DEPTH and COVER_SIDE of it, and
+  // that cloth vertex is at least three rings in from an opening (collar, sleeve ends, hems), so
+  // skin at the openings always stays. Rest pose; the cloth is skinned to
+  // the same bones, so what's covered stays covered as the player moves.
+  hideCovered() {
+    const skin = this.parts.skin;
+    const cloth = ['jersey', 'pants'].map((n) => this.parts[n]).filter(Boolean);
+    if (!skin || !cloth.length) return;
+    const cell = COVER_DEPTH;
+    const grid = new Map();
+    const key = (x, y, z) => `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
+    const pts = [];
+    for (const mesh of cloth) {
+      const world = worldPositions(mesh);
+      const normals = worldNormals(mesh, world);
+      const inner = innerVertices(mesh, world, 3);
+      for (let i = 0; i < world.length / 3; i++) {
+        const k = key(world[i * 3], world[i * 3 + 1], world[i * 3 + 2]);
+        if (!grid.has(k)) grid.set(k, []);
+        grid.get(k).push(pts.length);
+        pts.push({ p: world.subarray(i * 3, i * 3 + 3), n: normals.subarray(i * 3, i * 3 + 3), inner: inner[i] });
+      }
+    }
+    const kw = worldPositions(skin);
+    const count = kw.length / 3;
+    const aHide = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const x = kw[i * 3];
+      const y = kw[i * 3 + 1];
+      const z = kw[i * 3 + 2];
+      let best = null;
+      let bestD = COVER_DEPTH * COVER_DEPTH;
+      const cx = Math.floor(x / cell);
+      const cy = Math.floor(y / cell);
+      const cz = Math.floor(z / cell);
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+        for (const j of grid.get(`${cx + a},${cy + b},${cz + c}`) ?? []) {
+          const { p } = pts[j];
+          const d = (p[0] - x) ** 2 + (p[1] - y) ** 2 + (p[2] - z) ** 2;
+          if (d < bestD) { bestD = d; best = pts[j]; }
+        }
+      }
+      if (!best?.inner) continue;
+      const { p, n } = best;
+      const dx = x - p[0];
+      const dy = y - p[1];
+      const dz = z - p[2];
+      const depth = dx * n[0] + dy * n[1] + dz * n[2];
+      const side = Math.sqrt(Math.max(0, dx * dx + dy * dy + dz * dz - depth * depth));
+      // Behind the cloth (or under 2 mm in front of it, poking through at
+      // rest) and right under that vertex, not off to the side in an opening.
+      if (depth < 0.002 && side < COVER_SIDE) aHide[i] = 1;
+    }
+    skin.geometry.setAttribute('aHide', new THREE.BufferAttribute(aHide, 1));
+  }
+
   // Tile a mesh's fabric maps so the holes come out round and
   // MESH_FABRIC.holesPerMeter apart, whatever its UV scale.
   tileFabric(maps, mesh, world) {
@@ -750,7 +881,14 @@ export class Player {
       }
       setAttr(jersey, 'aMesh', aMesh);
       this.tileFabric(this.fabricMaps.jersey, jersey, world);
+      // Full outward offset above the pants, none where the hem tucks in.
+      const pantsTop = this.parts.pants ? new THREE.Box3().setFromObject(this.parts.pants, true).max.y : -Infinity;
+      const aPuff = new Float32Array(count);
+      for (let i = 0; i < count; i++) aPuff[i] = THREE.MathUtils.smoothstep(world[i * 3 + 1], pantsTop, pantsTop + 0.05);
+      setAttr(jersey, 'aPuff', aPuff);
+      this.uniforms.jersey.uPuff.value = JERSEY_PUFF / jersey.matrixWorld.getMaxScaleOnAxis();
     }
+    this.hideCovered();
 
     // Pants: signed arc distance from the outer seam of each leg.
     const pants = this.parts.pants;
