@@ -11,6 +11,7 @@
 import * as THREE from './three.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { SKIN_TONES, BRAND } from './team.js';
+import { art as url } from './combo.js';
 import * as paint from './textures.js';
 import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
@@ -1677,7 +1678,6 @@ export class Player {
   // Images load once; a newer look that lands first wins.
   async paintArt(look) {
     const token = (this.artToken = (this.artToken ?? 0) + 1);
-    const url = (file) => `assets/uni/${file}.webp`;
     const [jersey, logos, decal, shoe] = await Promise.all([
       loadImage(url(look.jersey.file)),
       loadImage(url(look.pants.spec.logos)),

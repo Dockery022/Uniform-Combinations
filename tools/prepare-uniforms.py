@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).parent))
 from palette import BLACK, RED, WHITE, snap  # noqa: E402
+from hip_mark import MARK_PANTS, redraw_mark  # noqa: E402
 from pants_panels import STRIPES, draw_panels  # noqa: E402
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else 'uni-src')
@@ -299,9 +300,12 @@ for name in PANTS:
     cand = (a[:, :, 3] > 128) & (dist(a, base) > 50) & (yy < 520)
     cand = drop_edge_components(cand, edge_band(a, 14))
     logos = cutout(a, base, cand, 50).crop((0, 0, w, 600))
+    if name in MARK_PANTS:
+        logos = redraw_mark(logos, True)
     save_webp(logos, f'logos-{name}', 542, quality=90)
     # The panel art matches the 3D: the 2026 stripes as on the field.
-    save_webp(draw_panels(img, STRIPES[name]) if name in STRIPES else img, name, 542)
+    art = draw_panels(img, STRIPES[name]) if name in STRIPES else img
+    save_webp(redraw_mark(art, False) if name in MARK_PANTS else art, name, 542)
     spec['pants'][name] = {
         'base': hexof(base), 'socks': hexof(socks), 'bands': bands, 'bandEnd': band_end,
         **({'bandSweep': PANEL_SWEEP[name][0], 'bandCut': PANEL_SWEEP[name][1]} if name in PANEL_SWEEP else {}),
