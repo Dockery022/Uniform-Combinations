@@ -298,19 +298,29 @@ setSpin(!reduceMotion);
 
 const graphic = document.getElementById('graphic');
 
-// Renders the player alone on a transparent background, framed head to toe.
+// Renders the player alone on a transparent background, framed head to toe,
+// from the side the 3D view is turned to, so the graphic shows the player as
+// you left them.
 function renderCutout(w, h) {
   const saved3d = { pos: camera.position.clone(), quat: camera.quaternion.clone(), fov: camera.fov, aspect: camera.aspect };
   turf.visible = false;
   contact.visible = false;
   renderer.setPixelRatio(1);
   renderer.setSize(w, h, false);
-  camera.fov = 16;
+  // The 3D view's camera: same turn, height and distance, so the player
+  // looks down the same way; only the zoom changes to fit head to toe.
+  const dist = VIEWS.three.radius;
+  const theta = orbit.s.theta;
+  const phi = THREE.MathUtils.clamp(orbit.s.phi, 1.2, 1.5);
+  const target = new THREE.Vector3(0, 1.0, 0);
+  camera.fov = 2 * THREE.MathUtils.radToDeg(Math.atan(1.16 / dist));
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  const target = new THREE.Vector3(0, 1.0, 0);
-  const dist = 1.12 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  camera.position.set(Math.sin(0.32) * dist, 1.15, Math.cos(0.32) * dist);
+  camera.position.set(
+    Math.sin(phi) * Math.sin(theta) * dist,
+    target.y + Math.cos(phi) * dist,
+    Math.sin(phi) * Math.cos(theta) * dist,
+  );
   camera.lookAt(target);
   renderer.render(scene, camera);
   const out = makeCanvas(w, h);
