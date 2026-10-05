@@ -77,6 +77,8 @@ const JERSEY_ART = {
 // Shoe art (702 x 372 side view, toe to the right): heel, toe, top and sole.
 const SHOE_ART = { heel: 0.012, toe: 0.997, top: 0.03, bottom: 0.95 };
 // Pants art (1084 x 1994): the hip logos, cut into a 1084 x 600 strip.
+// The visor's shape in helmet units (see addHelmet).
+const VISOR = { halfWidth: 0.5, top: 0.07, topDrop: 0.07, bottom: -0.31, bottomRise: 0.12, front: 0.645, wrap: 0.9, bulge: 0.015, tilt: 0.03 };
 const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidth: 666 };
 
 // Doc's fabric kit (jersey-material/): dimple mesh on the jersey body and the
@@ -1514,10 +1516,23 @@ export class Player {
     }
     for (const [name, mesh] of Object.entries(this.helmetParts)) if (this.hm[name]) mesh.material = this.hm[name];
 
-    // Visor: a curved lens behind the top bar of the facemask.
-    const visorGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.22, 40, 1, true, -0.62, 1.24);
-    visorGeo.translate(0, -0.13, 0.08);
-    this.visorMat = new THREE.MeshPhysicalMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.05 });
+    // Visor: a wraparound shield in the face opening, inside the facemask.
+    // Its top edge tucks under the brow; the bottom edge sits at the nose and
+    // sweeps up toward the ears. It curves around the face just in front of
+    // the shell (helmet units: +z forward, the shell is 1 wide).
+    const visorGeo = new THREE.PlaneGeometry(1, 1, 48, 16);
+    const vp = visorGeo.attributes.position;
+    for (let i = 0; i < vp.count; i++) {
+      const u = vp.getX(i) * 2; // -1 at the right ear .. 1 at the left
+      const v = 0.5 - vp.getY(i); // 0 at the top edge .. 1 at the bottom
+      const x = u * VISOR.halfWidth;
+      const top = VISOR.top - VISOR.topDrop * u * u;
+      const bottom = VISOR.bottom + VISOR.bottomRise * u ** 4;
+      const z = VISOR.front - VISOR.wrap * x * x + VISOR.bulge * Math.sin(Math.PI * v) + VISOR.tilt * v;
+      vp.setXYZ(i, x, top + (bottom - top) * v, z);
+    }
+    visorGeo.computeVertexNormals();
+    this.visorMat = new THREE.MeshPhysicalMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.04, envMapIntensity: 1.6 });
     this.visor = new THREE.Mesh(visorGeo, this.visorMat);
     helmet.add(this.visor);
 
@@ -1659,15 +1674,17 @@ export class Player {
 
     const visor = {
       none: null,
-      clear: { color: '#ffffff', opacity: 0.14, metalness: 0, iridescence: 0, clearcoat: 1 },
-      smoke: { color: '#0d0d10', opacity: 0.85, metalness: 0.3, iridescence: 0, clearcoat: 1 },
-      iridescent: { color: '#16161c', opacity: 0.88, metalness: 0.6, iridescence: 1, iridescenceIOR: 1.8, iridescenceThicknessRange: [250, 900], clearcoat: 1 },
+      clear: { color: '#eef3f6', opacity: 0.18, metalness: 0, iridescence: 0, sheen: 0, sheenColor: '#000000', clearcoat: 1 },
+      smoke: { color: '#08080a', opacity: 0.9, metalness: 0.4, iridescence: 0, sheen: 0, sheenColor: '#000000', clearcoat: 1 },
+      // Mirrored lens that shifts purple to blue to gold as it turns.
+      iridescent: { color: '#1c1036', opacity: 0.93, metalness: 0.9, iridescence: 1, iridescenceIOR: 2.0, iridescenceThicknessRange: [300, 800], sheen: 1, sheenColor: '#7a4dff', sheenRoughness: 0.35, clearcoat: 1 },
     }[look.visor];
     this.visor.visible = Boolean(visor);
     if (visor) {
-      const { color, ...rest } = visor;
+      const { color, sheenColor, ...rest } = visor;
       Object.assign(this.visorMat, rest);
       this.visorMat.color.set(color);
+      this.visorMat.sheenColor.set(sheenColor);
       this.visorMat.needsUpdate = true;
     }
 
