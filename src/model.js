@@ -543,7 +543,7 @@ export class Player {
     const weaveDecl = 'uniform sampler2D uWeave;\nuniform float uWeaveRepeat;\nuniform float uWeaveStrength;\nuniform float uWeaveShade;';
     const pantsU = bandUniforms();
     this.uniforms = {
-      pants: { ...pantsU, ...weaveU, uLogos: { value: this.textures.logos }, uBandEnd: { value: 1 } },
+      pants: { ...pantsU, ...weaveU, uLogos: { value: this.textures.logos }, uBandEnd: { value: 1 }, uBandSweep: { value: 0 }, uBandCut: { value: -1.2 } },
       jersey: {
         uArtFront: { value: this.textures.front },
         uArtBack: { value: this.textures.back },
@@ -612,14 +612,17 @@ export class Player {
       pants: extend(applyMeshFabricInPlace(fabric({ name: 'pants' }), this.fabricMaps.pants, MESH_FABRIC.mesh), {
         attrs: { aSeam: 'float', aLogo: 'vec3', aDown: 'float' },
         uniforms: this.uniforms.pants,
-        declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;\n${weaveDecl}`,
+        declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;\nuniform float uBandSweep;\nuniform float uBandCut;\n${weaveDecl}`,
         after: { normal_fragment_maps: `float weaveAmt = 1.0;\n${WEAVE_GLSL}` },
         // Side stripes run the full outside seam, waistband to hem; with
-        // uBandEnd < 1 they stop partway down, cut at an angle.
+        // uBandEnd < 1 they stop partway down, cut at an angle (uBandCut per
+        // meter toward the front). uBandSweep moves them that far toward the
+        // front of the thigh by the time they stop.
         fragment: /* glsl */ `
-          float bandEnd = uBandEnd >= 1.0 ? 2.0 : uBandEnd - vaSeam * 1.2;
+          float bandD = vaSeam - uBandSweep * min(1.0, vaDown / max(uBandEnd, 0.01));
+          float bandEnd = uBandEnd >= 1.0 ? 2.0 : uBandEnd + bandD * uBandCut;
           float bfw = max(fwidth(vaDown), 1e-4);
-          diffuseColor.rgb = mix(diffuseColor.rgb, applyBands(diffuseColor.rgb, vaSeam), 1.0 - smoothstep(bandEnd - bfw, bandEnd + bfw, vaDown));
+          diffuseColor.rgb = mix(diffuseColor.rgb, applyBands(diffuseColor.rgb, bandD), 1.0 - smoothstep(bandEnd - bfw, bandEnd + bfw, vaDown));
           if (vaLogo.z > 0.5 && vaLogo.x > 0.0 && vaLogo.x < 1.0 && vaLogo.y > 0.0 && vaLogo.y < 1.0) {
             vec4 logo = texture2D(uLogos, vaLogo.xy);
             diffuseColor.rgb = mix(diffuseColor.rgb, logo.rgb, logo.a);
@@ -1615,6 +1618,8 @@ export class Player {
     m.pants.sheenColor.copy(sheen(p.base));
     setBands(u.pants, p.bands);
     u.pants.uBandEnd.value = p.bandEnd ?? 1;
+    u.pants.uBandSweep.value = p.bandSweep ?? 0;
+    u.pants.uBandCut.value = p.bandCut ?? -1.2;
     m.belt.color.set(BRAND.black);
     m.socks.color.set(look.socks);
     u.glove.uSock.value.set(look.socks);

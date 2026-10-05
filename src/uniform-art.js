@@ -565,7 +565,9 @@ export const ART = {
      "color": "#FFFFFF"
     }
    ],
-   "bandEnd": 1.0,
+   "bandEnd": 0.66,
+   "bandSweep": 0.04,
+   "bandCut": 1.6,
    "logos": "logos-pants-red",
    "logoArt": {
     "width": 1084,
@@ -587,7 +589,9 @@ export const ART = {
      "color": "#C9001F"
     }
    ],
-   "bandEnd": 1.0,
+   "bandEnd": 0.66,
+   "bandSweep": 0.04,
+   "bandCut": 1.6,
    "logos": "logos-pants-white",
    "logoArt": {
     "width": 1084,
@@ -599,14 +603,14 @@ export const ART = {
    "socks": "#000000",
    "bands": [
     {
-     "at": -0.011,
-     "w": 0.01,
-     "color": "#FFFFFF"
+     "at": 0.015,
+     "w": 0.054,
+     "color": "#C9001F"
     },
     {
-     "at": 0.024,
-     "w": 0.04,
-     "color": "#C9001F"
+     "at": 0.015,
+     "w": 0.014,
+     "color": "#FFFFFF"
     }
    ],
    "bandEnd": 1.0,
