@@ -74,7 +74,7 @@ export function groupHex(group) {
 // Art image for a piece, as the panel and the graphic show it. ART_VERSION
 // changes whenever the art is redrawn, so browsers fetch the new pictures
 // instead of showing ones they cached.
-const ART_VERSION = '2026-10-05b';
+const ART_VERSION = '2026-10-05c';
 const art = (file) => `assets/uni/${file}.webp?v=${ART_VERSION}`;
 
 export function artUrl(kind, id, state) {

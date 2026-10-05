@@ -565,7 +565,9 @@ export const ART = {
      "color": "#FFFFFF"
     }
    ],
-   "bandEnd": 1.0,
+   "bandEnd": 0.66,
+   "bandSweep": 0.04,
+   "bandCut": 1.6,
    "logos": "logos-pants-red",
    "logoArt": {
     "width": 1084,
@@ -587,7 +589,9 @@ export const ART = {
      "color": "#C9001F"
     }
    ],
-   "bandEnd": 1.0,
+   "bandEnd": 0.66,
+   "bandSweep": 0.04,
+   "bandCut": 1.6,
    "logos": "logos-pants-white",
    "logoArt": {
     "width": 1084,

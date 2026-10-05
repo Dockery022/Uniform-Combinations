@@ -60,9 +60,14 @@ PANTS = ['pants-red', 'pants-white', 'pants-black', 'pants-red-script', 'pants-w
          'pants-black-script', 'pants-red-20', 'pants-white-20', 'pants-black-20', 'pants-whitealt-20',
          'pants-halloween', 'pants-ironwings', 'pants-redgold', 'pants-black-23']
 # Where a side panel stops, as a fraction of the way from waist to the
-# bottom of the pants, when game photos disagree with the drawing: the 2026
-# stripes run the full outside seam, waistband to hem (1.0 = no cut).
-PANEL_END = {'pants-red': 1.0, 'pants-white': 1.0, 'pants-black': 1.0}
+# bottom of the pants, when game photos disagree with the drawing (1.0 = no
+# cut). In Doc's photos (2026-10-05) the red and white 2026 stripes start at
+# the hip, sweep forward across the thigh and stop above the knee, the front
+# stripe ending lowest; the black 2026 stripes run the full seam to the hem.
+PANEL_END = {'pants-red': 0.66, 'pants-white': 0.66, 'pants-black': 1.0}
+# For those: how far (m) the stripes move toward the front by where they
+# stop, and how much lower the cut sits per meter toward the front.
+PANEL_SWEEP = {'pants-red': (0.04, 1.6), 'pants-white': (0.04, 1.6)}
 # Stripes set by hand instead of read from the art (meters from the outer
 # seam, + toward the front; later bands paint over earlier ones): the red
 # and white 2026 pants carry a thin black stripe, a gap of pants color, then
@@ -299,6 +304,7 @@ for name in PANTS:
     save_webp(draw_panels(img, STRIPES[name]) if name in STRIPES else img, name, 542)
     spec['pants'][name] = {
         'base': hexof(base), 'socks': hexof(socks), 'bands': bands, 'bandEnd': band_end,
+        **({'bandSweep': PANEL_SWEEP[name][0], 'bandCut': PANEL_SWEEP[name][1]} if name in PANEL_SWEEP else {}),
         'logos': f'logos-{name}', 'logoArt': {'width': w, 'height': 600},
     }
 
