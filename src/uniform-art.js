@@ -555,14 +555,14 @@ export const ART = {
    "socks": "#C9001F",
    "bands": [
     {
-     "at": 0.0107,
-     "w": 0.0329,
-     "color": "#FFFFFF"
+     "at": -0.011,
+     "w": 0.01,
+     "color": "#000000"
     },
     {
-     "at": -0.0105,
-     "w": 0.0094,
-     "color": "#000000"
+     "at": 0.024,
+     "w": 0.04,
+     "color": "#FFFFFF"
     }
    ],
    "bandEnd": 1.0,
@@ -577,13 +577,13 @@ export const ART = {
    "socks": "#FFFFFF",
    "bands": [
     {
-     "at": 0.0107,
-     "w": 0.0567,
+     "at": -0.011,
+     "w": 0.01,
      "color": "#000000"
     },
     {
-     "at": 0.0107,
-     "w": 0.0447,
+     "at": 0.024,
+     "w": 0.04,
      "color": "#C9001F"
     }
    ],
@@ -599,14 +599,14 @@ export const ART = {
    "socks": "#000000",
    "bands": [
     {
-     "at": 0.0107,
-     "w": 0.0447,
-     "color": "#C9001F"
+     "at": -0.011,
+     "w": 0.01,
+     "color": "#FFFFFF"
     },
     {
-     "at": -0.0164,
-     "w": 0.0094,
-     "color": "#FFFFFF"
+     "at": 0.024,
+     "w": 0.04,
+     "color": "#C9001F"
     }
    ],
    "bandEnd": 1.0,

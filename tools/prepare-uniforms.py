@@ -21,8 +21,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).parent))
-from palette import BLACK, RED, snap  # noqa: E402
-from pants_panels import extend_panels  # noqa: E402
+from palette import BLACK, RED, WHITE, snap  # noqa: E402
+from pants_panels import STRIPES, draw_panels  # noqa: E402
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else 'uni-src')
 ROOT = Path(__file__).resolve().parent.parent
@@ -63,11 +63,17 @@ PANTS = ['pants-red', 'pants-white', 'pants-black', 'pants-red-script', 'pants-w
 # bottom of the pants, when game photos disagree with the drawing: the 2026
 # stripes run the full outside seam, waistband to hem (1.0 = no cut).
 PANEL_END = {'pants-red': 1.0, 'pants-white': 1.0, 'pants-black': 1.0}
-# Stripes set by hand instead of read from the art: Doc's red stripe with a
-# thin black edge on both sides for the white 2026 pants (meters; drawn in
-# order, so the black band sits under the red one).
-BANDS = {'pants-white': [{'at': 0.0107, 'w': 0.0567, 'color': BLACK},
-                         {'at': 0.0107, 'w': 0.0447, 'color': RED}]}
+# Stripes set by hand instead of read from the art (meters from the outer
+# seam, + toward the front): the 2026 pants carry a thin stripe, a gap of
+# pants color, then a wider stripe in front of it (black and white on red,
+# black and red on white, white and red on black), as in Doc's game photos
+# (2026-10-05).
+BANDS = {'pants-red': [{'at': -0.011, 'w': 0.01, 'color': BLACK},
+                       {'at': 0.024, 'w': 0.04, 'color': WHITE}],
+         'pants-white': [{'at': -0.011, 'w': 0.01, 'color': BLACK},
+                         {'at': 0.024, 'w': 0.04, 'color': RED}],
+         'pants-black': [{'at': -0.011, 'w': 0.01, 'color': WHITE},
+                         {'at': 0.024, 'w': 0.04, 'color': RED}]}
 SOCKS = ['socks-red', 'socks-white', 'socks-black', 'socks-gray',
          'socks-red-20', 'socks-white-20', 'socks-black-20', 'socks-gray-20']
 SHOES = ['shoes-black', 'shoes-white', 'shoes-red', 'shoes-gray']
@@ -288,8 +294,8 @@ for name in PANTS:
     cand = drop_edge_components(cand, edge_band(a, 14))
     logos = cutout(a, base, cand, 50).crop((0, 0, w, 600))
     save_webp(logos, f'logos-{name}', 542, quality=90)
-    # The panel art matches the 3D: full-length panels where PANEL_END says so.
-    save_webp(extend_panels(img) if PANEL_END.get(name) == 1.0 else img, name, 542)
+    # The panel art matches the 3D: the 2026 stripes as on the field.
+    save_webp(draw_panels(img, STRIPES[name]) if name in STRIPES else img, name, 542)
     spec['pants'][name] = {
         'base': hexof(base), 'socks': hexof(socks), 'bands': bands, 'bandEnd': band_end,
         'logos': f'logos-{name}', 'logoArt': {'width': w, 'height': 600},
