@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).parent))
 from palette import BLACK, RED, snap  # noqa: E402
+from pants_panels import extend_panels  # noqa: E402
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else 'uni-src')
 ROOT = Path(__file__).resolve().parent.parent
@@ -287,7 +288,8 @@ for name in PANTS:
     cand = drop_edge_components(cand, edge_band(a, 14))
     logos = cutout(a, base, cand, 50).crop((0, 0, w, 600))
     save_webp(logos, f'logos-{name}', 542, quality=90)
-    save_webp(img, name, 542)
+    # The panel art matches the 3D: full-length panels where PANEL_END says so.
+    save_webp(extend_panels(img) if PANEL_END.get(name) == 1.0 else img, name, 542)
     spec['pants'][name] = {
         'base': hexof(base), 'socks': hexof(socks), 'bands': bands, 'bandEnd': band_end,
         'logos': f'logos-{name}', 'logoArt': {'width': w, 'height': 600},
