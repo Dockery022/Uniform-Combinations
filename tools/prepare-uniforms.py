@@ -64,16 +64,17 @@ PANTS = ['pants-red', 'pants-white', 'pants-black', 'pants-red-script', 'pants-w
 # stripes run the full outside seam, waistband to hem (1.0 = no cut).
 PANEL_END = {'pants-red': 1.0, 'pants-white': 1.0, 'pants-black': 1.0}
 # Stripes set by hand instead of read from the art (meters from the outer
-# seam, + toward the front): the 2026 pants carry a thin stripe, a gap of
-# pants color, then a wider stripe in front of it (black and white on red,
-# black and red on white, white and red on black), as in Doc's game photos
+# seam, + toward the front; later bands paint over earlier ones): the red
+# and white 2026 pants carry a thin black stripe, a gap of pants color, then
+# a wider stripe in front of it (white on red, red on white); the black
+# pants carry red, white and red side by side. From Doc's game photos
 # (2026-10-05).
 BANDS = {'pants-red': [{'at': -0.011, 'w': 0.01, 'color': BLACK},
                        {'at': 0.024, 'w': 0.04, 'color': WHITE}],
          'pants-white': [{'at': -0.011, 'w': 0.01, 'color': BLACK},
                          {'at': 0.024, 'w': 0.04, 'color': RED}],
-         'pants-black': [{'at': -0.011, 'w': 0.01, 'color': WHITE},
-                         {'at': 0.024, 'w': 0.04, 'color': RED}]}
+         'pants-black': [{'at': 0.015, 'w': 0.054, 'color': RED},
+                         {'at': 0.015, 'w': 0.014, 'color': WHITE}]}
 SOCKS = ['socks-red', 'socks-white', 'socks-black', 'socks-gray',
          'socks-red-20', 'socks-white-20', 'socks-black-20', 'socks-gray-20']
 SHOES = ['shoes-black', 'shoes-white', 'shoes-red', 'shoes-gray']

@@ -5,7 +5,7 @@ The design draws the 2026 side panels as one wide stripe that stops partway
 down the thigh, cut at an angle. In Doc's game photos (2026-10-05) each leg
 carries a thin stripe, a gap of pants color, then a wider stripe, running the
 full outside seam from waistband to hem: black and white on red, black and red
-on white, white and red on black. The 3D player draws the same from BANDS and
+on white. The black pants carry red, white and red side by side. The 3D player draws the same from BANDS and
 PANEL_END in prepare-uniforms.py. This repaints the strip just inside each
 leg's outline, down to the sock line, in that pattern.
 
@@ -23,31 +23,30 @@ import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-# Pants color, thin stripe, wide stripe.
+# Each pants' color, then its stripes inward from the outline as
+# (color, width in pixels of the 542 px wide panel art); None is pants color.
+# The last entry paints pants color over what is left of the drawn panel.
 STRIPES = {
-    'pants-red': ('#C9001F', '#000000', '#FFFFFF'),
-    'pants-white': ('#FFFFFF', '#000000', '#C9001F'),
-    'pants-black': ('#000000', '#FFFFFF', '#C9001F'),
+    'pants-red': ('#C9001F', [(None, 2), ('#000000', 3), (None, 3), ('#FFFFFF', 12), (None, 3)]),
+    'pants-white': ('#FFFFFF', [(None, 2), ('#000000', 3), (None, 3), ('#C9001F', 12), (None, 3)]),
+    'pants-black': ('#000000', [(None, 2), ('#C9001F', 6), ('#FFFFFF', 4), ('#C9001F', 6), (None, 9)]),
 }
-# Inward from the leg's outer edge, in pixels of the 542 px wide panel art:
-# the outline, a sliver of pants color, the thin stripe, the gap and the wide
-# stripe, then pants color over what is left of the drawn panel.
-WIDTHS = (4, 2, 3, 3, 12, 3)
+OUTLINE = 4  # the art's outline, left as drawn
 
 
 def rgb(h):
     return np.array([int(h[i:i + 2], 16) for i in (1, 3, 5)], dtype=np.int16)
 
 
-def draw_panels(img, colors):
+def draw_panels(img, spec):
     """Returns a copy of the front-view pants art with each side stripe
-    repainted as `colors` (pants, thin, wide), waistband to sock line."""
-    base, thin, wide = (rgb(c) for c in colors)
+    repainted as `spec` (pants color, stripes), waistband to sock line."""
+    base = rgb(spec[0])
     a = np.array(img.convert('RGBA')).astype(np.int16)
     h, w = a.shape[:2]
     k = w / 542
-    o, lead, t, g, s, pad = (max(1, round(v * k)) for v in WIDTHS)
-    pattern = [base] * lead + [thin] * t + [base] * g + [wide] * s + [base] * pad
+    o = max(1, round(OUTLINE * k))
+    pattern = [base if c is None else rgb(c) for c, n in spec[1] for _ in range(max(1, round(n * k)))]
     out = a.copy()
 
     def edge(y, side):
@@ -74,7 +73,7 @@ def draw_panels(img, colors):
 
 
 if __name__ == '__main__':
-    for name, colors in STRIPES.items():
+    for name, spec in STRIPES.items():
         path = ROOT / 'assets' / 'uni' / f'{name}.webp'
-        draw_panels(Image.open(path), colors).save(path, 'WEBP', quality=88, method=6)
+        draw_panels(Image.open(path), spec).save(path, 'WEBP', quality=88, method=6)
         print('redrew', path.relative_to(ROOT))

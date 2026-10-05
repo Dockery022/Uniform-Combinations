@@ -599,14 +599,14 @@ export const ART = {
    "socks": "#000000",
    "bands": [
     {
-     "at": -0.011,
-     "w": 0.01,
-     "color": "#FFFFFF"
+     "at": 0.015,
+     "w": 0.054,
+     "color": "#C9001F"
     },
     {
-     "at": 0.024,
-     "w": 0.04,
-     "color": "#C9001F"
+     "at": 0.015,
+     "w": 0.014,
+     "color": "#FFFFFF"
     }
    ],
    "bandEnd": 1.0,

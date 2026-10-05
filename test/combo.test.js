@@ -9,7 +9,7 @@ import {
 import { DEFAULT_STATE, FACEMASKS, GRAPHIC_WORD, HELMET_NOTE, LIB, MASK_DEF } from '../src/team.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const exists = (url) => existsSync(root + url);
+const exists = (url) => existsSync(root + url.split('?')[0]);
 
 test('every piece has its art and sampled colors', () => {
   const state = { ...DEFAULT_STATE };

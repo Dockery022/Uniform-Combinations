@@ -71,16 +71,21 @@ export function groupHex(group) {
   return GROUP_HEX[group] ?? '#888888';
 }
 
-// Art image for a piece, as the panel and the graphic show it.
+// Art image for a piece, as the panel and the graphic show it. ART_VERSION
+// changes whenever the art is redrawn, so browsers fetch the new pictures
+// instead of showing ones they cached.
+const ART_VERSION = '2026-10-05b';
+const art = (file) => `assets/uni/${file}.webp?v=${ART_VERSION}`;
+
 export function artUrl(kind, id, state) {
   const r = row(kind, id) ?? LIB[kind][0];
-  if (kind === 'helmet') return `assets/uni/${r[3]}-mask-${state.facemask.toLowerCase()}.webp`;
+  if (kind === 'helmet') return art(`${r[3]}-mask-${state.facemask.toLowerCase()}`);
   if (kind === 'socks') {
     if (!r[3]) return artUrl('pants', state.pants, state);
-    return `assets/uni/${r[3]}${/ 20$/.test(state.pants) ? '-20' : ''}.webp`;
+    return art(`${r[3]}${/ 20$/.test(state.pants) ? '-20' : ''}`);
   }
-  if (kind === 'shoes') return r[3] ? `assets/uni/${r[3]}.webp` : null;
-  return `assets/uni/${r[3]}.webp`;
+  if (kind === 'shoes') return r[3] ? art(r[3]) : null;
+  return art(r[3]);
 }
 
 // Everything the 3D player needs for this state.
