@@ -1066,6 +1066,20 @@ export class Player {
         }
       }
     }
+    // The V-neck opening: the throat and chest framed by the front neckline
+    // show through it, though their nearest cloth vertex (the collar's far
+    // side) can read as covering them.
+    const V = this.neckline;
+    if (V?.front.length) {
+      const tip = Math.min(...V.front.map((p) => p.y));
+      for (let i = 0; i < count; i++) {
+        const y = kw[i * 3 + 1];
+        if (!aHide[i] || y < tip || kw[i * 3 + 2] < V.neck.z) continue;
+        let half = 0;
+        for (const p of V.front) if (Math.abs(p.y - y) < 0.015) half = Math.max(half, Math.abs(p.x - V.neck.x));
+        if (Math.abs(kw[i * 3] - V.neck.x) < half) aHide[i] = 0;
+      }
+    }
     skin.geometry.setAttribute('aHide', new THREE.BufferAttribute(aHide, 1));
   }
 
@@ -1096,6 +1110,8 @@ export class Player {
       const shoulderY = bonePos('LeftArm').y;
       const neckEdge = boundaryPoints(jersey, world)
         .filter((p) => p.y > shoulderY - 0.22 && Math.abs(p.x - neck.x) < 0.1 && Math.hypot(p.x - neck.x, p.z - neck.z) < 0.14);
+      // The front of the neckline, for hideCovered to keep the V-neck open.
+      this.neckline = { neck, front: neckEdge.filter((p) => p.z > neck.z) };
       const aNeck = new Float32Array(count);
       for (let i = 0; i < count; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
       setAttr(jersey, 'aNeck', aNeck);
