@@ -498,17 +498,32 @@ function setMode(next) {
 document.getElementById('mode-3d').addEventListener('click', () => setMode('3d'));
 document.getElementById('mode-graphic').addEventListener('click', () => setMode('graphic'));
 
+// On the published page the browser blocks plain downloads; the page's
+// downloads capability asks the viewer to save the file instead. Elsewhere
+// (local or embedded) a normal link download does it.
+const saves = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
 document.getElementById('download').addEventListener('click', async () => {
   if (!(await drawGraphic())) return;
-  graphic.toBlob((blob) => {
-    if (!blob) return toast('The graphic could not be saved here.');
-    const a = el('a', { href: URL.createObjectURL(blob), download: `combo-${s2slug(state.opponent)}.png` });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    toast('Graphic downloaded');
-  }, 'image/png');
+  const blob = await new Promise((done) => graphic.toBlob(done, 'image/png'));
+  if (!blob) return toast('The graphic could not be saved here.');
+  const filename = `combo-${s2slug(state.opponent)}.png`;
+  const downloads = await saves;
+  if (downloads) {
+    try {
+      const { status } = await downloads.save({ filename, data: blob });
+      if (status === 'saved') toast('Graphic downloaded');
+    } catch (e) {
+      if (e?.code === 'rate_limited') toast('A save is already waiting for you.');
+      else if (e?.code !== 'declined') toast('The graphic could not be saved here.');
+    }
+    return;
+  }
+  const a = el('a', { href: URL.createObjectURL(blob), download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Graphic downloaded');
 });
 // The page address carries the combo, so copying it shares the combo.
 document.getElementById('copy-link').addEventListener('click', async () => {
