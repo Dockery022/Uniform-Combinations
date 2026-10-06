@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).parent))
 from palette import BLACK, RED, WHITE, snap  # noqa: E402
+from black_collar import COLLAR, blacken_collar  # noqa: E402
 from hip_mark import MARK_PANTS, redraw_mark  # noqa: E402
 from pants_panels import STRIPES, draw_panels  # noqa: E402
 
@@ -215,9 +216,9 @@ for name in JERSEYS:
     order = np.argsort(-n)
     fill = keys[order[0]]
     outline = keys[order[1]] if len(order) > 1 else trim
-    w = save_webp(img, name, 1024)
+    w = save_webp(blacken_collar(img, COLLAR[name]) if name in COLLAR else img, name, 1024)
     spec['jersey'][name] = {
-        'base': hexof(base), 'trim': hexof(trim if trim is not None else base),
+        'base': hexof(base), 'trim': COLLAR.get(name) or hexof(trim if trim is not None else base),
         'number': {'box': [left, top, right, bottom], 'fill': hexof(fill), 'outline': hexof(outline)},
         'art': {'width': 1366, 'height': 1408},
     }
