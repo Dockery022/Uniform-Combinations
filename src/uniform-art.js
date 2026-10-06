@@ -388,7 +388,7 @@ export const ART = {
   },
   "jersey-black-wing": {
    "base": "#000000",
-   "trim": "#8A8D8F",
+   "trim": "#000000",
    "number": {
     "box": [
      479,
