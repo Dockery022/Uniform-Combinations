@@ -135,24 +135,54 @@ export function paintTvDecals(canvas, spec, style, number) {
 // extent in helmet units (half-width x, top and bottom y). The number is
 // Cardinal Red on light shells and white on red or black ones; the bumper
 // lettering is white on the black bumper.
-export function paintHelmetBack(canvas, area, number, shell) {
+export function paintHelmetBack(canvas, area, number, shell, back = {}) {
   const ctx = canvas.getContext('2d');
   const { width: W, height: H } = canvas;
   ctx.clearRect(0, 0, W, H);
   const k = H / (area.top - area.bottom); // px per helmet unit
   const y = (v) => (area.top - v) * k;
-  const numberH = 0.22 * k;
-  drawText(ctx, number, {
-    family: FONTS.jersey, cx: W / 2, cy: y(0.1), height: numberH,
-    sx: Math.min(1, (0.3 * k) / textWidth(ctx, number, FONTS.jersey, numberH)),
-    fill: isLight(shell) ? '#C9001F' : '#FFFFFF',
-  });
+  if (back.number !== false) {
+    const numberH = 0.22 * k;
+    drawText(ctx, number, {
+      family: FONTS.jersey, cx: W / 2, cy: y(0.1), height: numberH,
+      sx: Math.min(1, (0.3 * k) / textWidth(ctx, number, FONTS.jersey, numberH)),
+      fill: isLight(shell) ? '#C9001F' : '#FFFFFF',
+    });
+  }
+  if (back.flag) paintFlag(ctx, W / 2 + back.flag.x * k, y(back.flag.y), back.flag.w * k);
+  const word = back.word ?? 'LOUISVILLE';
   const wordH = 0.05 * k;
-  drawText(ctx, 'LOUISVILLE', {
+  drawText(ctx, word, {
     family: FONTS.display, cx: W / 2, cy: y(-0.5), height: wordH, spacing: 4,
-    sx: Math.min(1, (0.46 * k) / textWidth(ctx, 'LOUISVILLE', FONTS.display, wordH, '', 4)),
-    fill: '#FFFFFF',
+    sx: Math.min(1, (0.46 * k) / textWidth(ctx, word, FONTS.display, wordH, '', 4)),
+    fill: back.wordColor ?? '#FFFFFF',
   });
+}
+
+// A U.S. flag sticker centered on (cx, cy), `w` px wide, with a thin white border.
+function paintFlag(ctx, cx, cy, w) {
+  const h = w * 0.55;
+  const x0 = cx - w / 2;
+  const y0 = cy - h / 2;
+  ctx.save();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(x0 - w * 0.04, y0 - w * 0.04, w * 1.08, h + w * 0.08);
+  for (let i = 0; i < 13; i++) {
+    ctx.fillStyle = i % 2 ? '#FFFFFF' : '#B22234';
+    ctx.fillRect(x0, y0 + (i * h) / 13, w, h / 13 + 0.5);
+  }
+  ctx.fillStyle = '#3C3B6E';
+  ctx.fillRect(x0, y0, w * 0.4, (h * 7) / 13);
+  ctx.fillStyle = '#FFFFFF';
+  const r = w * 0.012;
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 6; col++) {
+      ctx.beginPath();
+      ctx.arc(x0 + w * 0.4 * ((col + 0.5 + (row % 2) * 0.25) / 6.25), y0 + ((h * 7) / 13) * ((row + 0.5) / 5), r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 
 // The jersey's front art, ready to project. The V-neck is filled with the

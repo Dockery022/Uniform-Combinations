@@ -575,6 +575,10 @@ export class Player {
         // decal must read the same way on both sides (scripts). -1 mirrors.
         uDecalFlip: { value: -1 },
         uDecalMetal: { value: 0 },
+        // 1 makes the decal's gold (saturated) pixels metallic, like a foil keyline.
+        uDecalGold: { value: 0 },
+        // 1 makes the stripes metallic foil instead of paint.
+        uStripeMetal: { value: 0 },
       },
     };
 
@@ -1466,8 +1470,12 @@ export class Player {
           uniform vec2 uShellFront;
           uniform float uDecalFlip;
           uniform float uDecalMetal;
+          uniform float uDecalGold;
+          uniform float uStripeMetal;
           float paintMask = 0.0;
+          float stripeMask = 0.0;
           float decalMask = 0.0;
+          float goldMask = 0.0;
           ${HELMET_BACK_GLSL}`,
         // The decal art is a side view from the player's left: art x runs
         // from the shell's front toward its back, art y down from its top.
@@ -1477,6 +1485,8 @@ export class Player {
             vec3 before = diffuseColor.rgb;
             if (outer) diffuseColor.rgb = applyBands(diffuseColor.rgb, vObjPos.x);
             paintMask = step(0.001, distance(before, diffuseColor.rgb));
+            // Bands can match the shell (black on black), so foil follows their coverage.
+            if (outer) stripeMask = max(bandMask(vObjPos.x, uBandAt.x, uBandW.x), max(bandMask(vObjPos.x, uBandAt.y, uBandW.y), bandMask(vObjPos.x, uBandAt.z, uBandW.z)));
             float side = sign(vObjPos.x);
             float facing = side * normalize(vObjNormal).x;
             if (outer && uDecalOn > 0.5 && facing > 0.2) {
@@ -1487,7 +1497,9 @@ export class Player {
               if (duv.x > 0.0 && duv.x < 1.0 && duv.y > 0.0 && duv.y < 1.0) {
                 vec4 d = texture2D(uDecal, duv);
                 decalMask = d.a * smoothstep(0.2, 0.4, facing);
+                goldMask = decalMask * uDecalGold * smoothstep(0.18, 0.28, max(d.r, max(d.g, d.b)) - min(d.r, min(d.g, d.b)));
                 diffuseColor.rgb = mix(diffuseColor.rgb, d.rgb, decalMask);
+                stripeMask *= 1.0 - decalMask;
               }
             }
             if (outer) {
@@ -1514,14 +1526,15 @@ export class Player {
       pads: new THREE.MeshStandardMaterial({ name: 'pads', color: '#1b1b1e', roughness: 0.9 }),
       hardware: new THREE.MeshStandardMaterial({ name: 'hardware', color: '#b8bbc1', metalness: 0.55, roughness: 0.35 }),
     };
-    // Stripes read as paint; a chrome decal reads as polished metal.
+    // Stripes read as paint unless they're foil; a chrome decal, or a decal's
+    // gold keyline, reads as polished metal.
     const shell = this.hm.shell;
     const base = shell.onBeforeCompile;
     shell.onBeforeCompile = (s) => {
       base(s);
       s.fragmentShader = s.fragmentShader
-        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor * (1.0 - paintMask), 1.0, decalMask * uDecalMetal);')
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.12, decalMask * uDecalMetal);');
+        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor * (1.0 - paintMask), 1.0, max(max(decalMask * uDecalMetal, goldMask), stripeMask * uStripeMetal));')
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(mix(roughnessFactor, 0.12, decalMask * uDecalMetal), 0.3, max(goldMask, stripeMask * uStripeMetal));');
     };
     // Where the shell's front and top are, for placing the side-view decal.
     const shellMesh = this.helmetParts.shell;
@@ -1682,6 +1695,8 @@ export class Player {
     u.shell.uDecalArt.value.set(h.decalArt.frontX, h.decalArt.topY, h.decalArt.pxPerUnit);
     u.shell.uDecalSize.value.set(h.decalArt.width, h.decalArt.height);
     u.shell.uDecalMetal.value = h.decalMetal;
+    u.shell.uDecalGold.value = h.decalGold ?? 0;
+    u.shell.uStripeMetal.value = h.stripeMetal ?? 0;
     hm.mask.color.set(look.facemask);
     const strap = look.facemask === BRAND.black ? BRAND.black : BRAND.white;
     hm.strap.color.set(strap);
@@ -1723,7 +1738,7 @@ export class Player {
     paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name);
     this.placeTv(look.jersey.style);
     paint.paintTvDecals(this.canvases.tv, look.jersey.spec, look.jersey.style, look.number);
-    paint.paintHelmetBack(this.canvases.helmetBack, HELMET_BACK, look.backNumber, look.helmet.spec.shell);
+    paint.paintHelmetBack(this.canvases.helmetBack, HELMET_BACK, look.backNumber, look.helmet.spec.shell, look.helmet.spec.back);
     const lc = this.canvases.logos.getContext('2d');
     lc.clearRect(0, 0, this.canvases.logos.width, this.canvases.logos.height);
     lc.drawImage(logos, 0, 0, this.canvases.logos.width, this.canvases.logos.height);

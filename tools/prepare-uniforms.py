@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from palette import BLACK, RED, WHITE, snap  # noqa: E402
 from black_collar import COLLAR, blacken_collar  # noqa: E402
 from hip_mark import MARK_PANTS, redraw_mark  # noqa: E402
+import halloween_helmet  # noqa: E402
 from pants_panels import STRIPES, draw_panels  # noqa: E402
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else 'uni-src')
@@ -45,7 +46,9 @@ HELMETS = {
     'helmet-script': {'finish': 'gloss', 'mirror': False},
     'helmet-redscript': {'finish': 'gloss', 'mirror': False},
     'helmet-whitestripe': {'finish': 'gloss', 'stripe': [{'at': 0, 'w': 0.06, 'color': RED}]},
-    'helmet-halloween': {'finish': 'satin'},
+    # From Doc's photos of the real helmet (2026-10-23); see halloween_helmet.py.
+    'helmet-halloween': {'finish': 'matte', 'stripe': halloween_helmet.STRIPE, 'stripeMetal': 1, 'decalGold': 1,
+                         'back': halloween_helmet.BACK},
     'helmet-redgold': {'finish': 'gloss'},
     'helmet-blackchrome': {'finish': 'gloss', 'decalMetal': 1},
     'helmet-blackmatte': {'finish': 'matte', 'threshold': 10},
@@ -176,6 +179,10 @@ for name, opts in HELMETS.items():
         'decalMetal': opts.get('decalMetal', 0), 'stripe': opts.get('stripe', []),
         'decal': f'decal-{name}', 'decalArt': {'width': w, 'height': h, 'frontX': 85, 'topY': 5, 'pxPerUnit': 541.7},
     }
+    for key in ('stripeMetal', 'decalGold', 'back'):
+        if key in opts:
+            spec['helmet'][name][key] = opts[key]
+halloween_helmet.redraw(OUT)
 
 # ---------- jerseys ----------
 # Front views on one template (1366 x 1408): V-neck tip at (683, 380),
