@@ -5,13 +5,14 @@
 //   node tools/prepare-body.mjs "<kit>/Base Characters/Godot - UE/Superhero_Male_FullBody.gltf" assets/body/base-body.glb
 //
 // The kit's .gltf names two textures (*_png.png) that ship without the suffix;
-// those are resolved before reading.
+// those are resolved before reading. Positions stay float (no quantization) so
+// garments can be inflated along the normals in meters at load time.
 import { existsSync, mkdtempSync, readFileSync, readdirSync, copyFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { dedup, prune, quantize, textureCompress } from '@gltf-transform/functions';
+import { dedup, prune, textureCompress } from '@gltf-transform/functions';
 import sharp from 'sharp';
 
 const [, , input, output] = process.argv;
@@ -49,7 +50,6 @@ await doc.transform(
   dedup(),
   prune({ keepAttributes: true }),
   textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [2048, 2048], quality: 88 }),
-  quantize({ quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 12 }),
 );
 await io.write(output, doc);
 console.log('wrote', output);
