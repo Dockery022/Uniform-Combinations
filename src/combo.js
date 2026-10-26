@@ -74,8 +74,15 @@ export function groupHex(group) {
 // Art image for a piece, as the panel and the graphic show it. ART_VERSION
 // changes whenever the art is redrawn, so browsers fetch the new pictures
 // instead of showing ones they cached.
-const ART_VERSION = '2026-10-06a';
+const ART_VERSION = '2026-10-24a';
 export const art = (file) => `assets/uni/${file}.webp?v=${ART_VERSION}`;
+
+// Doc (2026-10-24): black cleats worn with the Halloween uniform trade their
+// white for the Halloween gold.
+const HALLOWEEN = 'Halloween 26';
+function shoeFile(file, state) {
+  return file === 'shoes-black' && (state.jersey === HALLOWEEN || state.pants === HALLOWEEN) ? 'shoes-black-gold' : file;
+}
 
 export function artUrl(kind, id, state) {
   const r = row(kind, id) ?? LIB[kind][0];
@@ -84,7 +91,7 @@ export function artUrl(kind, id, state) {
     if (!r[3]) return artUrl('pants', state.pants, state);
     return art(`${r[3]}${/ 20$/.test(state.pants) ? '-20' : ''}`);
   }
-  if (kind === 'shoes') return r[3] ? art(r[3]) : null;
+  if (kind === 'shoes') return r[3] ? art(shoeFile(r[3], state)) : null;
   return art(r[3]);
 }
 
@@ -94,7 +101,7 @@ export function resolveLook(state) {
   const pantsFile = file('pants');
   const pants = { file: pantsFile, spec: ART.pants[pantsFile] };
   const sockFile = file('socks');
-  const shoeFile = file('shoes');
+  const shoes = file('shoes') ?? 'shoes-black';
   return {
     helmet: { file: file('helmet'), spec: ART.helmet[file('helmet')] },
     facemask: FACEMASKS.find(([n]) => n === state.facemask)?.[1] ?? FACEMASKS[0][1],
@@ -107,8 +114,8 @@ export function resolveLook(state) {
     pants,
     socks: sockFile ? ART.socks[sockFile] : pants.spec.socks,
     // "No shoes" only leaves them out of the graphic; the player still wears black cleats.
-    cleats: ART.shoes[shoeFile ?? 'shoes-black'],
-    shoes: shoeFile ?? 'shoes-black',
+    cleats: ART.shoes[shoes],
+    shoes: shoeFile(shoes, state),
     gloves: GLOVES.find(([n]) => n === state.gloves)?.[1] ?? null,
     visor: state.visor,
     skin: state.skin,

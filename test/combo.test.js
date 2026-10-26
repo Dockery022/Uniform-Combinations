@@ -36,6 +36,16 @@ test('every piece has its art and sampled colors', () => {
   }
 });
 
+test('black cleats turn gold with the Halloween uniform', () => {
+  const halloween = { ...DEFAULT_STATE, jersey: 'Halloween 26', shoes: 'Black' };
+  assert.match(artUrl('shoes', 'Black', halloween), /shoes-black-gold\.webp/);
+  assert.ok(exists(artUrl('shoes', 'Black', halloween)));
+  assert.equal(resolveLook(halloween).shoes, 'shoes-black-gold');
+  assert.equal(resolveLook({ ...halloween, jersey: 'White', pants: 'Halloween 26' }).shoes, 'shoes-black-gold');
+  assert.equal(resolveLook({ ...halloween, shoes: 'White' }).shoes, 'shoes-white');
+  assert.equal(resolveLook({ ...DEFAULT_STATE, shoes: 'Black' }).shoes, 'shoes-black');
+});
+
 test('team tables only name pieces that exist', () => {
   const helmets = new Set(LIB.helmet.map(([id]) => id));
   for (const id of [...Object.keys(MASK_DEF), ...Object.keys(HELMET_NOTE)]) assert.ok(helmets.has(id), id);

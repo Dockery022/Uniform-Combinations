@@ -175,10 +175,38 @@ export const ART = {
   },
   "helmet-halloween": {
    "shell": "#000000",
-   "finish": "satin",
+   "finish": "matte",
    "mirror": true,
    "decalMetal": 0,
-   "stripe": [],
+   "stripe": [
+    {
+     "at": 0,
+     "w": 0.08,
+     "color": "#D8C77E"
+    },
+    {
+     "at": 0,
+     "w": 0.062,
+     "color": "#000000"
+    },
+    {
+     "at": 0,
+     "w": 0.024,
+     "color": "#D8C77E"
+    }
+   ],
+   "stripeMetal": 1,
+   "decalGold": 1,
+   "back": {
+    "number": false,
+    "flag": {
+     "x": -0.2,
+     "y": -0.3,
+     "w": 0.15
+    },
+    "word": "CARDINALS",
+    "wordColor": "#D8C77E"
+   },
    "decal": "decal-helmet-halloween",
    "decalArt": {
     "width": 752,
