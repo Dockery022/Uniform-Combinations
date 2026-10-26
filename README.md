@@ -76,6 +76,7 @@ The app loads web-ready models from `assets/`:
 | `helmet.glb` | `bucshelmet.obj` | Split into `shell`, `mask`, `strap`, `cup`, `bumper`, `trim`, `pads`, `hardware`; faces +z and is scaled to a shell width of 1. |
 | `body/base-body.glb` | `Superhero_Male_FullBody.gltf` from [Universal Base Characters](https://quaternius.com) by Quaternius (CC0) | The unclothed base body the garments are built from (see `CLAUDE.md`). Meshes `body`, `eyes`, `Eyebrows`; materials `skin`, `eyes`, `eyebrows`. One 65-bone skeleton with Unreal-style names (`pelvis`, `spine_01`, `thigh_l`...), T-pose, 1.82 m tall, no animations. Textures are WebP. |
 | `fabric/pants-twill_normal.jpg`, `fabric/pants-twill_roughness.jpg` | [Fabric036](https://ambientcg.com/view?id=Fabric036) from ambientCG (CC0), 2K JPG | Tileable pants twill for `MeshPhysicalMaterial`. Normal map is OpenGL convention. Downsized to 1024 px. |
+| `fabric/jersey-mesh_normal.jpg`, `fabric/jersey-mesh_roughness.jpg` | [Fabric035](https://ambientcg.com/view?id=Fabric035) from ambientCG (CC0), 2K JPG | Tileable jersey fabric, same treatment as the twill. |
 
 To rebuild them from the source files:
 
