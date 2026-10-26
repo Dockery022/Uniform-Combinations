@@ -77,7 +77,6 @@ The app loads web-ready models from `assets/`:
 | `body/base-body.glb` | `Superhero_Male_FullBody.gltf` from [Universal Base Characters](https://quaternius.com) by Quaternius (CC0) | The unclothed base body the garments are built from (see `CLAUDE.md`). Meshes `body`, `eyes`, `Eyebrows`; materials `skin`, `eyes`, `eyebrows`. One 65-bone skeleton with Unreal-style names (`pelvis`, `spine_01`, `thigh_l`...), T-pose, 1.82 m tall, no animations. Textures are WebP; positions are float so garments can be inflated in meters. |
 | `fabric/pants-twill_normal.jpg`, `fabric/pants-twill_roughness.jpg` | [Fabric036](https://ambientcg.com/view?id=Fabric036) from ambientCG (CC0), 2K JPG | Tileable pants twill for `MeshPhysicalMaterial`. Normal map is OpenGL convention. Downsized to 1024 px. |
 | `fabric/jersey-mesh_normal.jpg`, `fabric/jersey-mesh_roughness.jpg` | [Fabric035](https://ambientcg.com/view?id=Fabric035) from ambientCG (CC0), 2K JPG | Tileable jersey fabric, same treatment as the twill. |
-| `fabric/fine-weave_normal.jpg`, `fabric/fine-weave_roughness.jpg` | [Fabric037](https://ambientcg.com/view?id=Fabric037) from ambientCG (CC0), 2K JPG | Finer weave for the sleeves, yoke and socks, same treatment. |
 
 To rebuild them from the source files:
 
