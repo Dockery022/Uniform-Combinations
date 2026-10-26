@@ -4,8 +4,8 @@ Rules for working on the 3D uniform viewer. Doc (GitHub `Dockery022`) owns this 
 
 ## Figure and garments
 
-- Don't build the figure or garments from primitives (boxes, cylinders, lathes, hand-made geometry). Use a free `.glb` base body from `/assets`.
-- Each garment (jersey, pants, helmet) is a slightly inflated copy of the body mesh: copy the body geometry and offset every vertex 1-3 mm along its vertex normal, so the layers don't clip. Keep the copy skinned to the same skeleton so it moves with the body.
+- The player is `assets/player.glb` (the garments are modelled into it) and the helmet is `assets/helmet.glb`. Keep both. Don't build the figure or garments from primitives.
+- Don't rebuild the garments as inflated copies of a bare base body. That was tried on 2026-10-26 and looked far worse than the original model.
 
 ## Materials
 
