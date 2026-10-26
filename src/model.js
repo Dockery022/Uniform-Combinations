@@ -1115,7 +1115,7 @@ export class Player {
       const neckEdge = boundaryPoints(jersey, world)
         .filter((p) => p.y > shoulderY - 0.22 && Math.abs(p.x - neck.x) < 0.1 && Math.hypot(p.x - neck.x, p.z - neck.z) < 0.14);
       // The front of the neckline, for hideCovered to keep the V-neck open.
-      this.neckline = { neck, front: neckEdge.filter((p) => p.z > neck.z) };
+      this.neckline = { neck, edge: neckEdge, front: neckEdge.filter((p) => p.z > neck.z) };
       const aNeck = new Float32Array(count);
       for (let i = 0; i < count; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
       setAttr(jersey, 'aNeck', aNeck);
@@ -1179,6 +1179,7 @@ export class Player {
       this.uniforms.jersey.uPuff.value = JERSEY_PUFF / jersey.matrixWorld.getMaxScaleOnAxis();
     }
     this.hideCovered();
+    this.buildCollar();
 
     // Pants: signed arc distance from the outer seam of each leg.
     const pants = this.parts.pants;
@@ -1289,6 +1290,117 @@ export class Player {
       }
       this.waist = { y, z: maxZ };
     }
+  }
+
+  // A crew collar for jerseys whose real neckline is round (style.crew): a
+  // band of fabric lofted from the jersey's V-neckline up to a ring hugging
+  // the base of the neck, kept just off the skin, so the V fills in and the
+  // collar closes around the neck. Rides on the upper spine.
+  buildCollar() {
+    const V = this.neckline;
+    const skin = this.parts.skin;
+    if (!V?.edge.length || !skin) return;
+    const { neck } = V;
+    const N = 72; // around the neck
+    const M = 14; // up from the neckline
+    const ang = (p) => Math.atan2(p.x - neck.x, p.z - neck.z); // 0 at the front
+    const bin = (a) => ((Math.round(((a / (Math.PI * 2)) * N)) % N) + N) % N;
+
+    // The neckline, one point per angle (nearest edge point by angle).
+    const bottom = [];
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2;
+      let best = null;
+      let bestD = Infinity;
+      for (const p of V.edge) {
+        const d = Math.abs(Math.atan2(Math.sin(ang(p) - a), Math.cos(ang(p) - a)));
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      // A touch past the puffed jersey, so the collar laps over its edge.
+      const r = Math.hypot(best.x - neck.x, best.z - neck.z) + JERSEY_PUFF + 0.005;
+      bottom.push({ y: best.y, r });
+    }
+    // Smooth the radius around the neck (the edge points are uneven).
+    const rs = bottom.map((b) => b.r);
+    for (let k = 0; k < N; k++) bottom[k].r = Math.max(rs[k], (rs[(k + N - 2) % N] + rs[(k + N - 1) % N] + rs[k] + rs[(k + 1) % N] + rs[(k + 2) % N]) / 5);
+    const topY = Math.max(...bottom.map((b) => b.y)) + 0.012;
+    const lowY = Math.min(...bottom.map((b) => b.y));
+
+    // The skin's radius around the neck, by angle and height.
+    const rows = 24;
+    const rowOf = (y) => Math.round(((y - lowY) / (topY - lowY)) * (rows - 1));
+    const skinR = Array.from({ length: rows }, () => new Float32Array(N));
+    const world = worldPositions(skin);
+    for (let i = 0; i < world.length / 3; i++) {
+      const p = { x: world[i * 3], y: world[i * 3 + 1], z: world[i * 3 + 2] };
+      if (p.y < lowY - 0.01 || p.y > topY + 0.01) continue;
+      const r = Math.hypot(p.x - neck.x, p.z - neck.z);
+      if (r > 0.16) continue;
+      const row = Math.min(rows - 1, Math.max(0, rowOf(p.y)));
+      const k = bin(ang(p));
+      skinR[row][k] = Math.max(skinR[row][k], r);
+    }
+    // Fill angles the skin's vertices missed from their neighbors.
+    for (const row of skinR) {
+      for (let pass = 0; pass < 3; pass++) {
+        for (let k = 0; k < N; k++) if (!row[k]) row[k] = Math.max(row[(k + 1) % N], row[(k + N - 1) % N]);
+      }
+    }
+    // Smooth across angles and heights, so the loft doesn't pick up every
+    // bump of the skin (the nape is lumpy).
+    for (let pass = 0; pass < 2; pass++) {
+      const src = skinR.map((row) => row.slice());
+      for (let r = 0; r < rows; r++) {
+        for (let k = 0; k < N; k++) {
+          let sum = 0;
+          let n = 0;
+          for (let dr = -1; dr <= 1; dr++) {
+            const row = src[Math.min(rows - 1, Math.max(0, r + dr))];
+            for (let dk = -3; dk <= 3; dk++) { sum += row[(k + dk + N) % N]; n++; }
+          }
+          skinR[r][k] = Math.max(src[r][k] * 0.85, sum / n);
+        }
+      }
+    }
+
+    const pos = new Float32Array(N * (M + 1) * 3);
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2;
+      const b = bottom[k];
+      for (let m = 0; m <= M; m++) {
+        const t = m / M;
+        const y = b.y + (topY - b.y) * t;
+        const row = Math.min(rows - 1, Math.max(0, rowOf(y)));
+        const clear = (skinR[row][k] || 0) + 0.006;
+        // The top few rows roll out a little, like a ribbed collar band.
+        const lip = m >= M - 2 ? 0.002 : 0;
+        const r = Math.max(b.r + (clear - b.r) * t, clear) + lip;
+        const i = (k * (M + 1) + m) * 3;
+        pos[i] = neck.x + Math.sin(a) * r;
+        pos[i + 1] = y;
+        pos[i + 2] = neck.z + Math.cos(a) * r;
+      }
+    }
+    const index = [];
+    for (let k = 0; k < N; k++) {
+      const k2 = (k + 1) % N;
+      for (let m = 0; m < M; m++) {
+        const a = k * (M + 1) + m;
+        const b = k2 * (M + 1) + m;
+        index.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setIndex(index);
+    geo.applyMatrix4(this.root.matrixWorld.clone().invert());
+    geo.computeVertexNormals();
+    this.collar = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ name: 'collar', roughness: 0.9, sheen: 0.5, sheenRoughness: 0.5, side: THREE.DoubleSide }));
+    this.collar.castShadow = true;
+    this.collar.visible = false;
+    this.root.add(this.collar);
+    this.root.updateMatrixWorld(true);
+    (this.bones.Spine2 ?? this.bones.Neck).attach(this.collar);
   }
 
   // Art coordinates (u, v, back?) for each jersey vertex. The torso is a
@@ -1658,6 +1770,11 @@ export class Player {
     m.jersey.sheenColor.copy(sheen(j.base));
     u.jersey.uBase.value.set(j.base);
     u.jersey.uCollar.value.set(j.trim);
+    if (this.collar) {
+      this.collar.visible = Boolean(look.jersey.style.crew);
+      this.collar.material.color.set(j.trim);
+      this.collar.material.sheenColor.copy(sheen(j.trim));
+    }
 
     m.pants.color.set(p.base);
     m.pants.sheenColor.copy(sheen(p.base));
