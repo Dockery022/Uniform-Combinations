@@ -68,12 +68,13 @@ It writes WebP copies to `assets/uni/`, cuts out the helmet decals and pants log
 
 ## The 3D models
 
-The app loads two web-ready models from `assets/`:
+The app loads web-ready models from `assets/`:
 
 | File | From | Notes |
 | --- | --- | --- |
 | `player.glb` | `3x.fbx` (Mixamo-rigged player with an idle animation) | Materials are renamed by part: `jersey`, `pants`, `socks`, `cleats`, `skin`, `belt`, `tape`, `armSleeve`. The FBX's own helmet is removed. |
 | `helmet.glb` | `bucshelmet.obj` | Split into `shell`, `mask`, `strap`, `cup`, `bumper`, `trim`, `pads`, `hardware`; faces +z and is scaled to a shell width of 1. |
+| `body/base-body.glb` | `Superhero_Male_FullBody.gltf` from [Universal Base Characters](https://quaternius.com) by Quaternius (CC0) | The unclothed base body the garments are built from (see `CLAUDE.md`). Meshes `body`, `eyes`, `Eyebrows`; materials `skin`, `eyes`, `eyebrows`. One 65-bone skeleton with Unreal-style names (`pelvis`, `spine_01`, `thigh_l`...), T-pose, 1.82 m tall, no animations. Textures are WebP. |
 
 To rebuild them from the source files:
 
@@ -83,6 +84,7 @@ node_modules/fbx2gltf/bin/Linux/FBX2glTF --binary --input 3x.fbx --output player
 npm run prepare:player -- player-raw.glb assets/player.glb
 npx obj2gltf -i bucshelmet.obj -o helmet-raw.glb --binary
 npm run prepare:helmet -- helmet-raw.glb assets/helmet.glb
+node tools/prepare-body.mjs "<kit>/Base Characters/Godot - UE/Superhero_Male_FullBody.gltf" assets/body/base-body.glb
 ```
 
 The art is mapped from measurements taken on the model at load time (`measure()` in `src/model.js`), so it follows the cloth as the player moves.
