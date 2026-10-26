@@ -555,6 +555,9 @@ export class Player {
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.008 },
+        // Two-stripe collar trim along the neckline (uCollarStripes 1 turns it on).
+        uCollarStripe: { value: new THREE.Color() },
+        uCollarStripes: { value: 0 },
         uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
         uPuff: { value: 0 },
         ...weaveU,
@@ -588,7 +591,7 @@ export class Player {
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
         attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float', aPuffN: 'vec3' },
         uniforms: this.uniforms.jersey,
-        declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\n${weaveDecl}`,
+        declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform vec3 uCollarStripe;\nuniform float uCollarStripes;\nuniform float uSmoothRough;\n${weaveDecl}`,
         // Pushed out along its skinned, seam-averaged normal (uPuff is JERSEY_PUFF in the
         // mesh's units), so it rides over the body instead of through it.
         vertexDeclare: 'uniform float uPuff;',
@@ -598,6 +601,10 @@ export class Player {
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
+          // Gold, a black gap and gold again, in from the V's edge (Halloween, from Doc's photos).
+          float stripes = (1.0 - smoothstep(0.004 - cfw, 0.004 + cfw, vaNeck))
+            + smoothstep(0.0065 - cfw, 0.0065 + cfw, vaNeck) * (1.0 - smoothstep(0.0105 - cfw, 0.0105 + cfw, vaNeck));
+          diffuseColor.rgb = mix(diffuseColor.rgb, uCollarStripe, stripes * uCollarStripes * step(vaArt.z, 0.5)); // the V only
           vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
           // Shoulder numbers: flat decals, aTv = (across, down, side 1 or 2).
           if (vaTv.z > 0.5 && all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
@@ -1292,10 +1299,10 @@ export class Player {
     }
   }
 
-  // A crew collar for jerseys whose real neckline is round (style.crew): a
-  // band of fabric lofted from the jersey's V-neckline up to a ring hugging
-  // the base of the neck, kept just off the skin, so the V fills in and the
-  // collar closes around the neck. Rides on the upper spine.
+  // A mock neck worn under jerseys that set style.crew: a band of fabric
+  // lofted from just inside the jersey's V-neckline up to a ring hugging the
+  // base of the neck, kept just off the skin, so the V shows the undershirt
+  // instead of the throat. Rides on the upper spine.
   buildCollar() {
     const V = this.neckline;
     const skin = this.parts.skin;
@@ -1316,13 +1323,18 @@ export class Player {
         const d = Math.abs(Math.atan2(Math.sin(ang(p) - a), Math.cos(ang(p) - a)));
         if (d < bestD) { bestD = d; best = p; }
       }
-      // A touch past the puffed jersey, so the collar laps over its edge.
-      const r = Math.hypot(best.x - neck.x, best.z - neck.z) + JERSEY_PUFF + 0.005;
+      // In front, just inside the puffed jersey, so the V's edge and its trim
+      // lap over it; behind, just outside, covering the creased nape edge.
+      const r = Math.hypot(best.x - neck.x, best.z - neck.z) + JERSEY_PUFF + (Math.cos(a) > 0 ? -0.002 : 0.005);
       bottom.push({ y: best.y, r });
     }
-    // Smooth the radius around the neck (the edge points are uneven).
+    // The edge points are uneven: in front keep the bottom inside the
+    // smallest of its neighbors, behind outside the largest.
     const rs = bottom.map((b) => b.r);
-    for (let k = 0; k < N; k++) bottom[k].r = Math.max(rs[k], (rs[(k + N - 2) % N] + rs[(k + N - 1) % N] + rs[k] + rs[(k + 1) % N] + rs[(k + 2) % N]) / 5);
+    for (let k = 0; k < N; k++) {
+      const near = [rs[(k + N - 1) % N], rs[k], rs[(k + 1) % N]];
+      bottom[k].r = Math.cos((k / N) * Math.PI * 2) > 0 ? Math.min(...near) : Math.max(...near);
+    }
     const topY = Math.max(...bottom.map((b) => b.y)) + 0.012;
     const lowY = Math.min(...bottom.map((b) => b.y));
 
@@ -1770,6 +1782,8 @@ export class Player {
     m.jersey.sheenColor.copy(sheen(j.base));
     u.jersey.uBase.value.set(j.base);
     u.jersey.uCollar.value.set(j.trim);
+    u.jersey.uCollarStripes.value = look.jersey.style.collarStripe ? 1 : 0;
+    if (look.jersey.style.collarStripe) u.jersey.uCollarStripe.value.set(look.jersey.style.collarStripe);
     if (this.collar) {
       this.collar.visible = Boolean(look.jersey.style.crew);
       this.collar.material.color.set(j.trim);
