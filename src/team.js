@@ -122,8 +122,8 @@ export const JERSEY_NUMBERS = {
   'jersey-white-20': { font: 'jersey', tv: TV_2020 },
   'jersey-black-20': { font: 'jersey', tv: TV_2020 },
   'jersey-whitealt-20': { font: 'jersey', tv: TV_CUFF },
-  // Doc's photos (2026-10-26): gold / black / gold trim along the V-neck,
-  // worn over a black mock neck that covers the throat.
+  // Doc's photos (2026-10-26): three gold stripes down from each shoulder
+  // beside the neck, a ribbed collar band, and a black mock neck to the chin.
   'jersey-halloween': { font: 'block', tv: TV_BLOCK, crew: true, collarStripe: '#D8C77E' },
   'jersey-ironwings': { font: 'jersey', shadow: true },
   'jersey-redgold': { font: 'jersey', tv: TV_2026 },

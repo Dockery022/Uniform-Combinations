@@ -555,7 +555,7 @@ export class Player {
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.008 },
-        // Two-stripe collar trim along the neckline (uCollarStripes 1 turns it on).
+        // Gold shoulder stripes beside the neck opening (uCollarStripes 1 turns them on).
         uCollarStripe: { value: new THREE.Color() },
         uCollarStripes: { value: 0 },
         uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
@@ -601,10 +601,16 @@ export class Player {
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
-          // Gold, a black gap and gold again, in from the V's edge (Halloween, from Doc's photos).
-          float stripes = (1.0 - smoothstep(0.004 - cfw, 0.004 + cfw, vaNeck))
-            + smoothstep(0.0065 - cfw, 0.0065 + cfw, vaNeck) * (1.0 - smoothstep(0.0105 - cfw, 0.0105 + cfw, vaNeck));
-          diffuseColor.rgb = mix(diffuseColor.rgb, uCollarStripe, stripes * uCollarStripes * step(vaArt.z, 0.5)); // the V only
+          // Three gold stripes running down from the top of each shoulder
+          // beside the neck opening, fading out before the chest (Halloween,
+          // from Doc's photos).
+          float stripes = 0.0;
+          for (int s = 0; s < 3; s++) {
+            float lo = 0.006 + float(s) * 0.0065;
+            stripes += smoothstep(lo - cfw, lo + cfw, vaNeck) * (1.0 - smoothstep(lo + 0.004 - cfw, lo + 0.004 + cfw, vaNeck));
+          }
+          stripes *= 1.0 - smoothstep(0.11, 0.15, vaArt.y);
+          diffuseColor.rgb = mix(diffuseColor.rgb, uCollarStripe, stripes * uCollarStripes * step(vaArt.z, 0.5)); // front only
           vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
           // Shoulder numbers: flat decals, aTv = (across, down, side 1 or 2).
           if (vaTv.z > 0.5 && all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
@@ -1299,17 +1305,18 @@ export class Player {
     }
   }
 
-  // A mock neck worn under jerseys that set style.crew: a band of fabric
-  // lofted from just inside the jersey's V-neckline up to a ring hugging the
-  // base of the neck, kept just off the skin, so the V shows the undershirt
-  // instead of the throat. Rides on the upper spine.
+  // For jerseys that set style.crew: a ribbed black mock neck lofted from
+  // just inside the jersey's V-neckline up to just under the chin, kept off
+  // the skin, so the V shows the undershirt instead of the throat; and a
+  // raised ribbed band rolled along the jersey's neckline. Both ride on the
+  // upper spine.
   buildCollar() {
     const V = this.neckline;
     const skin = this.parts.skin;
     if (!V?.edge.length || !skin) return;
     const { neck } = V;
-    const N = 72; // around the neck
-    const M = 14; // up from the neckline
+    const N = 240; // around the neck
+    const M = 24; // up from the neckline
     const ang = (p) => Math.atan2(p.x - neck.x, p.z - neck.z); // 0 at the front
     const bin = (a) => ((Math.round(((a / (Math.PI * 2)) * N)) % N) + N) % N;
 
@@ -1326,16 +1333,29 @@ export class Player {
       // In front, just inside the puffed jersey, so the V's edge and its trim
       // lap over it; behind, just outside, covering the creased nape edge.
       const r = Math.hypot(best.x - neck.x, best.z - neck.z) + JERSEY_PUFF + (Math.cos(a) > 0 ? -0.002 : 0.005);
-      bottom.push({ y: best.y, r });
+      bottom.push({ y: best.y, r, edge: Math.hypot(best.x - neck.x, best.z - neck.z) + JERSEY_PUFF });
     }
     // The edge points are uneven: in front keep the bottom inside the
-    // smallest of its neighbors, behind outside the largest.
+    // smallest of its neighbors, behind outside the largest, at their
+    // average height.
     const rs = bottom.map((b) => b.r);
+    const ys = bottom.map((b) => b.y);
     for (let k = 0; k < N; k++) {
-      const near = [rs[(k + N - 1) % N], rs[k], rs[(k + 1) % N]];
-      bottom[k].r = Math.cos((k / N) * Math.PI * 2) > 0 ? Math.min(...near) : Math.max(...near);
+      const near = [-3, -2, -1, 0, 1, 2, 3].map((d) => rs[(k + d + N) % N]);
+      const close = near.slice(2, 5);
+      if (Math.cos((k / N) * Math.PI * 2) > 0) {
+        bottom[k].r = Math.min(...near);
+      } else {
+        // Behind, average the height too: nearest edge points jump up and down.
+        let y = 0;
+        for (let d = -6; d <= 6; d++) y += ys[(k + d + N) % N];
+        bottom[k].r = Math.max(...close);
+        bottom[k].y = y / 13;
+      }
     }
-    const topY = Math.max(...bottom.map((b) => b.y)) + 0.012;
+    // The neck's base, and the top of the mock neck just under the chin.
+    const baseY = Math.max(...bottom.map((b) => b.y)) + 0.012;
+    const topY = Math.max(baseY, this.bones.Head.getWorldPosition(new THREE.Vector3()).y - 0.035);
     const lowY = Math.min(...bottom.map((b) => b.y));
 
     // The skin's radius around the neck, by angle and height.
@@ -1375,6 +1395,7 @@ export class Player {
       }
     }
 
+    const baseRow = Math.min(rows - 1, Math.max(0, rowOf(baseY)));
     const pos = new Float32Array(N * (M + 1) * 3);
     for (let k = 0; k < N; k++) {
       const a = (k / N) * Math.PI * 2;
@@ -1383,10 +1404,15 @@ export class Player {
         const t = m / M;
         const y = b.y + (topY - b.y) * t;
         const row = Math.min(rows - 1, Math.max(0, rowOf(y)));
-        const clear = (skinR[row][k] || 0) + 0.006;
-        // The top few rows roll out a little, like a ribbed collar band.
-        const lip = m >= M - 2 ? 0.002 : 0;
-        const r = Math.max(b.r + (clear - b.r) * t, clear) + lip;
+        // Above the neck's base the neck is close to a cylinder; hold the
+        // radius there so the jaw's underside doesn't flare the top out.
+        const clear = (skinR[y > baseY ? baseRow : row][k] || 0) + 0.006;
+        const rib = 0.0005 * Math.cos(a * 90) * t; // ribbed knit, fading into the V
+        const lip = m >= M - 1 ? 0.0015 : 0; // folded top edge
+        // In front it closes in on the neck quickly; behind, where the jersey's
+        // edge is creased, it eases in over the whole height.
+        const u = Math.cos(a) > 0 ? Math.min(1, t * 2.5) : t;
+        const r = Math.max(b.r + (clear - b.r) * u, clear) + rib + lip;
         const i = (k * (M + 1) + m) * 3;
         pos[i] = neck.x + Math.sin(a) * r;
         pos[i + 1] = y;
@@ -1407,12 +1433,70 @@ export class Player {
     geo.setIndex(index);
     geo.applyMatrix4(this.root.matrixWorld.clone().invert());
     geo.computeVertexNormals();
-    this.collar = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ name: 'collar', roughness: 0.9, sheen: 0.5, sheenRoughness: 0.5, side: THREE.DoubleSide }));
-    this.collar.castShadow = true;
+    const mat = new THREE.MeshPhysicalMaterial({ name: 'collar', roughness: 0.9, sheen: 0.5, sheenRoughness: 0.5, side: THREE.DoubleSide });
+    this.collar = new THREE.Group();
+    this.collar.add(new THREE.Mesh(geo, mat), new THREE.Mesh(this.collarBand(bottom, neck), mat));
+    this.collar.traverse((o) => { o.castShadow = true; });
     this.collar.visible = false;
+    this.collarMat = mat;
     this.root.add(this.collar);
     this.root.updateMatrixWorld(true);
     (this.bones.Spine2 ?? this.bones.Neck).attach(this.collar);
+  }
+
+  // A rolled, ribbed band along the jersey's neckline: a thin tube on the
+  // edge (one point per angle in `bottom`), its radius rippled along its
+  // length like rib knit.
+  collarBand(bottom, neck) {
+    const N = bottom.length;
+    const J = 10; // around the tube
+    const R = 0.0035;
+    // The edge is ragged (most of all at the nape): smooth it along its length.
+    const avg = (f, k) => {
+      let sum = 0;
+      for (let d = -6; d <= 6; d++) sum += f(bottom[(k + d + N) % N]);
+      return sum / 13;
+    };
+    const path = bottom.map((b, k) => {
+      const a = (k / N) * Math.PI * 2;
+      const r = Math.max(b.edge, avg((o) => o.edge, k)) + 0.001;
+      return new THREE.Vector3(neck.x + Math.sin(a) * r, avg((o) => o.y, k) + 0.001, neck.z + Math.cos(a) * r);
+    });
+    let s = 0;
+    const pos = new Float32Array(N * J * 3);
+    const t = new THREE.Vector3();
+    const out = new THREE.Vector3();
+    const side = new THREE.Vector3();
+    for (let k = 0; k < N; k++) {
+      const p = path[k];
+      if (k) s += p.distanceTo(path[k - 1]);
+      t.subVectors(path[(k + 1) % N], path[(k + N - 1) % N]).normalize();
+      out.set(p.x - neck.x, 0, p.z - neck.z).normalize();
+      side.crossVectors(t, out).normalize();
+      out.crossVectors(side, t).normalize();
+      const r = R + 0.0005 * Math.cos((s / 0.004) * Math.PI * 2);
+      for (let j = 0; j < J; j++) {
+        const th = (j / J) * Math.PI * 2;
+        const i = (k * J + j) * 3;
+        pos[i] = p.x + (out.x * Math.cos(th) + side.x * Math.sin(th)) * r;
+        pos[i + 1] = p.y + (out.y * Math.cos(th) + side.y * Math.sin(th)) * r;
+        pos[i + 2] = p.z + (out.z * Math.cos(th) + side.z * Math.sin(th)) * r;
+      }
+    }
+    const index = [];
+    for (let k = 0; k < N; k++) {
+      const k2 = (k + 1) % N;
+      for (let j = 0; j < J; j++) {
+        const j2 = (j + 1) % J;
+        index.push(k * J + j, k2 * J + j, k * J + j2, k2 * J + j, k2 * J + j2, k * J + j2);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setIndex(index);
+    geo.applyMatrix4(this.root.matrixWorld.clone().invert());
+    geo.computeVertexNormals();
+    return geo;
   }
 
   // Art coordinates (u, v, back?) for each jersey vertex. The torso is a
@@ -1786,8 +1870,8 @@ export class Player {
     if (look.jersey.style.collarStripe) u.jersey.uCollarStripe.value.set(look.jersey.style.collarStripe);
     if (this.collar) {
       this.collar.visible = Boolean(look.jersey.style.crew);
-      this.collar.material.color.set(j.trim);
-      this.collar.material.sheenColor.copy(sheen(j.trim));
+      this.collarMat.color.set(j.trim);
+      this.collarMat.sheenColor.copy(sheen(j.trim));
     }
 
     m.pants.color.set(p.base);
