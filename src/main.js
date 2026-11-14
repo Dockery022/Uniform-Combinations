@@ -498,6 +498,11 @@ function setMode(next) {
 document.getElementById('mode-3d').addEventListener('click', () => setMode('3d'));
 document.getElementById('mode-graphic').addEventListener('click', () => setMode('graphic'));
 
+// A page that embeds the builder (the 1912 Society app's Arcade) can set
+// window.comboHost before main.js loads: save({ filename, blob }) saves the
+// graphic its own way and returns 'saved', 'shared', 'cancelled' or 'failed';
+// linkFor(hash) returns the address a copied link should open.
+const host = window.comboHost ?? null;
 // On the published page the browser blocks plain downloads; the page's
 // downloads capability asks the viewer to save the file instead. Elsewhere
 // (local or embedded) a normal link download does it.
@@ -507,6 +512,13 @@ document.getElementById('download').addEventListener('click', async () => {
   const blob = await new Promise((done) => graphic.toBlob(done, 'image/png'));
   if (!blob) return toast('The graphic could not be saved here.');
   const filename = `combo-${s2slug(state.opponent)}.png`;
+  if (host?.save) {
+    let status = 'failed';
+    try { status = await host.save({ filename, blob }); } catch { /* reported below */ }
+    if (status === 'saved') toast('Graphic downloaded');
+    else if (status === 'failed') toast('The graphic could not be saved here.');
+    return;
+  }
   const downloads = await saves;
   if (downloads) {
     try {
@@ -527,7 +539,8 @@ document.getElementById('download').addEventListener('click', async () => {
 });
 // The page address carries the combo, so copying it shares the combo.
 document.getElementById('copy-link').addEventListener('click', async () => {
-  const link = `${location.origin}${location.pathname}#${encodeState(state)}`;
+  const hash = encodeState(state);
+  const link = host?.linkFor ? host.linkFor(hash) : `${location.origin}${location.pathname}#${hash}`;
   try {
     await navigator.clipboard.writeText(link);
     toast('Link copied');
