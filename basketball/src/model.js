@@ -13,6 +13,7 @@ import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { SKIN_TONES, BRAND } from './team.js';
 import { art as url } from './combo.js';
 import * as paint from './textures.js';
+import * as bb from './basketball.js';
 import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
 const PLAYER_HEIGHT = 1.88; // rest-pose height of the body in meters, without helmet
@@ -79,7 +80,7 @@ const SHOE_ART = { heel: 0.012, toe: 0.997, top: 0.03, bottom: 0.95 };
 // Pants art (1084 x 1994): the hip logos, cut into a 1084 x 600 strip.
 // The visor's shape in helmet units (see addHelmet).
 const VISOR = { halfWidth: 0.5, top: 0.07, topDrop: 0.07, bottom: -0.31, bottomRise: 0.12, front: 0.645, wrap: 0.9, bulge: 0.015, tilt: 0.03 };
-const PANTS_ART = { width: 1084, height: 600, centerX: 542, waistY: 5, waistWidth: 666 };
+const PANTS_ART = { width: 1084, height: 1100, centerX: 542, waistY: 5, waistWidth: 666 };
 
 // Doc's fabric kit (jersey-material/): dimple mesh on the jersey body and the
 // pants, smooth fabric on the jersey's yoke and sleeves and on the socks. The
@@ -107,6 +108,13 @@ const WEAVE_GLSL = /* glsl */ `
   normal = normalize(normal + tbn * vec3(weaveN.xy * uWeaveStrength * weaveAmt, 0.0));
   diffuseColor.rgb *= 1.0 - uWeaveShade * weaveAmt * (1.0 - clamp(weaveN.z, 0.0, 1.0));
 `;
+// Basketball cut, in meters: where the shorts' hem sits above the knee
+// joint and where the crew socks' tops sit above the ankle joint.
+// The tank: its upper torso sits `clear` off the skin, fading back to the
+// jersey's own loose shape over `shrinkFade` below the armpits; the armholes
+// bottom out `armholeDrop` below the armpits and leave a strap reaching
+// `strapOuter` out from the neck's center.
+const BASKETBALL = { shortsAboveKnee: 0.05, sockAboveAnkle: 0.11, clear: 0.008, shrinkFade: 0.22, armholeDrop: 0.07, strapOuter: 0.13, armBinding: 0.016, crotchDrop: 0.1, shortsEase: 0.012, shortsFlare: 0.02, tuckDepth: 0.025, waistOver: 0.008, waistband: 0.055 };
 // How far the jersey sits out from its rest shape (meters), so it clears the
 // body and pads.
 const JERSEY_PUFF = 0.006;
@@ -114,7 +122,7 @@ const JERSEY_PUFF = 0.006;
 // clearance over the pants and belt, where it starts flaring out above the
 // pants, the shoulder broadening, and the pants' fullness.
 // untucked: Doc wants the jersey tucked in (2026-10-03); true hangs it over the belt.
-const JERSEY_FIT = { untucked: false, belowBelt: 0.075, clear: 0.012, blend: 0.08, shoulders: 0.015, thigh: 0.012, knee: 0.009 };
+const JERSEY_FIT = { untucked: false, belowBelt: 0.075, clear: 0.012, blend: 0.08, shoulders: 0, thigh: 0, knee: 0 };
 // Skin within this distance under the jersey or pants is never drawn.
 const COVER_DEPTH = 0.08;
 const COVER_SIDE = 0.02;
@@ -149,6 +157,61 @@ const BANDS_GLSL = /* glsl */ `
     return col;
   }
 `;
+
+// Basketball trim: stacks of up to five bands in from an edge (neckline,
+// armholes, waistband, hem), and the side design: a panel centered on the
+// side seam with piping on its edges and thin pinstripes inside.
+const EDGE_GLSL = /* glsl */ `
+  vec3 edgeBands(vec3 c, float d, vec3 cols[5], float edges[5], int n) {
+    float fw = max(fwidth(d), 1e-4);
+    for (int i = 0; i < 5; i++) {
+      if (i >= n) break;
+      float lo = i == 0 ? -1.0 : edges[i - 1];
+      float hi = edges[i];
+      c = mix(c, cols[i], smoothstep(lo - fw, lo + fw, d) * (1.0 - smoothstep(hi - fw, hi + fw, d)));
+    }
+    return c;
+  }
+  vec3 sideDesign(vec3 c, float d, vec4 panel, vec4 pipe, vec4 pins, vec4 dims) {
+    float ad = abs(d);
+    float fw = max(fwidth(d), 1e-4);
+    float inside = 1.0 - smoothstep(dims.x - fw, dims.x + fw, ad);
+    c = mix(c, panel.rgb, panel.a * inside);
+    if (pins.a > 0.0) {
+      float m = abs(fract(ad / dims.w) - 0.5) * dims.w;
+      c = mix(c, pins.rgb, pins.a * inside * (1.0 - smoothstep(dims.z * 0.5 - fw, dims.z * 0.5 + fw, m)));
+    }
+    c = mix(c, pipe.rgb, pipe.a * inside * smoothstep(dims.x - dims.y - fw, dims.x - dims.y + fw, ad));
+    return c;
+  }
+`;
+const edgeU = (name) => ({
+  [`u${name}C`]: { value: Array.from({ length: 5 }, () => new THREE.Color()) },
+  [`u${name}W`]: { value: [0, 0, 0, 0, 0] },
+  [`u${name}N`]: { value: 0 },
+});
+const edgeDecl = (name) => `uniform vec3 u${name}C[5];\nuniform float u${name}W[5];\nuniform int u${name}N;`;
+function setEdge(u, name, bands = []) {
+  let at = 0;
+  bands.slice(0, 5).forEach(([color, w], i) => {
+    at += w;
+    u[`u${name}C`].value[i].set(color);
+    u[`u${name}W`].value[i] = at;
+  });
+  u[`u${name}N`].value = Math.min(5, bands.length);
+}
+const sideU = () => ({
+  uSidePanel: { value: new THREE.Vector4() }, uSidePipe: { value: new THREE.Vector4() },
+  uSidePins: { value: new THREE.Vector4() }, uSideDims: { value: new THREE.Vector4(0, 0, 0, 1) },
+});
+const SIDE_DECL = 'uniform vec4 uSidePanel;\nuniform vec4 uSidePipe;\nuniform vec4 uSidePins;\nuniform vec4 uSideDims;';
+function setSide(u, side) {
+  const c = (hex) => (hex ? [...new THREE.Color(hex).toArray(), 1] : [0, 0, 0, 0]);
+  u.uSidePanel.value.set(...c(side?.panel));
+  u.uSidePipe.value.set(...c(side?.pipe));
+  u.uSidePins.value.set(...c(side?.pins));
+  u.uSideDims.value.set(side?.half ?? 0, side?.pipeW ?? 0, side?.pinW ?? 0, side?.pinGap ?? 1);
+}
 
 function bandUniforms() {
   return {
@@ -302,6 +365,40 @@ function innerVertices(mesh, world, rings) {
   return Uint8Array.from(id, (w) => 1 - near[w]);
 }
 
+// Keeps only the triangles `keep(a, b, c)` accepts (vertex indices) and drops
+// the vertices nothing uses any more, so later passes see a clean mesh with
+// open edges where the cut was.
+function keepTriangles(mesh, keep) {
+  const geo = mesh.geometry;
+  const index = geo.index;
+  const tris = [];
+  for (let t = 0; t < index.count; t += 3) {
+    const a = index.getX(t);
+    const b = index.getX(t + 1);
+    const c = index.getX(t + 2);
+    if (keep(a, b, c)) tris.push(a, b, c);
+  }
+  const remap = new Map();
+  for (const i of tris) if (!remap.has(i)) remap.set(i, remap.size);
+  const out = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(geo.attributes)) {
+    // Raw stored values (getComponent would denormalize quantized ones).
+    const n = attr.itemSize;
+    const src = attr.isInterleavedBufferAttribute ? attr.data.array : attr.array;
+    const stride = attr.isInterleavedBufferAttribute ? attr.data.stride : n;
+    const offset = attr.isInterleavedBufferAttribute ? attr.offset : 0;
+    const data = new src.constructor(remap.size * n);
+    for (const [from, to] of remap) for (let k = 0; k < n; k++) data[to * n + k] = src[from * stride + offset + k];
+    out.setAttribute(name, new THREE.BufferAttribute(data, n, attr.normalized));
+  }
+  const idx = tris.map((i) => remap.get(i));
+  out.setIndex(remap.size > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
+  out.computeBoundingBox();
+  out.computeBoundingSphere();
+  geo.dispose();
+  mesh.geometry = out;
+}
+
 function worldPositions(mesh) {
   const pos = mesh.geometry.attributes.position;
   const out = new Float32Array(pos.count * 3);
@@ -398,6 +495,68 @@ function boundaryPoints(mesh, world) {
   return [...set].map((i) => new THREE.Vector3(world[i * 3], world[i * 3 + 1], world[i * 3 + 2]));
 }
 
+// Indices of every vertex on an open edge (welded by position).
+// Drop every scrap of a mesh that isn't joined to its biggest piece
+// (vertices welded by position, so UV seams don't split it).
+function keepLargestPiece(mesh, world) {
+  const index = mesh.geometry.index;
+  const n = world.length / 3;
+  const key = (i) => `${Math.round(world[i * 3] * 2000)},${Math.round(world[i * 3 + 1] * 2000)},${Math.round(world[i * 3 + 2] * 2000)}`;
+  const weld = new Map();
+  const parent = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const k = key(i);
+    if (!weld.has(k)) weld.set(k, i);
+    parent[i] = weld.get(k);
+  }
+  const find = (i) => {
+    while (parent[i] !== i) i = parent[i] = parent[parent[i]];
+    return i;
+  };
+  for (let t = 0; t < index.count; t += 3) {
+    const a = find(index.getX(t));
+    for (let e = 1; e < 3; e++) {
+      const b = find(index.getX(t + e));
+      if (a !== b) parent[b] = a;
+    }
+  }
+  const size = new Map();
+  for (let t = 0; t < index.count; t += 3) {
+    const r = find(index.getX(t));
+    size.set(r, (size.get(r) ?? 0) + 1);
+  }
+  let best = -1;
+  let bestN = 0;
+  for (const [r, c] of size) if (c > bestN) { best = r; bestN = c; }
+  keepTriangles(mesh, (a) => find(a) === best);
+}
+
+function boundaryIndices(mesh, world) {
+  const index = mesh.geometry.index;
+  const key = (i) => `${Math.round(world[i * 3] * 2000)},${Math.round(world[i * 3 + 1] * 2000)},${Math.round(world[i * 3 + 2] * 2000)}`;
+  const weld = new Map();
+  const id = new Int32Array(world.length / 3);
+  for (let i = 0; i < id.length; i++) {
+    const k = key(i);
+    if (!weld.has(k)) weld.set(k, i);
+    id[i] = weld.get(k);
+  }
+  const edges = new Map();
+  for (let t = 0; t < index.count; t += 3) {
+    for (let e = 0; e < 3; e++) {
+      const a = id[index.getX(t + e)];
+      const b = id[index.getX(t + ((e + 1) % 3))];
+      const k = a < b ? `${a}_${b}` : `${b}_${a}`;
+      edges.set(k, (edges.get(k) ?? 0) + 1);
+    }
+  }
+  const open = new Set();
+  for (const [k, n] of edges) if (n === 1) for (const v of k.split('_')) open.add(+v);
+  const out = [];
+  for (let i = 0; i < id.length; i++) if (open.has(id[i])) out.push(i);
+  return out;
+}
+
 // Meters of cloth per unit of U and of V, from the triangle edges that run
 // mostly along one UV axis (medians, so seams and stretched spots don't skew it).
 function uvScale(mesh, world) {
@@ -467,7 +626,9 @@ export class Player {
     this.buildMaterials();
     this.measure();
     this.attachHelmet(assets.helmet.scene);
+    this.helmet.visible = false; // basketball: no helmet
     this.addProps();
+    this.towel.visible = false;
     this.captureRest();
     this.buildActions(assets.player.animations[0]);
   }
@@ -546,7 +707,7 @@ export class Player {
     const weaveDecl = 'uniform sampler2D uWeave;\nuniform float uWeaveRepeat;\nuniform float uWeaveStrength;\nuniform float uWeaveShade;';
     const pantsU = bandUniforms();
     this.uniforms = {
-      pants: { ...pantsU, ...weaveU, uLogos: { value: this.textures.logos }, uBandEnd: { value: 1 }, uBandSweep: { value: 0 }, uBandCut: { value: -1.2 } },
+      pants: { ...pantsU, ...weaveU, uLogos: { value: this.textures.logos }, uBandEnd: { value: 1 }, uBandSweep: { value: 0 }, uBandCut: { value: -1.2 }, ...edgeU('Waist'), ...edgeU('Hem'), ...sideU() },
       jersey: {
         uArtFront: { value: this.textures.front },
         uArtBack: { value: this.textures.back },
@@ -555,6 +716,7 @@ export class Player {
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.008 },
+        ...edgeU('Neck'), ...edgeU('Arm'), ...sideU(),
         uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
         uPuff: { value: 0 },
         ...weaveU,
@@ -586,9 +748,9 @@ export class Player {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves;
       // the mesh's relief, roughness and hole shading all fade with it.
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
-        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float', aPuffN: 'vec3' },
+        attrs: { aArt: 'vec3', aNeck: 'float', aArm: 'float', aSide: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float', aPuffN: 'vec3' },
         uniforms: this.uniforms.jersey,
-        declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\n${weaveDecl}`,
+        declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\n${weaveDecl}\n${edgeDecl('Neck')}\n${edgeDecl('Arm')}\n${SIDE_DECL}\n${EDGE_GLSL}`,
         // Pushed out along its skinned, seam-averaged normal (uPuff is JERSEY_PUFF in the
         // mesh's units), so it rides over the body instead of through it.
         vertexDeclare: 'uniform float uPuff;',
@@ -596,8 +758,9 @@ export class Player {
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
-          float cfw = max(fwidth(vaNeck), 1e-4);
-          diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
+          diffuseColor.rgb = sideDesign(diffuseColor.rgb, vaSide, uSidePanel, uSidePipe, uSidePins, uSideDims);
+          diffuseColor.rgb = edgeBands(diffuseColor.rgb, vaNeck, uNeckC, uNeckW, uNeckN);
+          diffuseColor.rgb = edgeBands(diffuseColor.rgb, vaArm, uArmC, uArmW, uArmN);
           vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
           // Shoulder numbers: flat decals, aTv = (across, down, side 1 or 2).
           if (vaTv.z > 0.5 && all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
@@ -617,19 +780,18 @@ export class Player {
         },
       }),
       pants: extend(applyMeshFabricInPlace(fabric({ name: 'pants' }), this.fabricMaps.pants, MESH_FABRIC.mesh), {
-        attrs: { aSeam: 'float', aLogo: 'vec3', aDown: 'float' },
+        attrs: { aSeam: 'float', aLogo: 'vec3', aDown: 'float', aTop: 'float', aHem: 'float' },
         uniforms: this.uniforms.pants,
-        declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;\nuniform float uBandSweep;\nuniform float uBandCut;\n${weaveDecl}`,
+        declare: `${BANDS_GLSL}\nuniform sampler2D uLogos;\nuniform float uBandEnd;\nuniform float uBandSweep;\nuniform float uBandCut;\n${weaveDecl}\n${edgeDecl('Waist')}\n${edgeDecl('Hem')}\n${SIDE_DECL}\n${EDGE_GLSL}`,
         after: { normal_fragment_maps: `float weaveAmt = 1.0;\n${WEAVE_GLSL}` },
         // Side stripes run the full outside seam, waistband to hem; with
         // uBandEnd < 1 they stop partway down, cut at an angle (uBandCut per
         // meter toward the front). uBandSweep moves them that far toward the
         // front of the thigh by the time they stop.
         fragment: /* glsl */ `
-          float bandD = vaSeam - uBandSweep * min(1.0, vaDown / max(uBandEnd, 0.01));
-          float bandEnd = uBandEnd >= 1.0 ? 2.0 : uBandEnd + bandD * uBandCut;
-          float bfw = max(fwidth(vaDown), 1e-4);
-          diffuseColor.rgb = mix(diffuseColor.rgb, applyBands(diffuseColor.rgb, bandD), 1.0 - smoothstep(bandEnd - bfw, bandEnd + bfw, vaDown));
+          diffuseColor.rgb = sideDesign(diffuseColor.rgb, vaSeam, uSidePanel, uSidePipe, uSidePins, uSideDims);
+          diffuseColor.rgb = edgeBands(diffuseColor.rgb, vaTop, uWaistC, uWaistW, uWaistN);
+          diffuseColor.rgb = edgeBands(diffuseColor.rgb, vaHem, uHemC, uHemW, uHemN);
           if (vaLogo.z > 0.5 && vaLogo.x > 0.0 && vaLogo.x < 1.0 && vaLogo.y > 0.0 && vaLogo.y < 1.0) {
             vec4 logo = texture2D(uLogos, vaLogo.xy);
             diffuseColor.rgb = mix(diffuseColor.rgb, logo.rgb, logo.a);
@@ -824,6 +986,372 @@ export class Player {
     }
     moveRest(socks, moved);
     skin.geometry.setAttribute('aSock', new THREE.BufferAttribute(aSock, 1));
+  }
+
+  // Cuts the football kit down to basketball: the jersey loses its sleeves
+  // (a tank), the pants stop above the knee (shorts), the socks stop above
+  // the ankle (crews), and the belt goes.
+  toBasketball() {
+    const bone = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
+    const B = BASKETBALL;
+    const { jersey, pants, socks, belt, buckle } = this.parts;
+    if (jersey) {
+      const uv = jersey.geometry.attributes.uv;
+      let w = worldPositions(jersey);
+      this.sleeveArmpit = Infinity;
+      for (let i = 0; i < w.length / 3; i++) if (uv.getX(i) < 0.44) this.sleeveArmpit = Math.min(this.sleeveArmpit, w[i * 3 + 1]);
+      keepTriangles(jersey, (a, b, c) => uv.getX(a) >= 0.44 && uv.getX(b) >= 0.44 && uv.getX(c) >= 0.44);
+      this.shrinkJersey();
+      // Armholes: above the armhole's bottom the jersey narrows to a strap
+      // over each shoulder, in a deep U.
+      w = worldPositions(jersey);
+      const neck = bone('Neck');
+      const bottom = this.sleeveArmpit - B.armholeDrop;
+      let topY = -Infinity;
+      for (let i = 1; i < w.length; i += 3) topY = Math.max(topY, w[i]);
+      let sideX = 0;
+      for (let i = 0; i < w.length / 3; i++) if (Math.abs(w[i * 3 + 1] - bottom) < 0.01) sideX = Math.max(sideX, Math.abs(w[i * 3] - neck.x));
+      const maxX = (y) => {
+        const t = THREE.MathUtils.clamp((y - bottom) / (topY - 0.03 - bottom), 0, 1);
+        return B.strapOuter + (sideX + 0.02 - B.strapOuter) * (1 - Math.sqrt(t)) ** 2;
+      };
+      const inside = (i) => Math.abs(w[i * 3] - neck.x) <= maxX(w[i * 3 + 1]);
+      keepTriangles(jersey, (a, b, c) => inside(a) && inside(b) && inside(c));
+      // The cut follows the triangles, so its edge is ragged: slide each
+      // armhole edge vertex onto the curve (nearest point, across and up).
+      w = worldPositions(jersey);
+      const curve = [];
+      for (let k = 0; k <= 300; k++) {
+        const y = bottom - 0.04 + ((topY - bottom + 0.04) * k) / 300;
+        curve.push([maxX(Math.max(y, bottom)), y]);
+      }
+      this.armhole = { bottom, neckX: neck.x, edgeX: B.strapOuter - 0.025 };
+      const moved = new Map();
+      for (const i of boundaryIndices(jersey, w)) {
+        const ax = Math.abs(w[i * 3] - neck.x);
+        const y = w[i * 3 + 1];
+        if (ax < this.armhole.edgeX || y < bottom - 0.04) continue;
+        let best = null;
+        let bd = Infinity;
+        for (const c of curve) {
+          const d = (c[0] - ax) ** 2 + (c[1] - y) ** 2;
+          if (d < bd) { bd = d; best = c; }
+        }
+        if (bd > 0.03 ** 2) continue;
+        const sx = Math.sign(w[i * 3] - neck.x);
+        moved.set(i, new THREE.Vector3(neck.x + sx * best[0], best[1], w[i * 3 + 2]));
+      }
+      moveRest(jersey, moved);
+    }
+    if (pants) {
+      const w = worldPositions(pants);
+      const cut = Math.max(bone('LeftLeg').y, bone('RightLeg').y) + B.shortsAboveKnee;
+      keepTriangles(pants, (a, b, c) => Math.min(w[a * 3 + 1], w[b * 3 + 1], w[c * 3 + 1]) > cut);
+      // Level hem: the cut's ragged edge drops onto one line.
+      const pw = worldPositions(pants);
+      const moved = new Map();
+      for (const i of boundaryIndices(pants, pw)) {
+        if (pw[i * 3 + 1] > cut + 0.06) continue;
+        moved.set(i, new THREE.Vector3(pw[i * 3], cut + 0.005, pw[i * 3 + 2]));
+      }
+      moveRest(pants, moved);
+      this.loosenShorts(cut);
+    }
+    if (socks) {
+      // The body has no shins under the football socks, so the sock above
+      // the crew line becomes the shin (drawn in skin, see buildMaterials).
+      const w = worldPositions(socks);
+      const cut = Math.max(bone('LeftFoot').y, bone('RightFoot').y) + B.sockAboveAnkle;
+      const top = (a, b, c) => Math.max(w[a * 3 + 1], w[b * 3 + 1], w[c * 3 + 1]);
+      const shin = socks.clone();
+      shin.geometry = socks.geometry.clone();
+      keepTriangles(shin, (a, b, c) => top(a, b, c) >= cut);
+      keepTriangles(socks, (a, b, c) => top(a, b, c) < cut);
+      socks.parent.add(shin);
+      shin.bind(socks.skeleton, socks.bindMatrix);
+      this.shin = shin;
+    }
+    for (const m of [belt, buckle]) if (m) m.visible = false;
+    if (jersey && pants) this.tuckJersey();
+  }
+
+  // With no belt over the seam, the tuck must be clean: the jersey stops a
+  // little inside the shorts, and around the waistband it is drawn in to sit
+  // just inside the shorts all the way round.
+  tuckJersey() {
+    const { jersey, pants } = this.parts;
+    const B = BASKETBALL;
+    const top = new THREE.Box3().setFromObject(pants, true).max.y;
+    let pw = worldPositions(pants);
+    const cx = this.bones.Hips.getWorldPosition(new THREE.Vector3()).x;
+    let cz = 0;
+    let n = 0;
+    for (let i = 0; i < pw.length / 3; i++) if (Math.abs(pw[i * 3 + 1] - top) < 0.03) { cz += pw[i * 3 + 2]; n++; }
+    cz /= n || 1;
+    const sector = (x, z) => (Math.floor(((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * 36) + 36) % 36;
+    // The waistband isn't level (it dips at the front): its top per 10° sector.
+    const T = new Float32Array(36).fill(-Infinity);
+    for (let i = 0; i < pw.length / 3; i++) {
+      const b = sector(pw[i * 3], pw[i * 3 + 2]);
+      T[b] = Math.max(T[b], pw[i * 3 + 1]);
+    }
+    const localTop = (x, z) => T[sector(x, z)];
+    // The football waistband rolls over into an inner lip, which drew the
+    // waistband stripes a second time: drop the inward-facing faces up there.
+    {
+      const nrm = pants.geometry.attributes.normal;
+      const out = (i) => nrm.getX(i) * (pw[i * 3] - cx) + nrm.getZ(i) * (pw[i * 3 + 2] - cz);
+      const high = (i) => pw[i * 3 + 1] >= localTop(pw[i * 3], pw[i * 3 + 2]) - B.waistband;
+      const inward = (i) => high(i) && out(i) < 0;
+      keepTriangles(pants, (a, b, c) => inward(a) + inward(b) + inward(c) < 2);
+      pw = worldPositions(pants);
+      keepLargestPiece(pants, pw);
+      pw = worldPositions(pants);
+      T.fill(-Infinity);
+      for (let i = 0; i < pw.length / 3; i++) {
+        const b = sector(pw[i * 3], pw[i * 3 + 2]);
+        T[b] = Math.max(T[b], pw[i * 3 + 1]);
+      }
+    }
+    // The football waistband has a channel for the belt; fill it, so the
+    // waistband is one smooth band: each sector's widest radius over it.
+    {
+      const Rmax = new Float32Array(36);
+      for (let i = 0; i < pw.length / 3; i++) {
+        if (pw[i * 3 + 1] < localTop(pw[i * 3], pw[i * 3 + 2]) - B.waistband) continue;
+        const b = sector(pw[i * 3], pw[i * 3 + 2]);
+        Rmax[b] = Math.max(Rmax[b], Math.hypot(pw[i * 3] - cx, pw[i * 3 + 2] - cz));
+      }
+      const Rm = Rmax.map((_, b) => (Rmax[b] * 2 + Rmax[(b + 1) % 36] + Rmax[(b + 35) % 36]) / 4);
+      const fill = new Map();
+      for (let i = 0; i < pw.length / 3; i++) {
+        const x = pw[i * 3];
+        const y = pw[i * 3 + 1];
+        const z = pw[i * 3 + 2];
+        const t = localTop(x, z);
+        const f = THREE.MathUtils.smoothstep(y, t - B.waistband - 0.03, t - B.waistband);
+        if (f <= 0) continue;
+        const r = Math.hypot(x - cx, z - cz) || 1e-6;
+        const nr = r + (Rm[sector(x, z)] - r) * f;
+        fill.set(i, new THREE.Vector3(cx + ((x - cx) / r) * nr, y, cz + ((z - cz) / r) * nr));
+        pw[i * 3] = cx + ((x - cx) / r) * nr;
+        pw[i * 3 + 2] = cz + ((z - cz) / r) * nr;
+      }
+      moveRest(pants, fill);
+    }
+    let jw = worldPositions(jersey);
+    const deep = (i) => jw[i * 3 + 1] < localTop(jw[i * 3], jw[i * 3 + 2]) - B.tuckDepth;
+    keepTriangles(jersey, (a, b, c) => !(deep(a) && deep(b) && deep(c)));
+    jw = worldPositions(jersey);
+    // The shorts' smallest radius per sector across the waistband.
+    const R = new Float32Array(36).fill(Infinity);
+    for (let i = 0; i < pw.length / 3; i++) {
+      const y = pw[i * 3 + 1];
+      if (y < localTop(pw[i * 3], pw[i * 3 + 2]) - 0.05) continue;
+      const b = sector(pw[i * 3], pw[i * 3 + 2]);
+      R[b] = Math.min(R[b], Math.hypot(pw[i * 3] - cx, pw[i * 3 + 2] - cz));
+    }
+    const Rs = R.map((_, b) => Math.min(R[b], R[(b + 1) % 36], R[(b + 35) % 36]));
+    this.tuck = { cx, cz, sector, localTop, R: Rs };
+    // The shorts' radius per sector and per centimetre down from the top, so
+    // the jersey can sit right against the inside of the waistband (no gap to
+    // see down into) without poking through it.
+    const NB = 7;
+    const Rp = Array.from({ length: 36 }, () => new Float32Array(NB).fill(Infinity));
+    for (let i = 0; i < pw.length / 3; i++) {
+      const x = pw[i * 3];
+      const z = pw[i * 3 + 2];
+      const k = Math.floor((localTop(x, z) - pw[i * 3 + 1]) / 0.01);
+      if (k < 0 || k >= NB) continue;
+      const b = sector(x, z);
+      Rp[b][k] = Math.min(Rp[b][k], Math.hypot(x - cx, z - cz));
+    }
+    const inner = (b, k) => {
+      let m = Infinity;
+      for (const s of [b, (b + 1) % 36, (b + 35) % 36]) for (let j = Math.max(0, k - 1); j <= Math.min(NB - 1, k + 1); j++) m = Math.min(m, Rp[s][j]);
+      return Number.isFinite(m) ? m : Rs[b];
+    };
+    const moved = new Map();
+    for (let i = 0; i < jw.length / 3; i++) {
+      const y = jw[i * 3 + 1];
+      // Fully in at the waistband's top, easing back to the jersey's own
+      // shape 6 cm above it, where it blouses over.
+      const t = localTop(jw[i * 3], jw[i * 3 + 2]);
+      const f = 1 - THREE.MathUtils.smoothstep(y, t, t + 0.06);
+      if (f <= 0) continue;
+      const dx = jw[i * 3] - cx;
+      const dz = jw[i * 3 + 2] - cz;
+      const r = Math.hypot(dx, dz) || 1e-6;
+      const k = THREE.MathUtils.clamp(Math.floor((t - y) / 0.01), 0, NB - 1);
+      const lim = inner(sector(jw[i * 3], jw[i * 3 + 2]), k) - 0.004;
+      if (!Number.isFinite(lim)) continue;
+      // Just under the rim the jersey also fills out to the waistband, so
+      // there's no gap to see down into.
+      const g = r < lim ? 1 - THREE.MathUtils.smoothstep(Math.abs(y - t), 0.015, 0.035) : f;
+      if (g <= 0) continue;
+      const nr = r + (lim - r) * g;
+      moved.set(i, new THREE.Vector3(cx + (dx / r) * nr, y, cz + (dz / r) * nr));
+    }
+    moveRest(jersey, moved);
+  }
+
+  // How far each shorts vertex sits below the waistband's actual top edge,
+  // read off the open edge round the waist (per degree, gaps filled), so
+  // the waistband stripes start right at the edge all the way round.
+  waistDepth(pants, world) {
+    const { cx, cz } = this.tuck;
+    const deg = (x, z) => (Math.floor(((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * 360) + 360) % 360;
+    let top = -Infinity;
+    for (let i = 1; i < world.length; i += 3) top = Math.max(top, world[i]);
+    const E = new Float32Array(360).fill(NaN);
+    for (const i of boundaryIndices(pants, world)) {
+      const y = world[i * 3 + 1];
+      if (y < top - 0.2) continue;
+      const b = deg(world[i * 3], world[i * 3 + 2]);
+      E[b] = Number.isNaN(E[b]) ? y : Math.max(E[b], y);
+    }
+    const filled = E.map((v, b) => {
+      if (!Number.isNaN(v)) return v;
+      for (let k = 1; k < 180; k++) {
+        const l = E[(b + 360 - k) % 360];
+        const r = E[(b + k) % 360];
+        if (!Number.isNaN(l) || !Number.isNaN(r)) return Number.isNaN(l) ? r : Number.isNaN(r) ? l : (l + r) / 2;
+      }
+      return top;
+    });
+    // The cut lip leaves lower open edges too: take each degree's highest
+    // edge within ±8°, then smooth.
+    const hi = filled.map((_, b) => {
+      let m = -Infinity;
+      for (let k = -8; k <= 8; k++) m = Math.max(m, filled[(b + k + 360) % 360]);
+      return m;
+    });
+    const smooth = hi.map((_, b) => {
+      let s = 0;
+      for (let k = -6; k <= 6; k++) s += hi[(b + k + 360) % 360];
+      return s / 13;
+    });
+    const out = new Float32Array(world.length / 3);
+    for (let i = 0; i < out.length; i++) out[i] = Math.max(0, smooth[deg(world[i * 3], world[i * 3 + 2])] - world[i * 3 + 1]);
+    return out;
+  }
+
+  // Basketball shorts hang loose: below the crotch each leg becomes a round
+  // tube as wide as the leg's widest point there, flaring a little to the hem,
+  // so the football pants' sculpted pads and bulges go away.
+  loosenShorts(hemY) {
+    const pants = this.parts.pants;
+    const B = BASKETBALL;
+    const bone = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
+    const legs = [['LeftUpLeg', 'LeftLeg'], ['RightUpLeg', 'RightLeg']].map(([h, k]) => [bone(h), bone(k)]);
+    const mid = (legs[0][0].x + legs[1][0].x) / 2;
+    const crotch = legs[0][0].y - B.crotchDrop;
+    const w = worldPositions(pants);
+    const count = w.length / 3;
+    const axisAt = (leg, y) => {
+      const [hip, knee] = leg;
+      const t = (y - hip.y) / (knee.y - hip.y);
+      return [hip.x + (knee.x - hip.x) * t, hip.z + (knee.z - hip.z) * t];
+    };
+    const legOf = (x) => ((x > mid) === (legs[0][0].x > mid) ? 0 : 1);
+    // Each leg's radius (75th percentile) at the crotch and at the hem; the
+    // tube runs straight between them, so pads and bulges are smoothed away.
+    const radii = (l, y0) => {
+      const list = [];
+      for (let i = 0; i < count; i++) {
+        if (legOf(w[i * 3]) !== l || Math.abs(w[i * 3 + 1] - y0) > 0.015) continue;
+        const [ax, az] = axisAt(legs[l], w[i * 3 + 1]);
+        list.push(Math.hypot(w[i * 3] - ax, w[i * 3 + 2] - az));
+      }
+      list.sort((p, q) => p - q);
+      return list[Math.floor(list.length * 0.75)] ?? 0.09;
+    };
+    const profile = [0, 1].map((l) => {
+      const top = radii(l, crotch - 0.02);
+      const hem = Math.max(radii(l, hemY + 0.02), top) + B.shortsFlare;
+      return (y) => top + (hem - top) * THREE.MathUtils.clamp((crotch - 0.02 - y) / (crotch - 0.02 - hemY), 0, 1) + B.shortsEase;
+    });
+    const moved = new Map();
+    for (let i = 0; i < count; i++) {
+      const x = w[i * 3];
+      const y = w[i * 3 + 1];
+      const z = w[i * 3 + 2];
+      const f = 1 - THREE.MathUtils.smoothstep(y, crotch - 0.08, crotch);
+      if (f <= 0) continue;
+      const l = legOf(x);
+      const [ax, az] = axisAt(legs[l], y);
+      const dx = x - ax;
+      const dz = z - az;
+      const r = Math.hypot(dx, dz) || 1e-6;
+      let nr = r + (profile[l](y) - r) * f;
+      let nx = ax + (dx / r) * nr;
+      // Never past the middle, so the legs don't meet.
+      const side = Math.sign(legs[l][0].x - mid);
+      if ((nx - mid) * side < 0.006) {
+        nx = mid + side * 0.006;
+        nr = r;
+      }
+      moved.set(i, new THREE.Vector3(nx, y, az + (dz / r) * nr));
+    }
+    moveRest(pants, moved);
+  }
+
+  // A tank has no shoulder pads under it: the upper torso of the jersey is
+  // pulled in onto the body (BASKETBALL.clear off the skin), fading out
+  // down to the chest so the body of the jersey keeps its loose hang.
+  shrinkJersey() {
+    const { jersey, skin } = this.parts;
+    const B = BASKETBALL;
+    const jw = worldPositions(jersey);
+    const kw = worldPositions(skin);
+    const kn = worldNormals(skin, kw);
+    const cell = 0.05;
+    const grid = new Map();
+    const key = (x, y, z) => `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
+    for (let i = 0; i < kw.length / 3; i++) {
+      const k = key(kw[i * 3], kw[i * 3 + 1], kw[i * 3 + 2]);
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(i);
+    }
+    const top = this.sleeveArmpit;
+    const moved = new Map();
+    for (let i = 0; i < jw.length / 3; i++) {
+      const x = jw[i * 3];
+      const y = jw[i * 3 + 1];
+      const z = jw[i * 3 + 2];
+      const f = THREE.MathUtils.smoothstep(y, top - B.shrinkFade, top - 0.02);
+      if (f <= 0) continue;
+      const near = [];
+      let dmin = Infinity;
+      const cx = Math.floor(x / cell);
+      const cy = Math.floor(y / cell);
+      const cz = Math.floor(z / cell);
+      for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (let c = -2; c <= 2; c++) {
+        for (const j of grid.get(`${cx + a},${cy + b},${cz + c}`) ?? []) {
+          const d = Math.hypot(kw[j * 3] - x, kw[j * 3 + 1] - y, kw[j * 3 + 2] - z);
+          if (d < 0.1) { near.push([j, d]); dmin = Math.min(dmin, d); }
+        }
+      }
+      if (!near.length) continue;
+      const p = new THREE.Vector3();
+      const n = new THREE.Vector3();
+      let sum = 0;
+      for (const [j, d] of near) {
+        const wgt = Math.exp(-(((d - dmin) / 0.015) ** 2));
+        p.x += kw[j * 3] * wgt; p.y += kw[j * 3 + 1] * wgt; p.z += kw[j * 3 + 2] * wgt;
+        n.x += kn[j * 3] * wgt; n.y += kn[j * 3 + 1] * wgt; n.z += kn[j * 3 + 2] * wgt;
+        sum += wgt;
+      }
+      p.divideScalar(sum);
+      n.normalize();
+      const target = p.addScaledVector(n, B.clear);
+      const cur = new THREE.Vector3(x, y, z);
+      // Only ever pull in: cloth already close to the body stays where it is.
+      const out = cur.clone().sub(target).dot(n);
+      if (out <= 0) continue;
+      moved.set(i, cur.lerp(target, f));
+    }
+    moveRest(jersey, moved);
   }
 
   // Doc's fit (2026-10-03): the jersey stays tucked in (JERSEY_FIT.untucked
@@ -1084,6 +1612,19 @@ export class Player {
         if (Math.abs(kw[i * 3] - V.neck.x) < half) aHide[i] = 0;
       }
     }
+    // Basketball: the torso inside the waistband never shows, and pressing
+    // the tucked jersey into the shorts can push skin through it just above.
+    const W = this.tuck;
+    if (W) {
+      for (let i = 0; i < count; i++) {
+        const x = kw[i * 3];
+        const y = kw[i * 3 + 1];
+        const z = kw[i * 3 + 2];
+        const t = W.localTop(x, z);
+        if (y < t - 0.15 || y > t + 0.08) continue;
+        if (Math.hypot(x - W.cx, z - W.cz) < W.R[W.sector(x, z)] + 0.035) aHide[i] = 1;
+      }
+    }
     skin.geometry.setAttribute('aHide', new THREE.BufferAttribute(aHide, 1));
   }
 
@@ -1101,8 +1642,10 @@ export class Player {
     for (const mesh of Object.values(this.parts)) mesh.skeleton?.update();
     const bonePos = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
     const setAttr = (mesh, name, data) => mesh.geometry.setAttribute(name, new THREE.BufferAttribute(data, 1));
+    this.toBasketball();
     this.fitUniform();
-    this.tuckSocks();
+    // Crew socks stay at the ankle, so nothing is tucked under the shorts.
+    if (this.parts.skin) this.parts.skin.geometry.setAttribute('aSock', new THREE.BufferAttribute(new Float32Array(this.parts.skin.geometry.attributes.position.count), 1));
 
     // Jersey: distance from the neckline for the collar piping, and where each
     // vertex lands on the front-view art.
@@ -1119,6 +1662,43 @@ export class Player {
       const aNeck = new Float32Array(count);
       for (let i = 0; i < count; i++) aNeck[i] = neckEdge.length ? nearestDistance(world, i, neckEdge) : 9;
       setAttr(jersey, 'aNeck', aNeck);
+      // Distance from the armhole edge, for the armhole binding.
+      const armEdge = this.armhole ? boundaryPoints(jersey, world)
+        .filter((p) => Math.abs(p.x - this.armhole.neckX) >= this.armhole.edgeX && p.y > this.armhole.bottom - 0.05) : [];
+      const aArm = new Float32Array(count);
+      for (let i = 0; i < count; i++) aArm[i] = armEdge.length ? nearestDistance(world, i, armEdge) : 9;
+      setAttr(jersey, 'aArm', aArm);
+      // Signed distance around the torso from each side seam (+ toward the
+      // front), for the side panels: per 2 cm slice, around the slice's center.
+      {
+        const slices = new Map();
+        for (let i = 0; i < count; i++) {
+          const k = Math.round(world[i * 3 + 1] * 50);
+          const sl = slices.get(k) ?? [0, 0, 0];
+          sl[0] += world[i * 3]; sl[1] += world[i * 3 + 2]; sl[2]++;
+          slices.set(k, sl);
+        }
+        // The center's depth, smoothed over 10 cm so the panel edges run
+        // straight; across, the body's midline.
+        const midX = bonePos('Hips').x;
+        const zAt = (k) => {
+          let z = 0;
+          let n = 0;
+          for (let d = -2; d <= 2; d++) {
+            const sl = slices.get(k + d);
+            if (sl) { z += sl[1]; n += sl[2]; }
+          }
+          return z / n;
+        };
+        const aSide = new Float32Array(count);
+        for (let i = 0; i < count; i++) {
+          const dx = world[i * 3] - midX;
+          const dz = world[i * 3 + 2] - zAt(Math.round(world[i * 3 + 1] * 50));
+          // The panels start at the bottom of the armholes.
+          aSide[i] = this.armhole && world[i * 3 + 1] > this.armhole.bottom + 0.01 ? 9 : Math.atan2(dz, Math.abs(dx)) * Math.hypot(dx, dz);
+        }
+        setAttr(jersey, 'aSide', aSide);
+      }
       const aArt = this.projectJersey(jersey, world, neckEdge, bonePos);
       jersey.geometry.setAttribute('aArt', new THREE.BufferAttribute(aArt, 3));
       // Kept for placing the shoulder-number decals, which move with the style.
@@ -1237,6 +1817,11 @@ export class Player {
       const aDown = new Float32Array(world.length / 3);
       for (let i = 0; i < aDown.length; i++) aDown[i] = (top - world[i * 3 + 1]) / (top - bottom);
       setAttr(pants, 'aDown', aDown);
+      setAttr(pants, 'aTop', this.tuck ? this.waistDepth(pants, world) : aDown.map((d) => d * (top - bottom)));
+      setAttr(pants, 'aHem', aDown.map((d) => (1 - d) * (top - bottom)));
+      // Where the leg marks go in the logo strip: low on each leg's front.
+      const hipX = Math.abs(bonePos('LeftUpLeg').x - xc);
+      this.shortsArt = { legY: A.waistY + (top - bottom - 0.12) * scale, rightX: A.centerX - hipX * 1.1 * scale, leftX: A.centerX + hipX * 1.25 * scale };
     }
 
     // Cleats: the side-view art projected along each foot, heel to toe and
@@ -1422,6 +2007,7 @@ export class Player {
       if (panel[i] === 0) top = Math.max(top, y);
       if (panel[i] === 2) armpit = Math.min(armpit, y);
     }
+    if (!Number.isFinite(armpit)) armpit = this.sleeveArmpit; // tank: the sleeves are gone
     this.jerseyArmpit = armpit;
     const neckZ = bonePos('Neck').z;
     const front = neckEdge.filter((p) => p.z > neckZ);
@@ -1795,6 +2381,8 @@ export class Player {
     u.glove.uGlove.value.set(look.gloves ?? '#000000');
     u.glove.uGloveOn.value = look.gloves ? 1 : 0;
     if (this.parts.armSleeve) this.parts.armSleeve.material = m.skin; // no forearm under the sleeve mesh
+    if (this.shin) this.shin.material = m.skin;
+    m.pants.side = THREE.DoubleSide; // the inside of the shorts shows up the leg
 
     // Helmet.
     const finish = {
@@ -1836,6 +2424,21 @@ export class Player {
       this.visorMat.needsUpdate = true;
     }
 
+    if (look.bb) {
+      const J = look.bb.jersey;
+      const S = look.bb.shorts;
+      m.jersey.sheenColor.copy(sheen(J.base));
+      u.jersey.uBase.value.set(J.base);
+      setEdge(u.jersey, 'Neck', J.neck);
+      setEdge(u.jersey, 'Arm', J.arm);
+      setSide(u.jersey, J.side);
+      m.pants.color.set(S.base);
+      m.pants.sheenColor.copy(sheen(S.base));
+      setEdge(u.pants, 'Waist', S.waist);
+      setEdge(u.pants, 'Hem', S.hem);
+      setSide(u.pants, S.side);
+    }
+
     return this.paintArt(look);
   }
 
@@ -1850,6 +2453,7 @@ export class Player {
       loadImage(url(look.shoes)),
     ]);
     if (token !== this.artToken) return;
+    if (look.bb) return this.paintBB(look, token);
     paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
     paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
     paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name);
@@ -1870,6 +2474,21 @@ export class Player {
     shc.clearRect(0, 0, 702, 372);
     shc.drawImage(shoe, 0, 0, 702, 372);
     for (const k of ['front', 'back', 'backLetters', 'tv', 'helmetBack', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
+  }
+
+  async paintBB(look, token) {
+    const J = look.bb.jersey;
+    const [wordmark, bird] = await Promise.all([
+      J.wordmark.kind === 'image' ? loadImage(url(J.wordmark.file)) : null,
+      loadImage(url('bird-master')),
+    ]);
+    if (token !== this.artToken) return;
+    bb.paintBBFront(this.canvases.front, J, look.number, wordmark);
+    bb.paintBBBack(this.canvases.back, J);
+    bb.paintBBBackLettering(this.canvases.backLetters, J, look.backNumber, look.name);
+    this.canvases.tv.getContext('2d').clearRect(0, 0, this.canvases.tv.width, this.canvases.tv.height);
+    if (this.shortsArt) bb.paintBBShortsLogos(this.canvases.logos, look.bb.shorts, bird, this.shortsArt);
+    for (const k of ['front', 'back', 'backLetters', 'tv', 'logos']) this.textures[k].needsUpdate = true;
   }
 
   // ---------- poses ----------

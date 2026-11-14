@@ -314,6 +314,45 @@ export function paintBall(canvas) {
 }
 
 // Turf disc under the player, centered on a yard line.
+// A patch of hardwood court under the player: maple boards running away
+// from the camera, a red lane line through the feet, faded at the rim.
+export function paintCourt(canvas) {
+  const ctx = canvas.getContext('2d');
+  const { width: W, height: H } = canvas;
+  const cx = W / 2;
+  const cy = H / 2;
+  const pxPerM = W / (3.2 * 2);
+  const board = 0.057 * pxPerM; // 2 1/4 inch maple strips
+  for (let x = 0, i = 0; x < W; x += board, i++) {
+    const tone = 0.9 + ((i * 37) % 11) / 100;
+    ctx.fillStyle = `rgb(${Math.round(196 * tone)}, ${Math.round(150 * tone)}, ${Math.round(98 * tone)})`;
+    ctx.fillRect(x, 0, board + 1, H);
+    // Board ends, staggered.
+    ctx.fillStyle = 'rgba(70,40,15,0.25)';
+    for (let y = ((i * 173) % 400) - 400; y < H; y += 380 + ((i * 61) % 90)) ctx.fillRect(x, y, board, 1.5);
+    ctx.fillStyle = 'rgba(60,35,12,0.35)';
+    ctx.fillRect(x, 0, 1, H);
+  }
+  // Grain.
+  for (let i = 0; i < 14000; i++) {
+    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(90,50,20,0.08)' : 'rgba(255,230,190,0.06)';
+    ctx.fillRect(Math.random() * W, Math.random() * H, 1, 6 + Math.random() * 14);
+  }
+  // A red lane line (2 inches) across the court through the player's feet.
+  ctx.fillStyle = 'rgba(201,0,31,0.92)';
+  const line = 0.0508 * pxPerM;
+  ctx.fillRect(0, cy - line / 2 + 0.6 * pxPerM, W, line);
+  // Fade to transparent at the rim.
+  ctx.globalCompositeOperation = 'destination-in';
+  const g = ctx.createRadialGradient(cx, cy, W * 0.12, cx, cy, W * 0.5);
+  g.addColorStop(0, 'rgba(0,0,0,1)');
+  g.addColorStop(0.65, 'rgba(0,0,0,0.75)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
 export function paintTurf(canvas) {
   const ctx = canvas.getContext('2d');
   const { width: W, height: H } = canvas;

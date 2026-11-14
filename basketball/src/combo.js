@@ -1,5 +1,6 @@
 // Combo state: validation, names, the 3D look for a combo, and share codes.
 import { ART } from './uniform-art.js';
+import { BB_JERSEYS, BB_SHORTS } from './basketball.js';
 import {
   DEFAULT_STATE, FACEMASKS, GLOVES, GRAPHIC_WORD, GROUP_HEX, HELMET_NOTE, JERSEY_NUMBERS, JERSEY_SLEEVES, LIB, MASK_DEF, SKIN_TONES, VISORS,
 } from './team.js';
@@ -98,8 +99,11 @@ export function artUrl(kind, id, state) {
 // Everything the 3D player needs for this state.
 export function resolveLook(state) {
   const file = (kind) => (row(kind, state[kind]) ?? LIB[kind][0])[3];
+  // The basketball sets have no football art spec; the 3D player's
+  // football-era code paths read the nearest football set's (see bb below).
+  const fb = (kind) => `${kind}-${groupOf(kind, state[kind]) === 'Black' ? 'black' : 'white'}`;
   const pantsFile = file('pants');
-  const pants = { file: pantsFile, spec: ART.pants[pantsFile] };
+  const pants = { file: pantsFile, spec: ART.pants[pantsFile] ?? ART.pants[fb('pants')] };
   const sockFile = file('socks');
   const shoes = file('shoes') ?? 'shoes-black';
   return {
@@ -107,7 +111,7 @@ export function resolveLook(state) {
     facemask: FACEMASKS.find(([n]) => n === state.facemask)?.[1] ?? FACEMASKS[0][1],
     jersey: {
       file: file('jersey'),
-      spec: ART.jersey[file('jersey')],
+      spec: ART.jersey[file('jersey')] ?? ART.jersey[fb('jersey')],
       style: JERSEY_NUMBERS[file('jersey')] ?? { font: 'jersey' },
       sleeves: JERSEY_SLEEVES[file('jersey')] ?? null,
     },
@@ -122,6 +126,10 @@ export function resolveLook(state) {
     number: state.number, // chest and shoulders
     backNumber: state.backNumber || state.number, // back and helmet
     name: state.name,
+    bb: {
+      jersey: BB_JERSEYS[state.jersey] ?? Object.values(BB_JERSEYS)[0],
+      shorts: BB_SHORTS[state.pants] ?? Object.values(BB_SHORTS)[0],
+    },
   };
 }
 

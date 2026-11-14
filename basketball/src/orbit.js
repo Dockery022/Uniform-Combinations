@@ -7,7 +7,7 @@ export const VIEWS = {
   front: { label: 'Front', target: [0, 0.95, 0], theta: 0, phi: 1.42, radius: 4.8 },
   back: { label: 'Back', target: [0, 0.95, 0], theta: Math.PI, phi: 1.42, radius: 4.8 },
   side: { label: 'Side', target: [0, 0.95, 0], theta: Math.PI / 2, phi: 1.44, radius: 4.8 },
-  helmet: { label: 'Helmet', target: [0, 1.72, 0], theta: 0.5, phi: 1.3, radius: 1.25 },
+  helmet: { label: 'Close-up', target: [0, 1.35, 0], theta: 0.35, phi: 1.4, radius: 1.6 },
 };
 
 export class Orbit {

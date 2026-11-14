@@ -9,7 +9,7 @@ import { GTAOPass } from './vendor/GTAOPass.js';
 import { OutputPass } from './vendor/OutputPass.js';
 import { Orbit, VIEWS } from './orbit.js';
 import { Panel, el } from './ui.js';
-import { FONTS, makeCanvas, paintTurf } from './textures.js';
+import { FONTS, makeCanvas, paintCourt } from './textures.js';
 import { artUrl, cleanState, clone, decodeState, encodeState, graphicWord, groupOf, pieceName, resolveLook } from './combo.js';
 import { BRAND, DEFAULT_STATE } from './team.js';
 
@@ -106,13 +106,13 @@ rim.position.set(-1.6, 3.6, -3.4);
 scene.add(rim, new THREE.HemisphereLight('#d6dcea', '#1b1310', 0.2));
 
 const turfCanvas = makeCanvas(1024, 1024);
-paintTurf(turfCanvas);
+paintCourt(turfCanvas);
 const turfTex = new THREE.CanvasTexture(turfCanvas);
 turfTex.colorSpace = THREE.SRGBColorSpace;
 turfTex.anisotropy = 8;
 const turf = new THREE.Mesh(
   new THREE.CircleGeometry(3.2, 96),
-  new THREE.MeshStandardMaterial({ map: turfTex, transparent: true, roughness: 0.95, depthWrite: false }),
+  new THREE.MeshStandardMaterial({ map: turfTex, transparent: true, roughness: 0.45, depthWrite: false }), // varnished hardwood
 );
 turf.rotation.x = -Math.PI / 2;
 turf.receiveShadow = true;
@@ -240,7 +240,7 @@ const panel = new Panel({
 
 // The three pieces over the stage, like the graphic's 01 · 02 · 03.
 function updateReadout() {
-  const rows = [['01 · Helmet', 'helmet', state.helmetNote], ['02 · Jersey', 'jersey'], ['03 · Pants', 'pants', state.socks !== 'Match' ? `${state.socks} socks` : '']];
+  const rows = [['01 · Jersey', 'jersey'], ['02 · Shorts', 'pants', `${state.socks} socks`]];
   document.getElementById('readout').replaceChildren(...rows.map(([label, kind, note]) => el('li', {}, [
     el('span', { class: 'r-label', text: label }),
     el('span', { class: 'r-value', text: pieceName(kind, state[kind]) }),
@@ -459,9 +459,8 @@ async function drawGraphic() {
     ctx.restore();
     y += 26 + 213 + 14;
   };
-  piece('01 · Helmet', 'helmet', s.helmetNote);
-  piece('02 · Jersey', 'jersey');
-  piece('03 · Pants', 'pants', s.socks !== 'Match' ? `${s.socks} socks` : '');
+  piece('01 · Jersey', 'jersey');
+  piece('02 · Shorts', 'pants', `${s.socks} socks`);
 
   // Date, kickoff and venue.
   ctx.fillStyle = '#111111';
@@ -546,7 +545,7 @@ const s2slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replac
 // The first paint waits up to 2.5 s; whatever arrives later triggers a
 // redraw (see start).
 const fontLoads = Promise.all([
-  `100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`,
+  `100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`, '100px "Yellowtail"',
   `600 20px ${FONTS.sans}`,
 ].map((f) => document.fonts.load(f).catch(() => [])));
 let fontsSettled = false;

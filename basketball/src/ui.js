@@ -5,7 +5,7 @@
 import { FACEMASKS, GLOVES, GROUP_HEX, LIB, SKIN_TONES, VISORS } from './team.js';
 import { artUrl, pickHelmet, pieceName, sanitizeName, sanitizeNumber } from './combo.js';
 
-const TABS = [['helmet', 'Helmet'], ['jersey', 'Jersey'], ['pants', 'Pants'], ['socks', 'Accessories']];
+const TABS = [['jersey', 'Jersey'], ['pants', 'Shorts'], ['socks', 'Accessories']];
 const GAME_FIELDS = [['date', 'Date'], ['kickoff', 'Kickoff'], ['network', 'Network'], ['venue', 'Venue']];
 
 // How each kind of art sits in its tile.
@@ -40,7 +40,7 @@ export class Panel {
     this.onSave = onSave;
     this.onLoad = onLoad;
     this.onRemove = onRemove;
-    this.tab = 'helmet';
+    this.tab = 'jersey';
     this.$ = (id) => document.getElementById(id);
     this.bindGame();
     this.$('save').addEventListener('click', () => this.onSave());

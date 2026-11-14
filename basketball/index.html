@@ -6,7 +6,7 @@
 <title>Basketball Combo Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Graduate&family=Montserrat:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Graduate&family=Yellowtail&family=Montserrat:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
   <header class="top">
     <img class="crest" src="assets/uni/1912-crest.webp" alt="The 1912 Society" width="64" height="64">
     <div class="top-text">
-      <p class="eyebrow eyebrow-red">Game day graphics</p>
+      <p class="eyebrow eyebrow-red">Basketball · game day graphics</p>
       <h1 class="title">Combo Builder</h1>
     </div>
     <img class="wordmark" src="assets/uni/wordmark.webp" alt="Louisville" width="564" height="139">
@@ -27,7 +27,7 @@
         <button type="button" class="seg" id="mode-graphic" aria-pressed="false">Game graphic</button>
       </div>
       <main class="stage" id="stage">
-        <canvas id="scene" role="img" aria-label="A football player wearing the current combo. Drag to turn the view; scroll or pinch to zoom."></canvas>
+        <canvas id="scene" role="img" aria-label="A basketball player wearing the current combo. Drag to turn the view; scroll or pinch to zoom."></canvas>
         <div class="stage-overlay" id="overlay">
           <ol class="readout" id="readout" aria-live="polite"></ol>
           <div class="dock">
@@ -61,7 +61,7 @@
         <div class="piece-tabs" id="piece-tabs" role="tablist" aria-label="Uniform piece"></div>
         <div class="masks" id="masks" role="radiogroup" aria-labelledby="masks-label"></div>
         <div class="groups" id="groups" role="tabpanel"></div>
-        <label class="field">
+        <label class="field" hidden>
           <span class="eyebrow">Helmet callout</span>
           <input class="input" id="note" type="text" placeholder="Leave blank to hide" autocomplete="off">
         </label>
