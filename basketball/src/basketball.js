@@ -230,7 +230,8 @@ export function paintBBBackLettering(canvas, spec, number, name) {
 }
 
 // The shorts' leg marks in the front-view logo strip (see SHORTS_ART in
-// model.js): the three-bar mark low on the right leg, the bird low on the left.
+// model.js): the three-bar mark low on the right leg, the dunking-cardinal
+// mascot (Doc's art, assets/uni/bb-mascot.webp) low on the left.
 export function paintBBShortsLogos(canvas, spec, bird, art) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);

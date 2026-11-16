@@ -2914,7 +2914,7 @@ export class Player {
     const J = look.bb.jersey;
     const [wordmark, bird] = await Promise.all([
       J.wordmark.kind === 'image' ? loadImage(url(J.wordmark.file)) : null,
-      loadImage(url('bird-master')),
+      loadImage(url('bb-mascot')),
     ]);
     if (token !== this.artToken) return;
     bb.paintBBFront(this.canvases.front, J, look.number, wordmark);
