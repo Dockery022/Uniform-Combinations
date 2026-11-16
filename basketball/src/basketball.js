@@ -302,7 +302,7 @@ export const BB_PRINT = {
     script: { below: 0.085, height: 0.075, width: 0.27 },
     image: { below: 0.1, width: 0.25 },
     number: { below: 0.225, height: 0.15, width: 0.17, outline: 0.04 },
-    bars: { right: { across: -0.095, below: 0.01, size: 0.04 }, center: { across: 0, below: 0.028, size: 0.034 } },
+    bars: { right: { across: -0.095, below: 0.01, size: 0.04 }, center: { across: 0, below: 0.022, size: 0.048 } },
     // The conference patch on the wearer's left chest, by the strap.
     patch: { across: 0.095, below: 0.025, size: 0.045 },
     flag: { across: 0.1, below: -0.025, width: 0.045 },
