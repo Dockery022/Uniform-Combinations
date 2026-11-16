@@ -291,6 +291,8 @@ button { cursor: pointer; }
 .preview-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .foot-actions { display: flex; gap: 8px; flex: none; }
 .note { margin: 0; font-size: 14px; color: var(--fog); }
+.note.credit { margin-top: 4px; font-size: 12px; }
+.note.credit a { color: inherit; }
 
 .loading { position: absolute; inset: 0; display: grid; place-content: center; grid-auto-flow: column; gap: 10px; align-items: center; background: #121214; color: #d4d4d8; font-size: 14px; }
 .loading-dot { width: 10px; height: 10px; border-radius: 999px; background: var(--cardinal); animation: pulse 1s ease-in-out infinite alternate; }

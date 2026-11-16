@@ -243,3 +243,93 @@ export function paintBBShortsLogos(canvas, spec, bird, art) {
     ctx.drawImage(bird, leftX - w / 2, legY - h / 2 - 30, w, h);
   }
 }
+
+// ---------- printing on the display uniform's pattern ----------
+//
+// The display uniform (Sev's "Basketball Jersey", see display.js) comes as
+// flat sewn pattern pieces, so the art is printed the way a sublimated
+// uniform is: flat on each piece, at true size. `atlas` is the pattern
+// layout from the model (meters, y down the body); every placement below is
+// in meters on the cloth, measured from the piece's landmarks (center line,
+// bottom of the neckline, armpits; the leg's outside line and hem).
+// Sizes follow Doc's 2026-11-16 home-game galleries.
+export const BB_PRINT = {
+  front: {
+    wordmark: { below: 0.075, height: 0.042, width: 0.25 }, // straight, about armpit height
+    script: { below: 0.085, height: 0.075, width: 0.27 },
+    image: { below: 0.1, width: 0.25 },
+    number: { below: 0.205, height: 0.14, width: 0.17 },
+    bars: { right: { across: -0.095, below: 0.01, size: 0.04 }, center: { across: 0, below: 0.03, size: 0.035 } },
+  },
+  back: {
+    name: { below: 0.085, height: 0.04, width: 0.24, arch: 0.012 },
+    number: { below: 0.215, height: 0.2, width: 0.23 },
+  },
+  shorts: {
+    mascot: { forward: 0.1, aboveHem: 0.13, height: 0.14 }, // lower front of the wearer's left leg
+    bars: { forward: 0.1, aboveHem: 0.09, size: 0.045 }, // lower front of the wearer's right leg
+  },
+};
+
+// The leg's outside line at height y (atlas meters).
+function sideAt(line, y) {
+  if (y <= line[0][1]) return line[0][0];
+  for (let i = 1; i < line.length; i++) {
+    const [x0, y0] = line[i - 1];
+    const [x1, y1] = line[i];
+    if (y <= y1) return x0 + ((x1 - x0) * (y - y0)) / (y1 - y0);
+  }
+  return line[line.length - 1][0];
+}
+
+// Paints every print onto the transparent atlas canvas, `ppm` pixels per
+// meter. Base colors, trim and side panels come from the shader.
+export function paintBBAtlas(canvas, ppm, atlas, look, { wordmark, mascot }) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.scale(ppm, ppm); // draw in meters
+  const J = look.bb.jersey;
+  const S = look.bb.shorts;
+  const F = BB_PRINT.front;
+  const front = atlas.pieces.front;
+  const cx = front.center;
+  const wm = J.wordmark;
+  if (wm.kind === 'image' && wordmark) {
+    const w = F.image.width;
+    const h = (wordmark.height / wordmark.width) * w;
+    ctx.drawImage(wordmark, cx - w / 2, front.neck + F.image.below - h / 2, w, h);
+  } else if (wm.kind === 'script') {
+    const p = F.script;
+    wordText(ctx, wm.text, { cx, cy: front.neck + p.below, height: p.height, width: p.width, family: SCRIPT, fill: wm.fill, outlines: [{ color: wm.outline, width: 0.0035 }], rotate: -0.06 });
+  } else if (wm.kind === 'arch') {
+    const p = F.wordmark;
+    archText(ctx, wm.text, { cx, cy: front.neck + p.below, height: p.height, width: p.width, family: BLOCK, fill: wm.fill, outlines: [{ color: wm.outline, width: 0.0025 }], arch: 0.002, spacing: 2 });
+  }
+  const n = F.number;
+  numberText(ctx, look.number, { cx, cy: front.neck + n.below, height: n.height, width: n.width, ...J.number });
+  const b = F.bars[J.barsAt === 'right' ? 'right' : 'center'];
+  threeBars(ctx, cx + b.across, front.neck + b.below, b.size, J.bars);
+
+  const B = BB_PRINT.back;
+  const back = atlas.pieces.back;
+  if (look.name) {
+    const p = B.name;
+    archText(ctx, look.name, { cx: back.center, cy: back.neck + p.below, height: p.height, width: Math.min(p.width, look.name.length * 0.032), family: BLOCK, fill: J.name, arch: p.arch, spacing: 6 });
+  }
+  numberText(ctx, look.backNumber, { cx: back.center, cy: back.neck + B.number.below, height: B.number.height, width: B.number.width, ...J.number });
+
+  const P = BB_PRINT.shorts;
+  const left = atlas.pieces.legL;
+  if (mascot) {
+    const y = left.hem - P.mascot.aboveHem;
+    const h = P.mascot.height;
+    const w = (mascot.width / mascot.height) * h;
+    const x = sideAt(left.side, y) + left.front * P.mascot.forward;
+    ctx.drawImage(mascot, x - w / 2, y - h / 2, w, h);
+  }
+  const right = atlas.pieces.legR;
+  const by = right.hem - P.bars.aboveHem;
+  threeBars(ctx, sideAt(right.side, by) + right.front * P.bars.forward, by, P.bars.size, S.bars);
+  ctx.restore();
+}

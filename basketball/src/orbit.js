@@ -3,19 +3,19 @@
 import * as THREE from './three.js';
 
 export const VIEWS = {
-  three: { label: '3/4', target: [0, 0.95, 0], theta: 0.62, phi: 1.38, radius: 4.8 },
-  front: { label: 'Front', target: [0, 0.95, 0], theta: 0, phi: 1.42, radius: 4.8 },
-  back: { label: 'Back', target: [0, 0.95, 0], theta: Math.PI, phi: 1.42, radius: 4.8 },
-  side: { label: 'Side', target: [0, 0.95, 0], theta: Math.PI / 2, phi: 1.44, radius: 4.8 },
-  helmet: { label: 'Close-up', target: [0, 1.35, 0], theta: 0.35, phi: 1.4, radius: 1.6 },
+  three: { label: '3/4', target: [0, 1.13, 0], theta: 0.62, phi: 1.38, radius: 2.7 },
+  front: { label: 'Front', target: [0, 1.13, 0], theta: 0, phi: 1.42, radius: 2.7 },
+  back: { label: 'Back', target: [0, 1.13, 0], theta: Math.PI, phi: 1.42, radius: 2.7 },
+  side: { label: 'Side', target: [0, 1.13, 0], theta: Math.PI / 2, phi: 1.44, radius: 2.7 },
+  helmet: { label: 'Close-up', target: [0, 1.4, 0], theta: 0.35, phi: 1.45, radius: 1.3 },
 };
 
 export class Orbit {
   constructor(camera, dom) {
     this.camera = camera;
     this.dom = dom;
-    this.target = new THREE.Vector3(0, 0.95, 0);
-    this.s = { theta: 0.62, phi: 1.38, radius: 4.8 };
+    this.target = new THREE.Vector3(...VIEWS.three.target);
+    this.s = { theta: VIEWS.three.theta, phi: VIEWS.three.phi, radius: VIEWS.three.radius };
     this.vel = { theta: 0, phi: 0 };
     this.limits = { minPhi: 0.35, maxPhi: 1.62, minR: 0.8, maxR: 8 };
     this.autoRotate = false;
@@ -69,9 +69,9 @@ export class Orbit {
 
   zoom(factor) {
     this.s.radius = THREE.MathUtils.clamp(this.s.radius * factor, this.limits.minR, this.limits.maxR);
-    // Drift the focus toward the helmet as the camera closes in.
-    const t = THREE.MathUtils.clamp((3 - this.s.radius) / 1.9, 0, 1);
-    this.target.y = THREE.MathUtils.lerp(0.95, 1.7, t);
+    // Drift the focus up toward the chest print as the camera closes in.
+    const t = THREE.MathUtils.clamp((2.7 - this.s.radius) / 1.9, 0, 1);
+    this.target.y = THREE.MathUtils.lerp(1.13, 1.4, t);
   }
 
   flyTo(name) {

@@ -1,7 +1,8 @@
 // Boot: renderer, studio lighting, turf, the player, the panel, the game
 // graphic and saved combos.
 import * as THREE from './three.js';
-import { loadAssets, loadImage, Player } from './model.js';
+import { loadImage } from './model.js';
+import { Display, loadDisplay } from './display.js';
 import { loadHDR } from './hdr.js';
 import { EffectComposer } from './vendor/EffectComposer.js';
 import { RenderPass } from './vendor/RenderPass.js';
@@ -267,6 +268,8 @@ segmented(document.getElementById('poses'), Object.entries(POSE_LABELS), pose, (
   pose = p;
   player?.setPose(p);
 });
+// The display uniform has no player inside, so no poses.
+document.getElementById('poses').style.display = 'none';
 segmented(document.getElementById('views'), Object.entries(VIEWS).map(([k, v]) => [k, v.label]), 'three', (v) => orbit.flyTo(v));
 orbit.onInteract = () => {
   for (const b of document.getElementById('views').children) b.setAttribute('aria-pressed', 'false');
@@ -312,8 +315,9 @@ function renderCutout(w, h) {
   const dist = VIEWS.three.radius;
   const theta = orbit.s.theta;
   const phi = THREE.MathUtils.clamp(orbit.s.phi, 1.2, 1.5);
-  const target = new THREE.Vector3(0, 1.0, 0);
-  camera.fov = 2 * THREE.MathUtils.radToDeg(Math.atan(1.16 / dist));
+  // The display uniform, shoulders to shorts hem (1.08 m tall, centered at 1.14 m).
+  const target = new THREE.Vector3(0, 1.14, 0);
+  camera.fov = 2 * THREE.MathUtils.radToDeg(Math.atan(0.7 / dist));
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   camera.position.set(
@@ -490,8 +494,8 @@ function setMode(next) {
   document.getElementById('mode-3d').setAttribute('aria-pressed', String(!g));
   document.getElementById('mode-graphic').setAttribute('aria-pressed', String(g));
   document.getElementById('preview-note').textContent = g
-    ? 'Live preview of the 1080 × 1080 graphic, with the 3D player in your pose.'
-    : 'Turn the player to check every angle. The game graphic uses this 3D render.';
+    ? 'Live preview of the 1080 × 1080 graphic, with the 3D uniform as you turned it.'
+    : 'Turn the uniform to check every angle. The game graphic uses this 3D render.';
   if (g) scheduleGraphic();
 }
 document.getElementById('mode-3d').addEventListener('click', () => setMode('3d'));
@@ -583,7 +587,7 @@ async function start(data = {}) {
   let assets;
   try {
     [assets] = await Promise.all([
-      loadAssets((f) => { label.textContent = `Suiting up the player… ${Math.round(f * 100)}%`; }),
+      loadDisplay((f) => { label.textContent = `Loading the uniform… ${Math.round(f * 100)}%`; }),
       fontsReady(),
     ]);
   } catch (err) {
@@ -591,7 +595,7 @@ async function start(data = {}) {
     label.textContent = 'The 3D player could not be loaded. Check your connection and reload the page.';
     return;
   }
-  player = new Player(renderer, assets);
+  player = new Display(renderer, assets);
   scene.add(player.root);
   if (new URLSearchParams(location.search).has('debug')) window.__combo = {
     player, orbit, scene, camera, THREE, setMode,
