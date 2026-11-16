@@ -162,13 +162,13 @@ function archText(ctx, text, { cx, cy, height, width, family, fill, outlines = [
 }
 
 // A whole word as one run (the script's letters join), squeezed to `width`.
-function wordText(ctx, text, { cx, cy, height, width, family, fill, outlines = [], rotate = 0 }) {
+function wordText(ctx, text, { cx, cy, height, width, family, fill, outlines = [], rotate = 0, stretch = 1.2 }) {
   ctx.save();
   ctx.font = `100px ${family}`;
   const m = ctx.measureText(text);
   const capH = m.actualBoundingBoxAscent || 72;
   const k = height / capH;
-  const sx = Math.min(1.2, width / (m.width * k));
+  const sx = Math.min(stretch, width / (m.width * k));
   ctx.translate(cx, cy);
   ctx.rotate(rotate);
   ctx.scale(k * sx, k);
@@ -211,7 +211,8 @@ export const BB_BACK = { name: [470, 54, 460], number: [650, 280, 330] };
 function numberText(ctx, number, { cx, cy, height, width, fill, outline, font, outlineW = 0.035 }) {
   wordText(ctx, number, {
     cx, cy, height, width: Math.min(width, (number.length === 1 ? 0.6 : 1) * width), family: NUMBER_FACES[font] ?? BLOCK, fill,
-    outlines: [{ color: outline, width: height * outlineW }],
+    // Natural proportions, never widened: the game numbers are tall and narrow.
+    outlines: [{ color: outline, width: height * outlineW }], stretch: 1,
   });
 }
 
@@ -301,7 +302,7 @@ export const BB_PRINT = {
     jersey: { below: 0.085, height: 0.058, width: 0.28, outline: 0.003 },
     script: { below: 0.085, height: 0.075, width: 0.27 },
     image: { below: 0.1, width: 0.25 },
-    number: { below: 0.225, height: 0.15, width: 0.17, outline: 0.04 },
+    number: { below: 0.225, height: 0.15, width: 0.17, outline: 0.03 },
     bars: { right: { across: -0.095, below: 0.01, size: 0.04 }, center: { across: 0, below: 0.022, size: 0.048 } },
     // The conference patch on the wearer's left chest, by the strap.
     patch: { across: 0.095, below: 0.025, size: 0.045 },
@@ -432,7 +433,7 @@ export function paintBBAtlas(canvas, ppm, atlas, look, { wordmark, mascot, acc, 
     const p = B.name;
     archText(ctx, look.name, { cx: back.center, cy: back.neck + p.below, height: p.height, width: Math.min(p.width, look.name.length * 0.032), family: BLOCK, fill: J.name, arch: p.arch, spacing: 6 });
   }
-  numberText(ctx, look.backNumber, { cx: back.center, cy: back.neck + B.number.below, height: B.number.height, width: B.number.width, outlineW: 0.045, ...J.number });
+  numberText(ctx, look.backNumber, { cx: back.center, cy: back.neck + B.number.below, height: B.number.height, width: B.number.width, outlineW: 0.035, ...J.number });
 
   const P = BB_PRINT.shorts;
   const left = atlas.pieces.legL;
