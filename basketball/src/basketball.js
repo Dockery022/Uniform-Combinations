@@ -186,24 +186,15 @@ function wordText(ctx, text, { cx, cy, height, width, family, fill, outlines = [
 }
 
 // The three-bar mark: three slanted bars rising left to right, `size` wide.
+// The three-bar mark, traced from the art Doc sent (2026-11-16): three
+// slanted bars on a level base, rising left to right, `size` wide.
+const THREE_BARS = [[[-0.4622, 0.2958], [-0.1975, 0.2958], [-0.3015, 0.1163], [-0.5, 0.2297]], [[-0.1115, 0.2958], [0.1522, 0.2958], [-0.0699, -0.0879], [-0.2675, 0.0255]], [[0.2344, 0.2958], [0.5, 0.2958], [0.1578, -0.2958], [-0.0406, -0.1824]]];
 export function threeBars(ctx, cx, cy, size, color) {
   ctx.save();
   ctx.fillStyle = color;
-  // Three equal-width bars, bottoms level, rising in height left to right,
-  // each leaning right by half its height.
-  const w = size * 0.24;
-  const gap = size * 0.1;
-  const h = [0.42, 0.71, 1].map((f) => f * size * 0.8);
-  const base = cy + size * 0.4;
-  const span = 3 * w + 2 * gap + h[2] * 0.5;
-  for (let i = 0; i < 3; i++) {
-    const x = cx - span / 2 + i * (w + gap);
-    const lean = h[i] * 0.5;
+  for (const bar of THREE_BARS) {
     ctx.beginPath();
-    ctx.moveTo(x, base);
-    ctx.lineTo(x + w, base);
-    ctx.lineTo(x + w + lean, base - h[i]);
-    ctx.lineTo(x + lean, base - h[i]);
+    bar.forEach(([x, y], i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, cx + x * size, cy + y * size));
     ctx.closePath();
     ctx.fill();
   }
@@ -313,7 +304,9 @@ export const BB_PRINT = {
     number: { below: 0.225, height: 0.15, width: 0.17, outline: 0.04 },
     bars: { right: { across: -0.095, below: 0.01, size: 0.04 }, center: { across: 0, below: 0.028, size: 0.034 } },
     // The conference patch on the wearer's left chest, by the strap.
-    patch: { across: 0.095, below: 0.005, size: 0.042 },
+    patch: { across: 0.095, below: 0.025, size: 0.045 },
+    flag: { across: 0.1, below: -0.025, width: 0.045 },
+    sponsor: { across: -0.105, below: 0.015, width: 0.06 },
   },
   back: {
     name: { below: 0.085, height: 0.04, width: 0.24, arch: 0.012 },
@@ -325,26 +318,55 @@ export const BB_PRINT = {
   },
 };
 
-// The round conference patch: white, a silver ring, ACC in black.
-function confPatch(ctx, cx, cy, size) {
-  const r = size / 2;
+// The chest patches, as in Doc's 2026-11-16 photos: the round ACC patch
+// (Doc's logo art) on the wearer's left chest with the US flag above it,
+// and the L&N Federal Credit Union patch (Doc's logo art, white on a black
+// navy patch) on the wearer's right chest.
+function roundPatch(ctx, cx, cy, size, img) {
   ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
   ctx.fillStyle = W;
   ctx.fill();
-  ctx.lineWidth = r * 0.14;
-  ctx.strokeStyle = BRAND.silver ?? '#8A8D8F';
+  if (img) ctx.drawImage(img, cx - size * 0.44, cy - size * 0.44, size * 0.88, size * 0.88);
+  ctx.restore();
+}
+
+function lnPatch(ctx, cx, cy, w, img) {
+  const h = w * 0.62;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(cx - w / 2, cy - h / 2, w, h, h * 0.12);
+  ctx.fillStyle = '#34374F'; // the patch's dark navy twill, as in Doc's close-up
+  ctx.fill();
+  ctx.lineWidth = h * 0.06;
+  ctx.strokeStyle = '#1F2133'; // stitched edge
   ctx.stroke();
-  ctx.font = `800 100px ${'"Montserrat", Arial, sans-serif'}`;
-  const m = ctx.measureText('ACC');
-  const k = (r * 1.25) / m.width;
-  ctx.translate(cx, cy);
-  ctx.scale(k, k);
-  ctx.fillStyle = K;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('ACC', 0, 4);
+  if (img) {
+    const iw = w * 0.8;
+    const ih = (img.height / img.width) * iw;
+    ctx.drawImage(img, cx - iw / 2, cy - ih / 2, iw, ih);
+  }
+  ctx.restore();
+}
+
+function usFlag(ctx, cx, cy, w) {
+  const h = w * 0.6;
+  const x0 = cx - w / 2;
+  const y0 = cy - h / 2;
+  ctx.save();
+  for (let i = 0; i < 13; i++) {
+    ctx.fillStyle = i % 2 ? '#FFFFFF' : '#B22234';
+    ctx.fillRect(x0, y0 + (i * h) / 13, w, h / 13 + 0.0002);
+  }
+  ctx.fillStyle = '#3C3B6E';
+  ctx.fillRect(x0, y0, w * 0.4, (h * 7) / 13);
+  ctx.fillStyle = '#FFFFFF';
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) {
+    ctx.beginPath();
+    ctx.arc(x0 + w * 0.04 + c * w * 0.08, y0 + h * 0.06 + r * h * 0.12, w * 0.012, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -361,7 +383,7 @@ function sideAt(line, y) {
 
 // Paints every print onto the transparent atlas canvas, `ppm` pixels per
 // meter. Base colors, trim and side panels come from the shader.
-export function paintBBAtlas(canvas, ppm, atlas, look, { wordmark, mascot }) {
+export function paintBBAtlas(canvas, ppm, atlas, look, { wordmark, mascot, acc, sponsor }) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
@@ -395,7 +417,14 @@ export function paintBBAtlas(canvas, ppm, atlas, look, { wordmark, mascot }) {
   const b = F.bars[J.barsAt === 'right' ? 'right' : 'center'];
   threeBars(ctx, cx + b.across, front.neck + b.below, b.size, J.bars);
   const pa = F.patch;
-  confPatch(ctx, cx + pa.across, front.neck + pa.below, pa.size);
+  roundPatch(ctx, cx + pa.across, front.neck + pa.below, pa.size, acc);
+  const fl = F.flag;
+  usFlag(ctx, cx + fl.across, front.neck + fl.below, fl.width);
+  // The L&N patch sits where the three-bar goes on sets that wear it by the strap.
+  if (J.barsAt !== 'right') {
+    const sp = F.sponsor;
+    lnPatch(ctx, cx + sp.across, front.neck + sp.below, sp.width, sponsor);
+  }
 
   const B = BB_PRINT.back;
   const back = atlas.pieces.back;

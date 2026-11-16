@@ -202,12 +202,14 @@ export class Display {
   async paint(look) {
     const token = (this.token = (this.token ?? 0) + 1);
     const J = look.bb.jersey;
-    const [wordmark, mascot] = await Promise.all([
+    const [wordmark, mascot, acc, sponsor] = await Promise.all([
       J.wordmark.kind === 'image' ? loadImage(url(J.wordmark.file)) : null,
       loadImage(url('bb-mascot')).catch(() => null),
+      loadImage(url('bb-acc')).catch(() => null),
+      loadImage(url('bb-ln')).catch(() => null),
     ]);
     if (token !== this.token) return;
-    paintBBAtlas(this.canvas, PX_PER_M, this.atlas, look, { wordmark, mascot });
+    paintBBAtlas(this.canvas, PX_PER_M, this.atlas, look, { wordmark, mascot, acc, sponsor });
     this.print.needsUpdate = true;
   }
 
