@@ -23,7 +23,7 @@ export const BB_JERSEYS = {
     number: { font: 'block', fill: R, outline: K },
     name: R,
     bars: R,
-    barsAt: 'center',
+    barsAt: 'right',
   },
   'Black 26-27': {
     base: K,
@@ -168,8 +168,10 @@ export function threeBars(ctx, cx, cy, size, color) {
 
 // Where the chest graphics sit in the front art (1366 x 1408 px, the
 // football template the model projects; see JERSEY_ART in model.js).
-export const BB_FRONT = { cx: 683, bars: [683, 470, 64], wordmark: [600, 130, 470], number: [840, 250, 300] };
-export const BB_BACK = { name: [455, 62, 520], number: [660, 340, 400] };
+// Matched to Doc's 2026-11-16 home-game galleries: LOUISVILLE straight across
+// the chest at armpit height, a smaller number under it.
+export const BB_FRONT = { cx: 683, bars: [683, 470, 56], wordmark: [585, 110, 400], number: [775, 200, 250] };
+export const BB_BACK = { name: [470, 54, 460], number: [650, 280, 330] };
 
 function numberText(ctx, number, { cx, cy, height, width, fill, outline, font }) {
   wordText(ctx, number, {
@@ -195,12 +197,12 @@ export function paintBBFront(canvas, spec, number, wordmarkImg) {
   } else if (wm.kind === 'script') {
     wordText(ctx, wm.text, { cx: F.cx, cy: wy, height: wh * 1.05, width: ww, family: SCRIPT, fill: wm.fill, outlines: [{ color: wm.outline, width: 9 }], rotate: -0.06 });
   } else if (wm.kind === 'arch') {
-    archText(ctx, wm.text, { cx: F.cx, cy: wy, height: wh * 0.62, width: ww, family: BLOCK, fill: wm.fill, outlines: [{ color: wm.outline, width: 6 }], arch: 26, spacing: 4 });
+    archText(ctx, wm.text, { cx: F.cx, cy: wy, height: wh * 0.62, width: ww, family: BLOCK, fill: wm.fill, outlines: [{ color: wm.outline, width: 6 }], arch: 6, spacing: 4 });
   }
   const [ny, nh, nw] = F.number;
   numberText(ctx, number, { cx: F.cx, cy: ny, height: nh, width: nw, ...spec.number });
   const [bx, by, bs] = F.bars;
-  threeBars(ctx, spec.barsAt === 'right' ? bx - 150 : bx, spec.barsAt === 'right' ? by - 30 : by, bs, spec.bars);
+  threeBars(ctx, spec.barsAt === 'right' ? bx - 160 : bx, spec.barsAt === 'right' ? by - 40 : by, bs, spec.bars);
   ctx.restore();
 }
 
