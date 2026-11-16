@@ -86,8 +86,11 @@ const BLOCK = FONTS.block; // Graduate: collegiate block with slab serifs
 const NUMBER_FACES = { jersey: FONTS.jersey, block: BLOCK, sans: '"Oswald", "Arial Narrow", Impact, sans-serif' };
 
 // Text along a gentle upward arch, centered on (cx, cy): `arch` is how far
-// the middle rises above the ends, in pixels.
-function archText(ctx, text, { cx, cy, height, width, family, fill, outlines = [], arch = 0, spacing = 0 }) {
+// the middle rises above the ends. All the letters' outlines go down before
+// any fill, so touching letters share one outline. `shadow` ({ dx, dy,
+// color }) adds an offset outline underneath; `spikeV` drops the V's point
+// below the baseline, as on the 26-27 home LOUISVILLE.
+function archText(ctx, text, { cx, cy, height, width, family, fill, outlines = [], arch = 0, spacing = 0, shadow = null, spikeV = false }) {
   ctx.save();
   ctx.font = `100px ${family}`;
   const glyphs = [...text];
@@ -97,30 +100,64 @@ function archText(ctx, text, { cx, cy, height, width, family, fill, outlines = [
   const capH = (m.actualBoundingBoxAscent || 72);
   const k = height / capH;
   const sx = Math.min(1, width / (total * k));
-  let x = -total / 2;
   const half = (total * k * sx) / 2;
+  const place = [];
+  let x = -total / 2;
   for (const [i, g] of glyphs.entries()) {
     const gx = (x + widths[i] / 2) * k * sx;
     const t = gx / half; // -1 .. 1
-    const lift = arch * (1 - t * t);
-    const slope = (-2 * arch * t) / half;
-    ctx.save();
-    ctx.translate(cx + gx, cy - lift);
-    ctx.rotate(Math.atan(slope));
-    ctx.scale(k * sx, k);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.lineJoin = 'round';
-    for (const o of outlines) {
-      ctx.strokeStyle = o.color;
-      ctx.lineWidth = (o.width * 2) / k;
-      ctx.strokeText(g, 0, capH / 2);
-    }
-    ctx.fillStyle = fill;
-    ctx.fillText(g, 0, capH / 2);
-    ctx.restore();
+    place.push({ g, w: widths[i], gx, lift: arch * (1 - t * t), slope: (-2 * arch * t) / half });
     x += widths[i];
   }
+  const each = (fn) => {
+    for (const p of place) {
+      ctx.save();
+      ctx.translate(cx + p.gx, cy - p.lift);
+      ctx.rotate(Math.atan(p.slope));
+      ctx.scale(k * sx, k);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.lineJoin = 'round';
+      fn(p);
+      ctx.restore();
+    }
+  };
+  // The V's point: a wedge under the letter, filled and outlined with it.
+  const spike = (p) => {
+    if (!spikeV || p.g !== 'V') return null;
+    const path = new Path2D();
+    path.moveTo(-p.w * 0.16, capH / 2 - 2);
+    path.lineTo(p.w * 0.12, capH / 2 - 2);
+    path.lineTo(-p.w * 0.06, capH / 2 + capH * 0.24);
+    path.closePath();
+    return path;
+  };
+  const stroke = (p, color, w) => {
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = (w * 2) / k;
+    ctx.strokeText(p.g, 0, capH / 2);
+    ctx.fillText(p.g, 0, capH / 2);
+    const sp = spike(p);
+    if (sp) {
+      ctx.stroke(sp);
+      ctx.fill(sp);
+    }
+  };
+  const outer = outlines.reduce((a, o) => Math.max(a, o.width), 0);
+  if (shadow) {
+    each((p) => {
+      ctx.translate(shadow.dx / (k * sx), shadow.dy / k);
+      stroke(p, shadow.color, outer);
+    });
+  }
+  for (const o of [...outlines].sort((a, b) => b.width - a.width)) each((p) => stroke(p, o.color, o.width));
+  each((p) => {
+    ctx.fillStyle = fill;
+    ctx.fillText(p.g, 0, capH / 2);
+    const sp = spike(p);
+    if (sp) ctx.fill(sp);
+  });
   ctx.restore();
 }
 
@@ -205,7 +242,11 @@ export function paintBBFront(canvas, spec, number, wordmarkImg) {
     wordText(ctx, wm.text, { cx: F.cx, cy: wy, height: wh * 1.05, width: ww, family: SCRIPT, fill: wm.fill, outlines: [{ color: wm.outline, width: 9 }], rotate: -0.06 });
   } else if (wm.kind === 'jersey') {
     const p = F.jersey;
-    archText(ctx, wm.text, { cx, cy: front.neck + p.below, height: p.height, width: p.width, family: FONTS.jersey, fill: wm.fill, outlines: [{ color: wm.outline, width: p.outline }], arch: 0.004, spacing: 1 });
+    archText(ctx, wm.text, {
+      cx, cy: front.neck + p.below, height: p.height, width: p.width, family: FONTS.jersey, fill: wm.fill,
+      outlines: [{ color: wm.outline, width: p.outline }], arch: 0.003, spacing: -2,
+      shadow: { dx: -0.002, dy: 0.0035, color: wm.outline }, spikeV: true,
+    });
   } else if (wm.kind === 'arch') {
     archText(ctx, wm.text, { cx: F.cx, cy: wy, height: wh * 0.62, width: ww, family: BLOCK, fill: wm.fill, outlines: [{ color: wm.outline, width: 6 }], arch: 6, spacing: 4 });
   }
@@ -266,10 +307,10 @@ export function paintBBShortsLogos(canvas, spec, bird, art) {
 export const BB_PRINT = {
   front: {
     wordmark: { below: 0.075, height: 0.042, width: 0.25 }, // straight, about armpit height
-    jersey: { below: 0.085, height: 0.06, width: 0.27, outline: 0.0035 },
+    jersey: { below: 0.085, height: 0.058, width: 0.28, outline: 0.003 },
     script: { below: 0.085, height: 0.075, width: 0.27 },
     image: { below: 0.1, width: 0.25 },
-    number: { below: 0.215, height: 0.15, width: 0.17, outline: 0.05 },
+    number: { below: 0.225, height: 0.15, width: 0.17, outline: 0.04 },
     bars: { right: { across: -0.095, below: 0.01, size: 0.04 }, center: { across: 0, below: 0.028, size: 0.034 } },
     // The conference patch on the wearer's left chest, by the strap.
     patch: { across: 0.095, below: 0.005, size: 0.042 },
@@ -340,7 +381,11 @@ export function paintBBAtlas(canvas, ppm, atlas, look, { wordmark, mascot }) {
     wordText(ctx, wm.text, { cx, cy: front.neck + p.below, height: p.height, width: p.width, family: SCRIPT, fill: wm.fill, outlines: [{ color: wm.outline, width: 0.0035 }], rotate: -0.06 });
   } else if (wm.kind === 'jersey') {
     const p = F.jersey;
-    archText(ctx, wm.text, { cx, cy: front.neck + p.below, height: p.height, width: p.width, family: FONTS.jersey, fill: wm.fill, outlines: [{ color: wm.outline, width: p.outline }], arch: 0.004, spacing: 1 });
+    archText(ctx, wm.text, {
+      cx, cy: front.neck + p.below, height: p.height, width: p.width, family: FONTS.jersey, fill: wm.fill,
+      outlines: [{ color: wm.outline, width: p.outline }], arch: 0.003, spacing: -2,
+      shadow: { dx: -0.002, dy: 0.0035, color: wm.outline }, spikeV: true,
+    });
   } else if (wm.kind === 'arch') {
     const p = F.wordmark;
     archText(ctx, wm.text, { cx, cy: front.neck + p.below, height: p.height, width: p.width, family: BLOCK, fill: wm.fill, outlines: [{ color: wm.outline, width: 0.0025 }], arch: 0.002, spacing: 2 });
