@@ -231,6 +231,46 @@ export function paintJerseyBack(canvas, spec) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
+// The sleeve panel: both sleeves unwrapped around the upper arm, the
+// player's right sleeve on the left half of the canvas and the left sleeve
+// on the right half. Within a sleeve, u runs around the arm from the armpit
+// (0), over the back, the outer seam (0.5) and the front, back to the
+// armpit (1); v runs down from the top seam (0) to the hem (1). See
+// Player.projectJersey, which wraps it.
+export const SLEEVE_PANEL = { width: 2048, height: 512 };
+// The art's hanging sleeves (front view), in art pixels: each box maps onto
+// the front half of its sleeve from the outer side to the armpit, top seam
+// to hem; the back half gets its mirror, so the drawn bands run around the
+// arm. (The player's left sleeve is on the art's right.)
+const ART_SLEEVES = { top: 290, bottom: 500, left: { outerX: 1316, innerX: 1176 }, right: { outerX: 40, innerX: 190 } };
+
+// Paints the sleeve panel from the painted front art (its hanging sleeves,
+// bands and all).
+export function paintJerseySleeves(canvas, front, spec) {
+  const ctx = canvas.getContext('2d');
+  const { width: W, height: H } = canvas;
+  ctx.clearRect(0, 0, W, H);
+  const k = front.width / spec.art.width;
+  const S = ART_SLEEVES;
+  const q = W / 4; // half a sleeve
+  for (const [name, x0] of [['right', 0], ['left', W / 2]]) {
+    const { outerX, innerX } = S[name];
+    const sx = Math.min(outerX, innerX) * k;
+    const sw = Math.abs(innerX - outerX) * k;
+    const sy = S.top * k;
+    const sh = (S.bottom - S.top) * k;
+    // Front half (u 0.5 to 1) reads outer side to armpit left to right; the
+    // back half (0 to 0.5) armpit to outer side, so the seam meets itself.
+    for (const [dx, flip] of [[x0 + q, outerX > innerX], [x0, outerX < innerX]]) {
+      ctx.save();
+      ctx.translate(dx + (flip ? q : 0), 0);
+      ctx.scale(flip ? -1 : 1, 1);
+      ctx.drawImage(front, sx, sy, sw, sh, 0, 0, q, H);
+      ctx.restore();
+    }
+  }
+}
+
 // The back number, larger and higher than on the front, and an optional
 // name between the collar and the number, on a transparent canvas laid over
 // the back panel. The number matches the front's lettering. The name is set
