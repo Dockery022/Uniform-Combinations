@@ -22,7 +22,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 # Jerseys whose collar is black, and the collar's color.
-COLLAR = {'jersey-black-wing': '#000000'}
+COLLAR = {'jersey-black-wing': '#000000', 'jersey-black-20': '#000000'}
 # In pixels of the 1024 px wide art: the rows and columns the collar spans.
 ROWS, COLS = (0, 310), (330, 700)
 

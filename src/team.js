@@ -138,6 +138,22 @@ export const JERSEY_SLEEVES = {
   'jersey-black': [[300, 314, '#ffffff'], [320, 360, BRAND.red], [366, 380, '#ffffff']],
 };
 
+// Jerseys whose game-day look differs from the drawing enough that the
+// chest, shoulders and nameplate are repainted from Doc's game photos
+// (never from the photos' pixels). The 2020 black set (Doc, 2026-11-19):
+// red tiger-claw slashes over the shoulder caps, front and back, instead of
+// the drawn sleeve stripes; ACC patch and three-bar mark closer in beside
+// the collar; LOUISVILLE upright in a flared serif, white with a red
+// outline; all-black collar; name on the back in Cardinal Red, same serif.
+export const JERSEY_REPAINT = {
+  'jersey-black-20': {
+    claw: { color: BRAND.red, slash: BRAND.black },
+    logos: { inset: 95, drop: 30 },
+    wordmark: { font: 'serif', fill: BRAND.white, outline: BRAND.red },
+    nameplate: { font: 'serif', fill: BRAND.red },
+  },
+};
+
 // The big word for a piece on the game graphic. Plain sets show their color
 // group; alternate sets show their own name so they read apart from it.
 export const GRAPHIC_WORD = {
