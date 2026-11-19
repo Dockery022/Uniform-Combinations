@@ -103,9 +103,11 @@ const TV_BLOCK = [
   { clear: [219, 78, 384, 191], at: [301, 134], h: 175, turn: 0.98, digits: 'all' },
   { clear: [968, 88, 1136, 159], at: [1052, 123], h: 165, turn: -1.18, digits: 'all' },
 ];
+// The 2020 shoulder numbers sit on the pad top inboard of the contrast patch
+// (JERSEY_REPAINT), as in Doc's photos; `clear` is the art's digit box.
 const TV_2020 = [
-  { clear: [225, 66, 362, 154], at: [293, 110], h: 82, turn: -0.12, digits: 'all' },
-  { clear: [1022, 68, 1143, 155], at: [1082, 111], h: 82, turn: 0.12, digits: 'all' },
+  { clear: [225, 66, 362, 154], at: [345, 110], h: 82, turn: -0.12, digits: 'all' },
+  { clear: [1022, 68, 1143, 155], at: [1021, 111], h: 82, turn: 0.12, digits: 'all' },
 ];
 const TV_CUFF = [
   { clear: [18, 266, 110, 410], at: [62, 338], h: 130, turn: 0.2, digits: 'last' },
