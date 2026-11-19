@@ -539,7 +539,7 @@ const s2slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replac
 // The first paint waits up to 2.5 s; whatever arrives later triggers a
 // redraw (see start).
 const fontLoads = Promise.all([
-  `100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`,
+  `100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `900 100px ${FONTS.serif}`, `100px ${FONTS.display}`,
   `600 20px ${FONTS.sans}`,
 ].map((f) => document.fonts.load(f).catch(() => [])));
 let fontsSettled = false;

@@ -103,9 +103,11 @@ const TV_BLOCK = [
   { clear: [219, 78, 384, 191], at: [301, 134], h: 175, turn: 0.98, digits: 'all' },
   { clear: [968, 88, 1136, 159], at: [1052, 123], h: 165, turn: -1.18, digits: 'all' },
 ];
+// The 2020 shoulder numbers sit on the pad top inboard of the contrast patch
+// (JERSEY_REPAINT), as in Doc's photos; `clear` is the art's digit box.
 const TV_2020 = [
-  { clear: [225, 66, 362, 154], at: [293, 110], h: 82, turn: -0.12, digits: 'all' },
-  { clear: [1022, 68, 1143, 155], at: [1082, 111], h: 82, turn: 0.12, digits: 'all' },
+  { clear: [225, 66, 362, 154], at: [345, 110], h: 82, turn: -0.12, digits: 'all' },
+  { clear: [1022, 68, 1143, 155], at: [1021, 111], h: 82, turn: 0.12, digits: 'all' },
 ];
 const TV_CUFF = [
   { clear: [18, 266, 110, 410], at: [62, 338], h: 130, turn: 0.2, digits: 'last' },
@@ -138,6 +140,35 @@ export const JERSEY_SLEEVES = {
   'jersey-black': [[300, 314, '#ffffff'], [320, 360, BRAND.red], [366, 380, '#ffffff']],
 };
 
+// Jerseys whose game-day look differs from the drawing enough that the
+// shoulders, sleeves, logos, wordmark and nameplate are repainted from
+// Doc's 2019 game photos (never from the photos' pixels; see textures.js).
+// The 2020 sets (Doc, 2026-11-19): a cap in the contrast color over each
+// shoulder pad with three claws raking down the sleeve and a thin accent
+// streak along each, LOUISVILLE upright in a flared serif, outlined numbers,
+// the name on the back in the same serif, and a black collar. `spec`
+// overrides the art-sampled collar and number colors.
+export const JERSEY_REPAINT = {
+  'jersey-black-20': {
+    claw: { cap: BRAND.red, accent: BRAND.white },
+    wordmark: { fill: BRAND.white, outline: BRAND.red },
+    nameplate: { fill: BRAND.red },
+    spec: { trim: BRAND.black },
+  },
+  'jersey-red-20': {
+    claw: { cap: BRAND.black, accent: BRAND.white },
+    wordmark: { fill: BRAND.white, outline: BRAND.black },
+    nameplate: { fill: BRAND.white },
+    spec: { trim: BRAND.black },
+  },
+  'jersey-white-20': {
+    claw: { cap: BRAND.black, accent: BRAND.red },
+    wordmark: { fill: BRAND.red, outline: BRAND.black },
+    nameplate: { fill: BRAND.red },
+    spec: { trim: BRAND.black, number: { outline: BRAND.black } },
+  },
+};
+
 // The big word for a piece on the game graphic. Plain sets show their color
 // group; alternate sets show their own name so they read apart from it.
 export const GRAPHIC_WORD = {
@@ -155,7 +186,7 @@ export const HELMET_NOTE = {
 
 // The facemask each helmet comes with; anything not listed wears red.
 export const MASK_DEF = {
-  'Black': 'Black', 'Black 20': 'Black', 'White Alt 20': 'Black', 'Red 20': 'White', 'Black Script': 'Red',
+  'Black': 'Black', 'Black 20': 'Black', 'White Alt 20': 'Black', 'Red 20': 'Red', 'Black Script': 'Red',
   'Red Script': 'White', 'White Stripe': 'Red', 'Halloween 26': 'Black', 'Red Gold': 'Black',
   'Black Chrome': 'Black', 'Black Matte': 'Black', 'Black Stripe': 'Black', 'Black 23': 'Black',
   'Black Matte Chrome': 'Black',

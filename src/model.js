@@ -2,8 +2,9 @@
 // dressed in the design art from assets/uni/.
 //
 // The jersey art is a front view, so it is projected onto the jersey from the
-// front: every vertex gets an art coordinate from its rest-pose position, and
-// the sleeves wrap the art's hanging sleeves. The back gets a synthesized
+// front: every vertex gets an art coordinate from its rest-pose position. Each
+// sleeve wraps its own unwrapped panel (paintJerseySleeves) around the upper
+// arm. The back gets a synthesized
 // panel with the number. The cleat art is projected from the side. Helmet decals and
 // pants logos are cut out of the art and projected the same way. Stripes,
 // collars and gloves are drawn by small shader additions that read
@@ -515,6 +516,8 @@ export class Player {
     this.canvases = {
       front: C(JERSEY_ART.width, JERSEY_ART.height),
       back: C(JERSEY_ART.width, JERSEY_ART.height),
+      // Both sleeves unwrapped around the arm (paint.SLEEVE_PANEL).
+      sleeve: C(paint.SLEEVE_PANEL.width, paint.SLEEVE_PANEL.height),
       // The back number and name, on their own 2048 px canvas so they stay sharp.
       backLetters: C(2048, Math.round((2048 * JERSEY_ART.height) / JERSEY_ART.width)),
       // The two shoulder (or cuff) numbers, side by side: the player's right on the left half.
@@ -550,6 +553,7 @@ export class Player {
       jersey: {
         uArtFront: { value: this.textures.front },
         uArtBack: { value: this.textures.back },
+        uArtSleeve: { value: this.textures.sleeve },
         uBackLetters: { value: this.textures.backLetters },
         uTv: { value: this.textures.tv },
         uBase: { value: new THREE.Color() },
@@ -588,19 +592,24 @@ export class Player {
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
         attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float', aPuffN: 'vec3' },
         uniforms: this.uniforms.jersey,
-        declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\n${weaveDecl}`,
+        declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uArtSleeve;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\n${weaveDecl}`,
         // Pushed out along its skinned, seam-averaged normal (uPuff is JERSEY_PUFF in the
         // mesh's units), so it rides over the body instead of through it.
         vertexDeclare: 'uniform float uPuff;',
         vertexAfter: { skinning_vertex: 'transformed += normalize((skinMatrix * vec4(aPuffN, 0.0)).xyz) * uPuff * aPuff;' },
         fragment: /* glsl */ `
-          vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
+          // aArt.z picks the panel: 0 front, 1 back, 2 sleeve.
+          vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : vaArt.z < 1.5 ? texture2D(uArtBack, vaArt.xy) : texture2D(uArtSleeve, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
-          vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
+          vec4 lettering = (vaArt.z > 0.5 && vaArt.z < 1.5) ? texture2D(uBackLetters, vaArt.xy) : vec4(0.0); // premultiplied
           // Shoulder numbers: flat decals, aTv = (across, down, side 1 or 2).
-          if (vaTv.z > 0.5 && all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
+          // Only where the side is (nearly) exact: across a triangle between
+          // a decal vertex and one past its cut or reach, z slides through
+          // the other side's value and the glyph's range, and would smear
+          // a sliver of the wrong number along the edge.
+          if (abs(vaTv.z - 1.0) < 0.04 || abs(vaTv.z - 2.0) < 0.04) if (all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
             vec4 tv = texture2D(uTv, vec2((vaTv.z > 1.5 ? 0.5 : 0.0) + vaTv.x * 0.5, vaTv.y));
             lettering = lettering * (1.0 - tv.a) + tv;
           }
@@ -1403,23 +1412,27 @@ export class Player {
     (this.bones.Spine2 ?? this.bones.Neck).attach(this.collar);
   }
 
-  // Art coordinates (u, v, back?) for each jersey vertex. The torso is a
+  // Art coordinates (u, v, panel) for each jersey vertex: panel 0 reads the
+  // front art, 1 the back panel, 2 the sleeve panel. The torso is a
   // straight front (or back) projection, scaled so the chest fills the art's
   // body and stretched vertically to meet its shoulder, V-neck and armpit
-  // lines. Each sleeve wraps the art's hanging sleeve, front and back alike,
-  // so its bands run around the arm.
+  // lines. Each sleeve wraps its own unwrapped panel around the arm
+  // (paint.SLEEVE_PANEL), so a slash drawn across the panel crosses the
+  // outer seam instead of mirroring at it.
   projectJersey(jersey, world, neckEdge, bonePos) {
     const A = JERSEY_ART;
     const count = world.length / 3;
     const uv = jersey.geometry.attributes.uv;
     const panel = new Uint8Array(count); // 0 front, 1 back, 2 sleeve
     let top = -Infinity;
+    let backTop = -Infinity;
     let armpit = Infinity;
     for (let i = 0; i < count; i++) {
       const u = uv.getX(i);
       panel[i] = u < 0.44 ? 2 : u < 0.715 ? 0 : 1;
       const y = world[i * 3 + 1];
       if (panel[i] === 0) top = Math.max(top, y);
+      if (panel[i] === 1) backTop = Math.max(backTop, y);
       if (panel[i] === 2) armpit = Math.min(armpit, y);
     }
     this.jerseyArmpit = armpit;
@@ -1451,44 +1464,89 @@ export class Player {
     // piecewise fit to the art's V would stretch the back number vertically
     // where it rises above the armpits.
     const torso = (x, y, back) => [A.centerX + (back ? -1 : 1) * (x - xc) * scale, back ? A.armpitY + (armpit - y) * scale : artY(y)];
+    // Where the shoulder line lands on the back panel, for art drawn on it.
+    this.artLandmarks = { backShoulderY: A.armpitY - (backTop - armpit) * scale };
 
-    // Sleeve extents per side, in 1 cm rows, so a hanging, slightly splayed
-    // arm still spans the art box from its outer to its inner side.
-    const sleeve = { left: { rows: new Map(), top: -Infinity, bottom: Infinity }, right: { rows: new Map(), top: -Infinity, bottom: Infinity } };
+    // Sleeves: panel u runs around the arm from the armpit (0) over the
+    // back, the outer seam (0.5) and the front, back to the armpit (1); v
+    // runs down from the sleeve's top seam (0) to its hem (1). The angle is
+    // measured from each 1 cm ring's center and radii, interpolated between
+    // the full rings, so a hanging, slightly splayed arm still reads evenly
+    // around. The player's right sleeve is on the panel's left half.
+    const sleeve = { left: { rows: new Map(), top: -Infinity, bottom: Infinity, sign: 1 }, right: { rows: new Map(), top: -Infinity, bottom: Infinity, sign: -1 } };
     for (let i = 0; i < count; i++) {
       if (panel[i] !== 2) continue;
       const x = world[i * 3];
       const y = world[i * 3 + 1];
+      const z = world[i * 3 + 2];
       const side = sleeve[x > xc ? 'left' : 'right'];
       side.top = Math.max(side.top, y);
       side.bottom = Math.min(side.bottom, y);
       const key = Math.round(y * 100);
-      const row = side.rows.get(key) ?? { x0: Infinity, x1: -Infinity };
+      const row = side.rows.get(key) ?? { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity, n: 0 };
       row.x0 = Math.min(row.x0, x);
       row.x1 = Math.max(row.x1, x);
+      row.z0 = Math.min(row.z0, z);
+      row.z1 = Math.max(row.z1, z);
+      row.n++;
       side.rows.set(key, row);
     }
-    const S = A.sleeves;
-    const sleeveArt = (x, y, name) => {
+    for (const side of Object.values(sleeve)) {
+      const rows = [...side.rows.entries()].map(([k, r]) => ({ y: k / 100, ...r }));
+      const depth = Math.max(...rows.map((r) => r.z1 - r.z0));
+      // Full rings: enough vertices and nearly the deepest front-to-back span.
+      side.rings = rows.filter((r) => r.n >= 30 && r.z1 - r.z0 > 0.6 * depth)
+        .map((r) => ({ y: r.y, cx: (r.x0 + r.x1) / 2, cz: (r.z0 + r.z1) / 2, rx: (r.x1 - r.x0) / 2, rz: (r.z1 - r.z0) / 2 }))
+        .sort((a, b) => a.y - b.y);
+    }
+    const ringAt = (side, y) => {
+      const R = side.rings;
+      if (R.length === 0) return { cx: 0, cz: 0, rx: 1, rz: 1 };
+      if (y <= R[0].y) return R[0];
+      if (y >= R[R.length - 1].y) return R[R.length - 1];
+      let k = 1;
+      while (R[k].y < y) k++;
+      const a = R[k - 1];
+      const b = R[k];
+      const t = (y - a.y) / (b.y - a.y);
+      return { cx: a.cx + (b.cx - a.cx) * t, cz: a.cz + (b.cz - a.cz) * t, rx: a.rx + (b.rx - a.rx) * t, rz: a.rz + (b.rz - a.rz) * t };
+    };
+    const sleeveArt = (x, y, z, name) => {
       const side = sleeve[name];
-      const row = side.rows.get(Math.round(y * 100)) ?? { x0: x, x1: x };
-      const outer = name === 'left' ? row.x1 : row.x0;
-      const inner = name === 'left' ? row.x0 : row.x1;
-      const across = Math.abs(inner - outer) > 1e-4 ? (x - outer) / (inner - outer) : 0.5;
-      const down = (side.top - y) / Math.max(1e-4, side.top - side.bottom);
-      return [S[name].outerX + across * (S[name].innerX - S[name].outerX), S.top + down * (S.bottom - S.top)];
+      const r = ringAt(side, y);
+      // 0 at the outer seam, + toward the front, on an ellipse the ring's size.
+      const theta = Math.atan2((z - r.cz) / Math.max(r.rz, 1e-4), ((x - r.cx) / Math.max(r.rx, 1e-4)) * side.sign);
+      const u = 0.5 + theta / (2 * Math.PI);
+      const v = (side.top - y) / Math.max(1e-4, side.top - side.bottom);
+      return [(name === 'left' ? 0.5 : 0) + 0.5 * u, v];
     };
 
     const out = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       const x = world[i * 3];
       const y = world[i * 3 + 1];
-      const [ax, ay] = panel[i] === 2 ? sleeveArt(x, y, x > xc ? 'left' : 'right') : torso(x, y, panel[i] === 1);
+      if (panel[i] === 2) {
+        const [u, v] = sleeveArt(x, y, world[i * 3 + 2], x > xc ? 'left' : 'right');
+        out[i * 3] = u;
+        out[i * 3 + 1] = v;
+        out[i * 3 + 2] = 2;
+        continue;
+      }
+      const [ax, ay] = torso(x, y, panel[i] === 1);
       out[i * 3] = ax / A.width;
       out[i * 3 + 1] = ay / A.height;
       out[i * 3 + 2] = panel[i] === 1 ? 1 : 0;
     }
     return out;
+  }
+
+  // Sleeve-panel coordinates (see projectJersey) of a point given in the
+  // art's hanging sleeve box, on the front of that sleeve.
+  static sleevePanelPoint(ax, ay) {
+    const S = JERSEY_ART.sleeves;
+    const name = ax < JERSEY_ART.centerX ? 'right' : 'left';
+    const across = THREE.MathUtils.clamp((ax - S[name].outerX) / (S[name].innerX - S[name].outerX), 0, 1);
+    return [(name === 'left' ? 0.5 : 0) + 0.5 * (0.5 + 0.5 * across), (ay - S.top) / (S.bottom - S.top)];
   }
 
   // Shoulder (or cuff) numbers as flat decals. A cuff number is centered where
@@ -1516,14 +1574,14 @@ export class Player {
     const q = new THREE.Vector3();
     const n0 = new THREE.Vector3();
     this.tvSizes = (style.tv ?? []).slice(0, 2).map((tv, side) => {
-      const ax = tv.at[0] / JERSEY_ART.width;
-      const ay = tv.at[1] / JERSEY_ART.height;
       const onSleeve = tv.at[0] < 205 || tv.at[0] > 1161; // art sleeve columns
+      const [ax, ay] = onSleeve ? Player.sleevePanelPoint(tv.at[0], tv.at[1]) : [tv.at[0] / JERSEY_ART.width, tv.at[1] / JERSEY_ART.height];
       let best = -1;
       let bestD = Infinity;
       for (let i = 0; i < count; i++) {
         const u = uv.getX(i);
         if ((u < 0.44) !== onSleeve || (!onSleeve && u >= 0.715)) continue; // sleeves, or the front panel
+        if (onSleeve && art[i * 3] % 0.5 < 0.25) continue; // the front half of the sleeve
         const d = (art[i * 3] - ax) ** 2 + (art[i * 3 + 1] - ay) ** 2;
         if (d < bestD) { bestD = d; best = i; }
       }
@@ -1850,9 +1908,10 @@ export class Player {
       loadImage(url(look.shoes)),
     ]);
     if (token !== this.artToken) return;
-    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
-    paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
-    paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name);
+    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves, look.jersey.repaint);
+    paint.paintJerseySleeves(this.canvases.sleeve, this.canvases.front, look.jersey.spec, look.jersey.repaint);
+    paint.paintJerseyBack(this.canvases.back, look.jersey.spec, look.jersey.repaint, this.artLandmarks);
+    paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name, look.jersey.repaint);
     this.placeTv(look.jersey.style);
     paint.paintTvDecals(this.canvases.tv, look.jersey.spec, look.jersey.style, look.number);
     paint.paintHelmetBack(this.canvases.helmetBack, HELMET_BACK, look.backNumber, look.helmet.spec.shell, look.helmet.spec.back);
@@ -1869,7 +1928,7 @@ export class Player {
     const shc = this.canvases.shoe.getContext('2d');
     shc.clearRect(0, 0, 702, 372);
     shc.drawImage(shoe, 0, 0, 702, 372);
-    for (const k of ['front', 'back', 'backLetters', 'tv', 'helmetBack', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
+    for (const k of ['front', 'back', 'sleeve', 'backLetters', 'tv', 'helmetBack', 'logos', 'decal', 'shoe']) this.textures[k].needsUpdate = true;
   }
 
   // ---------- poses ----------
