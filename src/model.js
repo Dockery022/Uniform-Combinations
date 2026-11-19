@@ -605,7 +605,11 @@ export class Player {
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
           vec4 lettering = (vaArt.z > 0.5 && vaArt.z < 1.5) ? texture2D(uBackLetters, vaArt.xy) : vec4(0.0); // premultiplied
           // Shoulder numbers: flat decals, aTv = (across, down, side 1 or 2).
-          if (vaTv.z > 0.5 && all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
+          // Only where the side is (nearly) exact: across a triangle between
+          // a decal vertex and one past its cut or reach, z slides through
+          // the other side's value and the glyph's range, and would smear
+          // a sliver of the wrong number along the edge.
+          if (abs(vaTv.z - 1.0) < 0.04 || abs(vaTv.z - 2.0) < 0.04) if (all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
             vec4 tv = texture2D(uTv, vec2((vaTv.z > 1.5 ? 0.5 : 0.0) + vaTv.x * 0.5, vaTv.y));
             lettering = lettering * (1.0 - tv.a) + tv;
           }
