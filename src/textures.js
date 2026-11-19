@@ -307,7 +307,7 @@ export function paintJerseySleeves(canvas, front, spec, repaint) {
 // the pad and the chest stay clear; the back runs further in along the
 // yoke and down the outer edge, as in the photos.
 const SHOULDER_PATCH = {
-  front: [[285, 0], [285, 60], [250, 110], [280, 135], [230, 175], [255, 195], [190, 240], [140, 300]],
+  front: [[285, 0], [285, 60], [250, 110], [280, 135], [230, 175], [250, 195], [180, 230], [125, 270]],
   back: [[340, -84], [340, 20], [300, 70], [345, 90], [270, 150], [310, 170], [230, 230], [175, 280]],
 };
 function paintShoulderPatches(ctx, W, { cap }, edge, shoulderY = 0) {
@@ -326,15 +326,26 @@ function paintShoulderPatches(ctx, W, { cap }, edge, shoulderY = 0) {
 }
 
 // The sleeve, in panel units (u around the arm: 0.25 the back, 0.5 the
-// outer seam, 0.75 the front; v down from the top seam). `paw` is the
-// patch on the upper back and outer sleeve, with points raking down its
-// lower edge. Each claw is [u0, v0, u1, v1, width]: it starts on the paw's
-// front boundary, fat, and tapers to a point toward the front of the arm.
-// The accent streak runs along each claw's lower (hem-side) edge.
+// outer seam, 0.75 the front; v down from the top seam to the hem near
+// 0.75). `shape` is the whole contrast shape as one outline: the patch
+// over the upper back and outer sleeve, then three fat claws raking
+// forward and down to points near the hem, the sleeve color wedged up
+// between them to a third of the way down, as in the photos. `axes` are
+// the claws' centerlines, for the accent streak that runs along each
+// claw's lower edge inside the wedge beside it.
 const SLEEVE_CLAW = {
-  paw: [[0.14, 0], [0.66, 0], [0.62, 0.12], [0.52, 0.20], [0.42, 0.28], [0.34, 0.36], [0.30, 0.52], [0.24, 0.42], [0.18, 0.54], [0.14, 0.36]],
-  claws: [[0.60, 0.08, 0.85, 0.60, 0.08], [0.50, 0.18, 0.77, 0.72, 0.08], [0.40, 0.28, 0.67, 0.78, 0.075]],
-  accent: { width: 0.016, gap: 0.028, from: 0.1, to: 0.85 },
+  shape: [
+    [0.12, 0], [0.70, 0],
+    [0.74, 0.10], [0.80, 0.26], [0.88, 0.56], // claw A, to its tip
+    [0.78, 0.46], [0.70, 0.30], [0.63, 0.20], // back up its lower edge to the first wedge
+    [0.70, 0.36], [0.77, 0.54], [0.84, 0.76], // claw B
+    [0.73, 0.64], [0.63, 0.46], [0.54, 0.34], // second wedge
+    [0.60, 0.50], [0.66, 0.64], [0.72, 0.82], // claw C
+    [0.60, 0.70], [0.48, 0.52], // its lower edge
+    [0.40, 0.46], [0.36, 0.62], [0.30, 0.48], [0.22, 0.60], [0.14, 0.44], [0.12, 0.30], // points along the lower edge on the back
+  ],
+  axes: [[0.72, 0.05, 0.88, 0.56], [0.66, 0.22, 0.84, 0.76], [0.57, 0.36, 0.72, 0.82]],
+  accent: { width: 0.018, offset: 0.085, from: 0.22, to: 0.95 },
 };
 function paintSleeveClaws(ctx, x0, w, h, { cap, accent = '#FFFFFF' }) {
   const X = (u) => x0 + u * w;
@@ -345,26 +356,20 @@ function paintSleeveClaws(ctx, x0, w, h, { cap, accent = '#FFFFFF' }) {
   ctx.clip();
   ctx.fillStyle = cap;
   ctx.beginPath();
-  for (const [u, v] of SLEEVE_CLAW.paw) ctx.lineTo(X(u), Y(v) - (v === 0 ? 2 : 0));
+  for (const [u, v] of SLEEVE_CLAW.shape) ctx.lineTo(X(u), Y(v) - (v === 0 ? 2 : 0));
   ctx.closePath();
   ctx.fill();
-  for (const [u0, v0, u1, v1, cw] of SLEEVE_CLAW.claws) clawStreak(ctx, X(u0), Y(v0), X(u1), Y(v1), cw * w, cap);
-  // A thin accent streak along the lower edge of each claw, in the gap
-  // beside it.
   const A = SLEEVE_CLAW.accent;
-  for (const [u0, v0, u1, v1, cw] of SLEEVE_CLAW.claws) {
+  for (const [u0, v0, u1, v1] of SLEEVE_CLAW.axes) {
     const dx = X(u1) - X(u0);
     const dy = Y(v1) - Y(v0);
     const len = Math.hypot(dx, dy);
     // Unit normal toward the hem side (lower u, higher v).
     const nx = -dy / len;
     const ny = dx / len;
-    const off = (cw * w) / 2 + A.gap * w;
-    const sx = X(u0) + dx * A.from + nx * off;
-    const sy = Y(v0) + dy * A.from + ny * off;
-    const ex = X(u0) + dx * A.to + nx * off * 0.6;
-    const ey = Y(v0) + dy * A.to + ny * off * 0.6;
-    clawStreak(ctx, sx, sy, ex, ey, A.width * w, accent);
+    const off = A.offset * w;
+    clawStreak(ctx, X(u0) + dx * A.from + nx * off, Y(v0) + dy * A.from + ny * off,
+      X(u0) + dx * A.to + nx * off * 0.75, Y(v0) + dy * A.to + ny * off * 0.75, A.width * w, accent);
   }
   ctx.restore();
 }
