@@ -272,72 +272,55 @@ function repaintFront(ctx, img, spec, rp) {
   }
 }
 
-// Tiger-claw shoulders (2020 black set): a red cap over each shoulder with a
-// toothed edge toward the chest (or the back) and down the upper sleeve,
-// raked by thin black claw slashes pointed at both ends. Drawn for the
-// art's left half (the player's right) and mirrored for the other shoulder.
-// The torso panel's shoulder lies above y 330, outside the chest. Each
-// sleeve maps from the art's sleeve box (x 40 outer side to 190 armpit side,
-// y 290 shoulder seam to 500 hem), front and back alike, so the claw's
-// longest teeth run down the outside of the arm. The shoulder slashes stop
-// short of the art's outer edge (x < 80), which wraps over the top of the
-// shoulder cap and would bend them into rings.
+// Tiger-claw shoulders (2020 black set), as in Doc's close-ups: a red band
+// along the top of each shoulder, and from it long red claw streaks raking
+// down over the shoulder pad onto the upper sleeve, each fat at the top and
+// tapering to a point, black showing between them, with one thin white
+// streak among them. Drawn for the art's left half (the player's right) and
+// mirrored for the other shoulder; the back gets the same. On the torso
+// panel the shoulder lies above y 330 outside the chest (its art x < 80
+// wraps over the top of the shoulder cap, so streaks stay inside that).
+// Each sleeve maps from the art's sleeve box (x 40 outer side to 190 armpit
+// side, y 290 shoulder seam to 500 hem), front and back alike, so streaks
+// there are drawn straight down: a slanted one would close into a ring.
 const CLAW = {
-  // The toothed edge across the chest (front) or shoulder blade (back).
-  edge: { front: [[392, 0], [262, 330]], back: [[400, 0], [300, 300]] },
-  teeth: 5,
-  // Teeth down the sleeve: [x, y] points from the armpit side to the outside.
-  sleeve: [[215, 330], [190, 312], [165, 352], [135, 330], [105, 378], [75, 350], [45, 404], [15, 366], [0, 380]],
-  // Slashes [x0, y0, x1, y1, width] on the shoulder. The sleeve gets none:
-  // its box wraps around the arm, so a slash there would close into a ring.
-  slashes: [[334, 0, 170, 312, 22], [262, 0, 120, 296, 22], [196, 0, 84, 250, 18]],
+  // Thin red streaks raked over the outer shoulder cap, fat end up by the
+  // collar seam and tapering down toward the sleeve, as in the game photos
+  // (the red runs mostly along the outside of the shoulder and sleeve, not
+  // across the whole cap).
+  torso: [[200, 60, 172, 270, 24], [152, 60, 130, 262, 22]],
+  sleeve: [[184, 340, 174, 410, 20], [140, 336, 130, 424, 22], [96, 336, 88, 416, 22], [52, 340, 46, 400, 20]],
+  white: [[[226, 80, 196, 270, 6], [118, 300, 112, 400, 5]]],
 };
-function paintClaws(ctx, W, { color, slash }, back) {
+function paintClaws(ctx, W, { color, slash, accent = '#FFFFFF' }, back) {
   for (const flip of [false, true]) {
     ctx.save();
     if (flip) { ctx.translate(W, 0); ctx.scale(-1, 1); }
-    const [[ex0, ey0], [ex1, ey1]] = CLAW.edge[back ? 'back' : 'front'];
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(ex0, ey0);
-    for (let i = 1; i <= CLAW.teeth * 2; i++) {
-      const t = i / (CLAW.teeth * 2);
-      const x = ex0 + (ex1 - ex0) * t;
-      const y = ey0 + (ey1 - ey0) * t;
-      // Odd steps point in toward the chest, slanting down like a claw mark.
-      ctx.lineTo(i % 2 ? x + 44 : x, i % 2 ? y + 26 : y);
-    }
-    ctx.lineTo(0, ey1);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(0, 270);
-    ctx.lineTo(215, 270);
-    for (const [x, y] of CLAW.sleeve) ctx.lineTo(x, y);
-    ctx.closePath();
-    ctx.fill();
     ctx.fillStyle = slash;
-    for (const [x0, y0, x1, y1, w] of CLAW.slashes) taperedStroke(ctx, x0, y0, x1, y1, w);
+    ctx.fillRect(0, 240, 215, 200); // the drawn sleeve stripes, painted over
+    ctx.fillStyle = color;
+    for (const [x0, y0, x1, y1, w] of [...CLAW.torso, ...CLAW.sleeve]) clawStreak(ctx, x0, y0, x1, y1, w);
+    ctx.fillStyle = accent;
+    for (const [x0, y0, x1, y1, w] of CLAW.white[0]) clawStreak(ctx, x0, y0, x1, y1, w);
     ctx.restore();
   }
 }
 
-// A slash from (x0, y0) to (x1, y1), `w` wide at its middle, pointed at both
-// ends and bowed a little, like a claw mark.
-function taperedStroke(ctx, x0, y0, x1, y1, w) {
+// A claw streak from (x0, y0), `w` wide, tapering to a point at (x1, y1),
+// bowed a little outward like a raked claw.
+function clawStreak(ctx, x0, y0, x1, y1, w) {
   const dx = x1 - x0;
   const dy = y1 - y0;
   const len = Math.hypot(dx, dy);
   const nx = -dy / len;
   const ny = dx / len;
-  const n = 16;
+  const n = 20;
   const side = (sgn) => {
     const pts = [];
     for (let i = 0; i <= n; i++) {
       const t = i / n;
-      const bow = Math.sin(Math.PI * t) * len * 0.04;
-      const half = (w / 2) * Math.sin(Math.PI * t);
+      const bow = Math.sin(Math.PI * t) * len * 0.03;
+      const half = (w / 2) * Math.pow(1 - t, 0.8);
       pts.push([x0 + dx * t + nx * (bow + sgn * half), y0 + dy * t + ny * (bow + sgn * half)]);
     }
     return pts;
@@ -348,6 +331,7 @@ function taperedStroke(ctx, x0, y0, x1, y1, w) {
   ctx.closePath();
   ctx.fill();
 }
+
 
 // The back number, larger and higher than on the front, and an optional
 // name between the collar and the number, on a transparent canvas laid over
