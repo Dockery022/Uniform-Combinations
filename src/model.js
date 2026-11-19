@@ -1850,9 +1850,9 @@ export class Player {
       loadImage(url(look.shoes)),
     ]);
     if (token !== this.artToken) return;
-    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
-    paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
-    paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name);
+    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves, look.jersey.repaint);
+    paint.paintJerseyBack(this.canvases.back, look.jersey.spec, look.jersey.repaint);
+    paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name, look.jersey.repaint);
     this.placeTv(look.jersey.style);
     paint.paintTvDecals(this.canvases.tv, look.jersey.spec, look.jersey.style, look.number);
     paint.paintHelmetBack(this.canvases.helmetBack, HELMET_BACK, look.backNumber, look.helmet.spec.shell, look.helmet.spec.back);

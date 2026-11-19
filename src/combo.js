@@ -1,7 +1,7 @@
 // Combo state: validation, names, the 3D look for a combo, and share codes.
 import { ART } from './uniform-art.js';
 import {
-  DEFAULT_STATE, FACEMASKS, GLOVES, GRAPHIC_WORD, GROUP_HEX, HELMET_NOTE, JERSEY_NUMBERS, JERSEY_SLEEVES, LIB, MASK_DEF, SKIN_TONES, VISORS,
+  DEFAULT_STATE, FACEMASKS, GLOVES, GRAPHIC_WORD, GROUP_HEX, HELMET_NOTE, JERSEY_NUMBERS, JERSEY_REPAINT, JERSEY_SLEEVES, LIB, MASK_DEF, SKIN_TONES, VISORS,
 } from './team.js';
 
 const row = (kind, id) => LIB[kind].find((r) => r[0] === id);
@@ -74,7 +74,7 @@ export function groupHex(group) {
 // Art image for a piece, as the panel and the graphic show it. ART_VERSION
 // changes whenever the art is redrawn, so browsers fetch the new pictures
 // instead of showing ones they cached.
-const ART_VERSION = '2026-10-24a';
+const ART_VERSION = '2026-11-19a';
 export const art = (file) => `assets/uni/${file}.webp?v=${ART_VERSION}`;
 
 // Doc (2026-10-24): black cleats worn with the Halloween uniform trade their
@@ -110,6 +110,7 @@ export function resolveLook(state) {
       spec: ART.jersey[file('jersey')],
       style: JERSEY_NUMBERS[file('jersey')] ?? { font: 'jersey' },
       sleeves: JERSEY_SLEEVES[file('jersey')] ?? null,
+      repaint: JERSEY_REPAINT[file('jersey')] ?? null,
     },
     pants,
     socks: sockFile ? ART.socks[sockFile] : pants.spec.socks,

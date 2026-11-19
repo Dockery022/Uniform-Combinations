@@ -4,6 +4,7 @@
 export const FONTS = {
   jersey: '"Louisville Jersey", "Anton", Impact, sans-serif',
   block: '"Graduate", "Arial Black", Impact, sans-serif',
+  serif: '"Cinzel", "Trajan Pro", Georgia, serif',
   display: '"Anton", "Arial Narrow", Impact, sans-serif',
   sans: '"Gotham SSm A", "Gotham SSm B", "Gotham", "Montserrat", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif',
 };
@@ -191,13 +192,14 @@ function paintFlag(ctx, cx, cy, w) {
 // shoulders) is painted out; the chosen number is lettered on the chest, and
 // the shoulder numbers go on as decals (paintTvDecals).
 // Coordinates are art pixels (1366 x 1408), drawn at the canvas's scale.
-export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
+export function paintJerseyFront(canvas, img, spec, style, number, sleeves, repaint) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.scale(k, k);
+  if (repaint) repaintFront(ctx, img, spec, repaint);
   ctx.fillStyle = spec.base;
   ctx.beginPath();
   for (const [x, y] of [[445, 0], [921, 0], [915, 58], [690, 392], [676, 392], [451, 58]]) ctx.lineTo(x, y);
@@ -225,10 +227,126 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
 
 // The back panel: the body color. The number and name are lettered
 // separately, by paintBackLettering, and the shoulder numbers are decals.
-export function paintJerseyBack(canvas, spec) {
+// A repainted jersey with claw shoulders carries them on the back too.
+export function paintJerseyBack(canvas, spec, repaint) {
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = spec.base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (repaint?.claw) {
+    ctx.save();
+    ctx.scale(canvas.width / spec.art.width, canvas.width / spec.art.width);
+    paintClaws(ctx, spec.art.width, repaint.claw, true);
+    ctx.restore();
+  }
+}
+
+// The upper front of a jersey whose game look differs from the drawing
+// (JERSEY_REPAINT in team.js), in art pixels: everything above the number
+// (drawn sleeve stripes, gray collar and yoke lines, logos, wordmark) is
+// painted out, then the claw shoulders, the art's own ACC patch and
+// three-bar mark moved in beside the collar, and the wordmark are put back.
+const ART_LOGOS = { acc: [255, 255, 160, 92], mark: [948, 249, 132, 94] }; // x, y, w, h in the 1366 px art
+const ART_WORDMARK = { cx: 686, cy: 449, height: 62, width: 372 };
+function repaintFront(ctx, img, spec, rp) {
+  const W = spec.art.width;
+  const s = img.width / W;
+  ctx.fillStyle = spec.base;
+  ctx.fillRect(0, 0, W, 560);
+  if (rp.claw) paintClaws(ctx, W, rp.claw, false);
+  if (rp.logos) {
+    for (const [key, dir] of [['acc', 1], ['mark', -1]]) {
+      const [x, y, w, h] = ART_LOGOS[key];
+      ctx.drawImage(img, x * s, y * s, w * s, h * s, x + dir * rp.logos.inset, y + rp.logos.drop, w, h);
+    }
+  }
+  if (rp.wordmark) {
+    const { cx, cy, height, width } = ART_WORDMARK;
+    const family = FONTS[rp.wordmark.font] ?? FONTS.jersey;
+    const weight = rp.wordmark.font === 'serif' ? '900' : '';
+    const spacing = 4;
+    const w = textWidth(ctx, 'LOUISVILLE', family, height, weight, spacing);
+    drawText(ctx, 'LOUISVILLE', {
+      family, weight, spacing, cx, cy, height, sx: Math.min(1.3, width / w),
+      fill: rp.wordmark.fill, outlines: [{ color: rp.wordmark.outline, width: 3.5 }],
+    });
+  }
+}
+
+// Tiger-claw shoulders (2020 black set): a red cap over each shoulder with a
+// toothed edge toward the chest (or the back) and down the upper sleeve,
+// raked by thin black claw slashes pointed at both ends. Drawn for the
+// art's left half (the player's right) and mirrored for the other shoulder.
+// The torso panel's shoulder lies above y 330, outside the chest. Each
+// sleeve maps from the art's sleeve box (x 40 outer side to 190 armpit side,
+// y 290 shoulder seam to 500 hem), front and back alike, so the claw's
+// longest teeth run down the outside of the arm. The shoulder slashes stop
+// short of the art's outer edge (x < 80), which wraps over the top of the
+// shoulder cap and would bend them into rings.
+const CLAW = {
+  // The toothed edge across the chest (front) or shoulder blade (back).
+  edge: { front: [[392, 0], [262, 330]], back: [[400, 0], [300, 300]] },
+  teeth: 5,
+  // Teeth down the sleeve: [x, y] points from the armpit side to the outside.
+  sleeve: [[215, 330], [190, 312], [165, 352], [135, 330], [105, 378], [75, 350], [45, 404], [15, 366], [0, 380]],
+  // Slashes [x0, y0, x1, y1, width] on the shoulder. The sleeve gets none:
+  // its box wraps around the arm, so a slash there would close into a ring.
+  slashes: [[334, 0, 170, 312, 22], [262, 0, 120, 296, 22], [196, 0, 84, 250, 18]],
+};
+function paintClaws(ctx, W, { color, slash }, back) {
+  for (const flip of [false, true]) {
+    ctx.save();
+    if (flip) { ctx.translate(W, 0); ctx.scale(-1, 1); }
+    const [[ex0, ey0], [ex1, ey1]] = CLAW.edge[back ? 'back' : 'front'];
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(ex0, ey0);
+    for (let i = 1; i <= CLAW.teeth * 2; i++) {
+      const t = i / (CLAW.teeth * 2);
+      const x = ex0 + (ex1 - ex0) * t;
+      const y = ey0 + (ey1 - ey0) * t;
+      // Odd steps point in toward the chest, slanting down like a claw mark.
+      ctx.lineTo(i % 2 ? x + 44 : x, i % 2 ? y + 26 : y);
+    }
+    ctx.lineTo(0, ey1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0, 270);
+    ctx.lineTo(215, 270);
+    for (const [x, y] of CLAW.sleeve) ctx.lineTo(x, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = slash;
+    for (const [x0, y0, x1, y1, w] of CLAW.slashes) taperedStroke(ctx, x0, y0, x1, y1, w);
+    ctx.restore();
+  }
+}
+
+// A slash from (x0, y0) to (x1, y1), `w` wide at its middle, pointed at both
+// ends and bowed a little, like a claw mark.
+function taperedStroke(ctx, x0, y0, x1, y1, w) {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  const nx = -dy / len;
+  const ny = dx / len;
+  const n = 16;
+  const side = (sgn) => {
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const bow = Math.sin(Math.PI * t) * len * 0.04;
+      const half = (w / 2) * Math.sin(Math.PI * t);
+      pts.push([x0 + dx * t + nx * (bow + sgn * half), y0 + dy * t + ny * (bow + sgn * half)]);
+    }
+    return pts;
+  };
+  ctx.beginPath();
+  for (const [x, y] of side(1)) ctx.lineTo(x, y);
+  for (const [x, y] of side(-1).reverse()) ctx.lineTo(x, y);
+  ctx.closePath();
+  ctx.fill();
 }
 
 // The back number, larger and higher than on the front, and an optional
@@ -237,7 +355,7 @@ export function paintJerseyBack(canvas, spec) {
 // in the same face as the chest LOUISVILLE wordmark (the Louisville Jersey
 // capitals are its heavy, slanted letters), black on light jerseys and in
 // the number's fill on dark ones, like the real nameplates.
-export function paintBackLettering(canvas, spec, style, number, name) {
+export function paintBackLettering(canvas, spec, style, number, name, repaint) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -252,10 +370,15 @@ export function paintBackLettering(canvas, spec, style, number, name) {
     const nameH = height * 0.2;
     const spacing = 2;
     const maxW = (x1 - x0) * 1.2;
-    const w = textWidth(ctx, name, FONTS.jersey, nameH, '', spacing);
+    // A repainted jersey's nameplate follows its photos (2020 black: red, in
+    // the same serif as its chest wordmark).
+    const plate = repaint?.nameplate;
+    const family = FONTS[plate?.font] ?? FONTS.jersey;
+    const weight = plate?.font === 'serif' ? '900' : '';
+    const w = textWidth(ctx, name, family, nameH, weight, spacing);
     drawText(ctx, name, {
-      family: FONTS.jersey, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 40) * k, height: nameH * k,
-      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill,
+      family, weight, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 40) * k, height: nameH * k,
+      sx: Math.min(1, maxW / w), fill: plate?.fill ?? (isLight(spec.base) ? '#000000' : numberColors(spec).fill),
     });
   }
 }
