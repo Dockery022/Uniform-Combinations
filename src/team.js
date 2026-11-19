@@ -138,6 +138,35 @@ export const JERSEY_SLEEVES = {
   'jersey-black': [[300, 314, '#ffffff'], [320, 360, BRAND.red], [366, 380, '#ffffff']],
 };
 
+// Jerseys whose game-day look differs from the drawing enough that the
+// shoulders, sleeves, logos, wordmark and nameplate are repainted from
+// Doc's 2019 game photos (never from the photos' pixels; see textures.js).
+// The 2020 sets (Doc, 2026-11-19): a cap in the contrast color over each
+// shoulder pad with three claws raking down the sleeve and a thin accent
+// streak along each, LOUISVILLE upright in a flared serif, outlined numbers,
+// the name on the back in the same serif, and a black collar. `spec`
+// overrides the art-sampled collar and number colors.
+export const JERSEY_REPAINT = {
+  'jersey-black-20': {
+    claw: { cap: BRAND.red, accent: BRAND.white },
+    wordmark: { fill: BRAND.white, outline: BRAND.red },
+    nameplate: { fill: BRAND.red },
+    spec: { trim: BRAND.black },
+  },
+  'jersey-red-20': {
+    claw: { cap: BRAND.black, accent: BRAND.white },
+    wordmark: { fill: BRAND.white, outline: BRAND.black },
+    nameplate: { fill: BRAND.white },
+    spec: { trim: BRAND.black },
+  },
+  'jersey-white-20': {
+    claw: { cap: BRAND.black, accent: BRAND.red },
+    wordmark: { fill: BRAND.red, outline: BRAND.black },
+    nameplate: { fill: BRAND.red },
+    spec: { trim: BRAND.black, number: { outline: BRAND.black } },
+  },
+};
+
 // The big word for a piece on the game graphic. Plain sets show their color
 // group; alternate sets show their own name so they read apart from it.
 export const GRAPHIC_WORD = {

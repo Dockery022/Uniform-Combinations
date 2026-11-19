@@ -1425,12 +1425,14 @@ export class Player {
     const uv = jersey.geometry.attributes.uv;
     const panel = new Uint8Array(count); // 0 front, 1 back, 2 sleeve
     let top = -Infinity;
+    let backTop = -Infinity;
     let armpit = Infinity;
     for (let i = 0; i < count; i++) {
       const u = uv.getX(i);
       panel[i] = u < 0.44 ? 2 : u < 0.715 ? 0 : 1;
       const y = world[i * 3 + 1];
       if (panel[i] === 0) top = Math.max(top, y);
+      if (panel[i] === 1) backTop = Math.max(backTop, y);
       if (panel[i] === 2) armpit = Math.min(armpit, y);
     }
     this.jerseyArmpit = armpit;
@@ -1462,6 +1464,8 @@ export class Player {
     // piecewise fit to the art's V would stretch the back number vertically
     // where it rises above the armpits.
     const torso = (x, y, back) => [A.centerX + (back ? -1 : 1) * (x - xc) * scale, back ? A.armpitY + (armpit - y) * scale : artY(y)];
+    // Where the shoulder line lands on the back panel, for art drawn on it.
+    this.artLandmarks = { backShoulderY: A.armpitY - (backTop - armpit) * scale };
 
     // Sleeves: panel u runs around the arm from the armpit (0) over the
     // back, the outer seam (0.5) and the front, back to the armpit (1); v
@@ -1904,10 +1908,10 @@ export class Player {
       loadImage(url(look.shoes)),
     ]);
     if (token !== this.artToken) return;
-    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
-    paint.paintJerseySleeves(this.canvases.sleeve, this.canvases.front, look.jersey.spec);
-    paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
-    paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name);
+    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves, look.jersey.repaint);
+    paint.paintJerseySleeves(this.canvases.sleeve, this.canvases.front, look.jersey.spec, look.jersey.repaint);
+    paint.paintJerseyBack(this.canvases.back, look.jersey.spec, look.jersey.repaint, this.artLandmarks);
+    paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name, look.jersey.repaint);
     this.placeTv(look.jersey.style);
     paint.paintTvDecals(this.canvases.tv, look.jersey.spec, look.jersey.style, look.number);
     paint.paintHelmetBack(this.canvases.helmetBack, HELMET_BACK, look.backNumber, look.helmet.spec.shell, look.helmet.spec.back);

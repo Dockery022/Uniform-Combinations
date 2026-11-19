@@ -1,7 +1,7 @@
 // Combo state: validation, names, the 3D look for a combo, and share codes.
 import { ART } from './uniform-art.js';
 import {
-  DEFAULT_STATE, FACEMASKS, GLOVES, GRAPHIC_WORD, GROUP_HEX, HELMET_NOTE, JERSEY_NUMBERS, JERSEY_SLEEVES, LIB, MASK_DEF, SKIN_TONES, VISORS,
+  DEFAULT_STATE, FACEMASKS, GLOVES, GRAPHIC_WORD, GROUP_HEX, HELMET_NOTE, JERSEY_NUMBERS, JERSEY_REPAINT, JERSEY_SLEEVES, LIB, MASK_DEF, SKIN_TONES, VISORS,
 } from './team.js';
 
 const row = (kind, id) => LIB[kind].find((r) => r[0] === id);
@@ -102,14 +102,20 @@ export function resolveLook(state) {
   const pants = { file: pantsFile, spec: ART.pants[pantsFile] };
   const sockFile = file('socks');
   const shoes = file('shoes') ?? 'shoes-black';
+  const jerseyFile = file('jersey');
+  const repaint = JERSEY_REPAINT[jerseyFile] ?? null;
+  // A repainted jersey's collar and number colors come from its photos.
+  const jerseyArt = ART.jersey[jerseyFile];
+  const jerseySpec = repaint?.spec ? { ...jerseyArt, ...repaint.spec, number: { ...jerseyArt.number, ...(repaint.spec.number ?? {}) } } : jerseyArt;
   return {
     helmet: { file: file('helmet'), spec: ART.helmet[file('helmet')] },
     facemask: FACEMASKS.find(([n]) => n === state.facemask)?.[1] ?? FACEMASKS[0][1],
     jersey: {
-      file: file('jersey'),
-      spec: ART.jersey[file('jersey')],
-      style: JERSEY_NUMBERS[file('jersey')] ?? { font: 'jersey' },
-      sleeves: JERSEY_SLEEVES[file('jersey')] ?? null,
+      file: jerseyFile,
+      spec: jerseySpec,
+      style: JERSEY_NUMBERS[jerseyFile] ?? { font: 'jersey' },
+      sleeves: JERSEY_SLEEVES[jerseyFile] ?? null,
+      repaint,
     },
     pants,
     socks: sockFile ? ART.socks[sockFile] : pants.spec.socks,
