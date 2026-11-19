@@ -184,7 +184,7 @@ export const HELMET_NOTE = {
 
 // The facemask each helmet comes with; anything not listed wears red.
 export const MASK_DEF = {
-  'Black': 'Black', 'Black 20': 'Black', 'White Alt 20': 'Black', 'Red 20': 'White', 'Black Script': 'Red',
+  'Black': 'Black', 'Black 20': 'Black', 'White Alt 20': 'Black', 'Red 20': 'Red', 'Black Script': 'Red',
   'Red Script': 'White', 'White Stripe': 'Red', 'Halloween 26': 'Black', 'Red Gold': 'Black',
   'Black Chrome': 'Black', 'Black Matte': 'Black', 'Black Stripe': 'Black', 'Black 23': 'Black',
   'Black Matte Chrome': 'Black',
