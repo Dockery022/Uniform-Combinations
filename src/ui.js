@@ -34,16 +34,12 @@ const art = (url, kind, label) => el('span', {
 });
 
 export class Panel {
-  constructor({ getState, onChange, onSave, onLoad, onRemove }) {
+  constructor({ getState, onChange }) {
     this.getState = getState;
     this.onChange = onChange;
-    this.onSave = onSave;
-    this.onLoad = onLoad;
-    this.onRemove = onRemove;
     this.tab = 'helmet';
     this.$ = (id) => document.getElementById(id);
     this.bindGame();
-    this.$('save').addEventListener('click', () => this.onSave());
     this.$('note').addEventListener('input', (e) => this.set({ helmetNote: e.target.value.slice(0, 60) }, false));
     this.render();
   }
@@ -224,18 +220,4 @@ export class Panel {
     this.$('crest').checked = s.showCrest;
   }
 
-  renderSaved(saved) {
-    this.$('saved-empty').hidden = saved.length > 0;
-    this.$('saved').replaceChildren(...saved.map((c) => el('li', { class: 'saved-row' }, [
-      el('button', { type: 'button', class: 'saved-open', onclick: () => this.onLoad(c) }, [
-        el('span', { class: 'saved-title', text: `${c.site} ${c.opponent} · ${c.date}` }),
-        el('span', {
-          class: 'saved-sub',
-          text: `${pieceName('helmet', c.helmet)} · ${c.facemask} mask / ${pieceName('jersey', c.jersey)} / ${pieceName('pants', c.pants)}`
-            + `${c.socks && c.socks !== 'Match' ? ` · ${c.socks} socks` : ''}${c.helmetNote ? ` · ${c.helmetNote}` : ''}`,
-        }),
-      ]),
-      el('button', { type: 'button', class: 'saved-del', 'aria-label': `Delete ${c.site} ${c.opponent}`, text: 'Delete', onclick: () => this.onRemove(c) }),
-    ])));
-  }
 }

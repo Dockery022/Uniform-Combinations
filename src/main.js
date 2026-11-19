@@ -1,5 +1,5 @@
 // Boot: renderer, studio lighting, turf, the player, the panel, the game
-// graphic and saved combos.
+// graphic, and sharing.
 import * as THREE from './three.js';
 import { loadAssets, loadImage, Player } from './model.js';
 import { loadHDR } from './hdr.js';
@@ -13,8 +13,9 @@ import { FONTS, makeCanvas, paintTurf } from './textures.js';
 import { artUrl, cleanState, clone, decodeState, encodeState, graphicWord, groupOf, pieceName, resolveLook } from './combo.js';
 import { BRAND, DEFAULT_STATE } from './team.js';
 
-const POSE_LABELS = { idle: 'Idle', ready: 'Ready', run: 'Run', celebrate: 'Celebrate', heisman: 'Heisman' };
-const SAVED_KEY = 'combo-builder-3d:saved';
+// Idle is the only pose on offer (Doc, 2026-11-19: "only have idle as an option"). The other
+// clips stay in model.js, so adding one back is a one-word change here.
+const POSE_LABELS = { idle: 'Idle' };
 const HDRI_INTENSITY = 0.45;
 const QUALITY_KEY = 'combo-builder-3d:quality';
 // High: ambient occlusion, 2048 px soft shadows, up to 2x pixel ratio.
@@ -173,27 +174,9 @@ resize();
 // ---------- state ----------
 
 let state = clone(DEFAULT_STATE);
-let saved = loadSaved();
 let mode = '3d';
 let painted = Promise.resolve();
 let ready = false; // the player is loaded and dressed
-
-function loadSaved() {
-  try {
-    const list = JSON.parse(localStorage.getItem(SAVED_KEY) || '[]');
-    return Array.isArray(list) ? list.map((c) => ({ ...cleanState(c), id: Number(c.id) || Date.now() })) : [];
-  } catch {
-    return [];
-  }
-}
-
-function storeSaved() {
-  try {
-    localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
-  } catch {
-    /* storage can be unavailable in private windows; the list still works this session */
-  }
-}
 
 function toast(message) {
   const t = document.getElementById('toast');
@@ -218,24 +201,6 @@ function applyState(next) {
 const panel = new Panel({
   getState: () => state,
   onChange: (s) => applyState(s),
-  onSave: () => {
-    saved.unshift({ ...clone(state), id: Date.now() });
-    saved = saved.slice(0, 40);
-    storeSaved();
-    panel.renderSaved(saved);
-    toast('Combo saved');
-  },
-  onLoad: (c) => {
-    const { id, ...rest } = c;
-    applyState(cleanState(rest));
-    panel.render();
-    toast('Combo loaded');
-  },
-  onRemove: (c) => {
-    saved = saved.filter((x) => x.id !== c.id);
-    storeSaved();
-    panel.renderSaved(saved);
-  },
 });
 
 // The three pieces over the stage, like the graphic's 01 · 02 · 03.
@@ -502,14 +467,16 @@ document.getElementById('mode-graphic').addEventListener('click', () => setMode(
 // window.comboHost before main.js loads: save({ filename, blob }) saves the
 // graphic its own way and returns 'saved', 'shared', 'cancelled' or 'failed';
 // linkFor(hash) returns the address a copied link should open.
+// share({ hash, graphic }) shares the combo its own way (graphic() resolves to
+// the PNG blob, or null) and returns 'shared', 'copied', 'cancelled' or
+// 'failed'; when it is set the Copy link button reads Share.
 const host = window.comboHost ?? null;
 // On the published page the browser blocks plain downloads; the page's
 // downloads capability asks the viewer to save the file instead. Elsewhere
 // (local or embedded) a normal link download does it.
 const saves = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
 document.getElementById('download').addEventListener('click', async () => {
-  if (!(await drawGraphic())) return;
-  const blob = await new Promise((done) => graphic.toBlob(done, 'image/png'));
+  const blob = await graphicBlob();
   if (!blob) return toast('The graphic could not be saved here.');
   const filename = `combo-${s2slug(state.opponent)}.png`;
   if (host?.save) {
@@ -537,9 +504,22 @@ document.getElementById('download').addEventListener('click', async () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast('Graphic downloaded');
 });
+async function graphicBlob() {
+  if (!(await drawGraphic())) return null;
+  return new Promise((done) => graphic.toBlob(done, 'image/png'));
+}
 // The page address carries the combo, so copying it shares the combo.
-document.getElementById('copy-link').addEventListener('click', async () => {
+const copyLink = document.getElementById('copy-link');
+if (host?.share) copyLink.textContent = 'Share';
+copyLink.addEventListener('click', async () => {
   const hash = encodeState(state);
+  if (host?.share) {
+    let status = 'failed';
+    try { status = await host.share({ hash, graphic: graphicBlob }); } catch { /* reported below */ }
+    if (status === 'copied') toast('Link copied');
+    else if (status === 'failed') toast('The combo could not be shared here.');
+    return;
+  }
   const link = host?.linkFor ? host.linkFor(hash) : `${location.origin}${location.pathname}#${hash}`;
   try {
     await navigator.clipboard.writeText(link);
@@ -591,7 +571,6 @@ async function start(data = {}) {
   }
   state = initial;
   panel.render();
-  panel.renderSaved(saved);
   updateReadout();
   const label = document.getElementById('loading-text');
   let assets;
