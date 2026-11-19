@@ -236,15 +236,6 @@ button { cursor: pointer; }
 .toggle-input:checked + .toggle::after { left: 21px; }
 .toggle-input:focus-visible + .toggle { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-/* ---------- saved ---------- */
-
-.saved { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.saved-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
-.saved-open { all: unset; cursor: pointer; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; min-height: var(--hit); justify-content: center; }
-.saved-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.saved-title { font-size: 14px; font-weight: 600; }
-.saved-sub { font-size: 12px; color: var(--fog); }
-.saved-del { border: 0; background: none; font-size: 12px; font-weight: 600; color: var(--cardinal-text); padding: 0 8px; min-height: var(--hit); }
 
 /* ---------- preview ---------- */
 
