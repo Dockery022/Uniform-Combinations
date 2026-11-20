@@ -18,8 +18,7 @@ export const SHOULDER_CAP = {
   smooth: 5, // passes of neighbor averaging over the sampled cloth, which blend the millimeter step where the jersey's yoke panel lies over its sleeve panel
   reach: 0.15, // the sampling rays start this far outside the pad's cross-section and run in to 0.12 inside it
   top: 0.088, // over the pad the cap reaches this far front and back of the pad's center line
-  round: 3, // passes of box smoothing on the cut field: rounds the outline's corners to about the skirt's reach
-  wrap: 62, // down the arm the cap wraps the sleeve this many degrees forward and back of the outer side
+  round: 9, // passes of box smoothing on the cut field: rounds the outline's corners to about the skirt's reach
   inflate: 0.003, // the cap floats this far above the jersey
   lip: 0.0015, // and this much more at its lower edge, where it overhangs the sleeve
   lipWidth: 0.008, // the lip rises over this distance in from the edge
@@ -302,7 +301,8 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       for (let ib = 0; ib <= nb; ib++) {
         if (!solid(at(ia, ib))) continue;
         let t = Infinity;
-        for (let da = -C.bridge; da <= C.bridge; da++) for (let db = -C.bridge; db <= C.bridge; db++) if (ia + da >= 0 && ia + da <= na && ib + db >= 0 && ib + db <= nb && solid(at(ia + da, ib + db))) t = Math.min(t, raw[at(ia + da, ib + db)]);
+        const reach = C.bridge;
+        for (let da = -reach; da <= reach; da++) for (let db = -reach; db <= reach; db++) if (ia + da >= 0 && ia + da <= na && ib + db >= 0 && ib + db <= nb && solid(at(ia + da, ib + db))) t = Math.min(t, raw[at(ia + da, ib + db)]);
         dist[at(ia, ib)] = t;
       }
     }
@@ -440,7 +440,6 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     // back of the pad's center line over the pad, and `wrap` degrees round
     // the arm down the sleeve. Grid points with no cloth at all (through
     // the neck opening) are outside.
-    const wrapRad = (C.wrap * Math.PI) / 180;
     const f = new Float32Array(N);
     for (let ia = 0; ia <= na; ia++) {
       const { down, R, theta } = rows[ia];
@@ -448,7 +447,9 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
         const i = at(ia, ib);
         if (!hits[i]) { f[i] = -1; continue; }
         const b = colB(ib);
-        const ends = (1 - down) * (C.top - Math.abs(b)) + down * (wrapRad - Math.abs(theta(b))) * R;
+        // The ends are the same arc length either side of the center line all the way down (an angle limit
+        // of wrap * R narrowed the cap where the arm is thin, biting a curve out of its rear edge).
+        const ends = C.top - Math.abs(b);
         f[i] = Math.min(neckD[i] - C.collar, cloth[i * 3 + 1] - yCut, ends);
       }
     }
