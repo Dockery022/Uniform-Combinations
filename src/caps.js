@@ -16,8 +16,8 @@ export const SHOULDER_CAP = {
   step: 0.003, // the cap's own mesh has a vertex every this far along and across the panel
   smooth: 2, // passes of neighbor averaging over the sampled cloth, which blend the millimeter step where the jersey's yoke panel lies over its sleeve panel
   reach: 0.15, // the sampling rays start this far outside the pad's cross-section and run in to 0.12 inside it
-  top: 0.1, // over the pad the cap reaches this far front and back of the pad's center line
-  wrap: 80, // down the arm the cap wraps the sleeve this many degrees forward and back of the outer side
+  top: 0.088, // over the pad the cap reaches this far front and back of the pad's center line
+  wrap: 62, // down the arm the cap wraps the sleeve this many degrees forward and back of the outer side
   inflate: 0.0025, // the cap floats this far above the jersey
   lip: 0.0035, // and this much more at its lower edge, where it overhangs the sleeve
   lipWidth: 0.015, // the lip rises over this distance in from the edge

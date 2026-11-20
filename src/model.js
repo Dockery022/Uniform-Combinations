@@ -133,8 +133,8 @@ const SHOULDER_PAD = {
   round: 2, // dome rounding: 2 = parabola from the apex to the edge; higher keeps the top flatter, dropping nearer the edge
   corner: 0.03, // radius rounding the shoulder edge into the pad's side
   drop: 0.03, // the pad's side reaches this far below the shoulder joint
-  depth: 0.125, // half-length of the pad front to back; the lift falls off toward its ends like a superellipse of power depthRound (2 = a round end, higher = squarer)
-  depthRound: 2,
+  depth: 0.125, // half-length of the pad front to back; the lift is full out to depthFlat of that, then eases to nothing at the end with no step (a round superellipse end dropped almost vertically and folded the cloth there)
+  depthFlat: 0.4,
   cloth: 0.004, // cloth lies this far off the pad
   sleeveFlare: 0.01, // the sleeve leaves the pad's edge, bellies out by this much, and
   sleeveHem: 0.012, // tapers back to this far off the arm at the hem
@@ -1170,7 +1170,7 @@ export class Player {
           const side = pad.side;
           const dl = (x - cx) * side;
           const dz = Math.abs(z - sj.p.z) / P.depth;
-          const depth = dz < 1 ? Math.pow(1 - Math.pow(dz, P.depthRound), 1 / P.depthRound) : 0;
+          const depth = dz < 1 ? 1 - THREE.MathUtils.smoothstep(dz, P.depthFlat, 1) : 0;
           const collar = THREE.MathUtils.smoothstep(dl, pad.neckR, pad.neckR + 0.03);
           if (depth > 0 && collar > 0 && dl < pad.edge + 0.02 && y > pad.yBottom - 0.03 && y < pad.yApex + 0.01) {
             let bx = 0;
@@ -1280,12 +1280,12 @@ export class Player {
   // pad, sampled off the fitted jersey as its own skinned piece, with its
   // own satin material and a flat high-resolution panel to paint. Shown
   // only for jerseys whose sleeve spec has a cap design.
-  buildShoulderCaps(world, aNeck, aPuff) {
+  buildShoulderCaps(world, puffNormals, aNeck, aPuff) {
     const jersey = this.parts.jersey;
     if (!jersey || !this.padFrames) return;
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
     const material = () => new THREE.MeshPhysicalMaterial({ name: 'cap', roughness: 0.62, metalness: 0, sheen: 0.6, sheenRoughness: 0.45, envMapIntensity: 0.5, side: THREE.DoubleSide });
-    this.caps = buildCaps({ jersey, world, normals: this.jerseyRest.normals, aNeck, aPuff, puff: JERSEY_PUFF, frames: this.padFrames, material });
+    this.caps = buildCaps({ jersey, world, normals: puffNormals, aNeck, aPuff, puff: JERSEY_PUFF, frames: this.padFrames, material });
     for (const cap of this.caps) {
       cap.canvas = paint.makeCanvas(cap.panel.w, cap.panel.h);
       const t = new THREE.CanvasTexture(cap.canvas);
@@ -1498,26 +1498,35 @@ export class Player {
       setAttr(jersey, 'aPuff', aPuff);
       // The direction is the normal averaged over vertices that share a
       // position, so the cloth doesn't split open along its UV seams.
+      let puffNormals;
       {
         const pos = jersey.geometry.attributes.position;
         const nrm = jersey.geometry.attributes.normal;
         const Q = jersey.matrixWorld.getMaxScaleOnAxis() / 0.002; // 2 mm cells
         const key = (i) => `${Math.round(pos.getX(i) * Q)},${Math.round(pos.getY(i) * Q)},${Math.round(pos.getZ(i) * Q)}`;
         const sums = new Map();
+        const worldSums = new Map(); // the same sums of the rest-world normals, for the shoulder caps
         for (let i = 0; i < count; i++) {
           const k = key(i);
           const n = sums.get(k) ?? [0, 0, 0];
+          const w = worldSums.get(k) ?? [0, 0, 0];
           n[0] += nrm.getX(i);
           n[1] += nrm.getY(i);
           n[2] += nrm.getZ(i);
+          for (let c = 0; c < 3; c++) w[c] += normals[i * 3 + c];
           sums.set(k, n);
+          worldSums.set(k, w);
         }
         const aPuffN = new Float32Array(count * 3);
-        for (let i = 0; i < count; i++) aPuffN.set(sums.get(key(i)), i * 3);
+        puffNormals = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) {
+          aPuffN.set(sums.get(key(i)), i * 3);
+          puffNormals.set(worldSums.get(key(i)), i * 3);
+        }
         jersey.geometry.setAttribute('aPuffN', new THREE.BufferAttribute(aPuffN, 3));
       }
       this.uniforms.jersey.uPuff.value = JERSEY_PUFF / jersey.matrixWorld.getMaxScaleOnAxis();
-      this.buildShoulderCaps(world, aNeck, aPuff);
+      this.buildShoulderCaps(world, puffNormals, aNeck, aPuff);
     }
     this.hideCovered();
     this.buildCollar();
