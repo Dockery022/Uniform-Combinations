@@ -588,13 +588,14 @@ function skinMatrix(mesh, skin, out) {
   return out.copy(mesh.matrixWorld).multiply(mesh.bindMatrixInverse).multiply(skinM).multiply(mesh.bindMatrix);
 }
 
-// A shape coordinate: a number in meters, or "L-0.01" style text for a
-// measured back from the cap's lower edge (L is the cap's length).
+// A shape coordinate: a number in meters, or text for a fraction of the
+// cap's length L plus an offset: "L-0.01" (1 cm short of the lower edge),
+// "0.4L+0.02".
 function coord(v, L) {
   if (typeof v === 'number') return v;
-  const m = /^\s*L\s*([+-])\s*([\d.]+)\s*$/.exec(String(v));
-  if (!m) throw new Error(`cap shape coordinate ${JSON.stringify(v)}: use meters or "L-0.01"`);
-  return L + (m[1] === '-' ? -1 : 1) * parseFloat(m[2]);
+  const m = /^\s*([+-]?\d*\.?\d+)?\s*L\s*(?:([+-])\s*(\d*\.?\d+))?\s*$/.exec(String(v));
+  if (!m) throw new Error(`cap shape coordinate ${JSON.stringify(v)}: use meters, "L-0.01" or "0.4L+0.02"`);
+  return (m[1] === undefined ? 1 : parseFloat(m[1])) * L + (m[2] ? (m[2] === '-' ? -1 : 1) * parseFloat(m[3]) : 0);
 }
 
 // Paints a cap's panel into its canvas: the base color, then the design's

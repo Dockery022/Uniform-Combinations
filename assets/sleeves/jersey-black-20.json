@@ -1,64 +1,148 @@
 {
- "piece": "jersey-black-20",
- "name": "Black 20",
- "type": "B",
- "reference": "hem",
- "base": "#000000",
- "sleeveLength_px": 384.5,
- "sleeveLength_m": 0.168,
- "bands": [],
- "artBands": [
-  {
-   "from": 0.03,
-   "to": 0.077,
-   "color": "#C9001F"
-  },
-  {
-   "from": 0.164,
-   "to": 0.198,
-   "color": "#FFFFFF"
-  },
-  {
-   "from": 0.238,
-   "to": 0.365,
-   "color": "#C9001F"
-  }
- ],
- "overShoulder": true,
- "lines": null,
- "cap": {
-  "shapes": [
-   {
-    "type": "polygon",
-    "points": [
-     [
-      0.045,
-      -0.03
-     ],
-     [
-      0.045,
-      -0.13
-     ],
-     [
-      "L-0.028",
-      -0.045
-     ],
-     [
-      "L-0.006",
-      0.045
-     ]
-    ],
-    "fill": "#C9001F",
-    "outline": [
-     {
-      "color": "#FFFFFF",
-      "width": 0.003
-     }
-    ]
-   }
+  "piece": "jersey-black-20",
+  "name": "Black 20",
+  "type": "B",
+  "reference": "hem",
+  "base": "#000000",
+  "sleeveLength_px": 384.5,
+  "sleeveLength_m": 0.168,
+  "bands": [],
+  "artBands": [
+    {
+      "from": 0.03,
+      "to": 0.077,
+      "color": "#C9001F"
+    },
+    {
+      "from": 0.164,
+      "to": 0.198,
+      "color": "#FFFFFF"
+    },
+    {
+      "from": 0.238,
+      "to": 0.365,
+      "color": "#C9001F"
+    }
   ],
-  "how": "Shapes in cap-panel coordinates, meters on the 3D jersey: a runs from the cap's inner edge by the collar over the top of the pad and down the arm (\"L-0.01\" is 1 cm short of the cap's lower edge); b runs front (+) to back (-) from the pad's center line. The shoulder number sits at a 0.08, b 0.01 unless cap.number says otherwise. ?capgrid shows a 5 mm grid on the cap."
- },
- "notes": "Type B from the 2019 game photos, not from this art: a shoulder cap with a bold diagonal red stripe from the top of the pad behind the shoulder number down the outer arm toward the front, wider at the top, with 3 mm white edge lines and an angled end just above the cap's lower edge, painted on the cap piece (src/caps.js). The photos show the red with black claw cuts and white accents inside it; this is the simplified stripe Doc asked for, sizes estimated from the photos. The art's own sleeve bands (Type A, like Red 20) are kept in artBands for reference and are not drawn.",
- "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
+  "overShoulder": true,
+  "lines": null,
+  "cap": {
+    "shapes": [
+      {
+        "type": "polygon",
+        "points": [
+          [
+            "0.0000L+0.03000",
+            -0.03
+          ],
+          [
+            "0.2550L+0.02250",
+            -0.019
+          ],
+          [
+            "0.5100L+0.01500",
+            0.012
+          ],
+          [
+            "0.7650L+0.00750",
+            0.045
+          ],
+          [
+            "1.0200L+0.00000",
+            0.07
+          ],
+          [
+            "1.0200L+0.00000",
+            -0.125
+          ],
+          [
+            "0.7650L+0.00750",
+            -0.11607
+          ],
+          [
+            "0.5100L+0.01500",
+            -0.10714
+          ],
+          [
+            "0.2550L+0.02250",
+            -0.09833
+          ],
+          [
+            "0.0000L+0.03000",
+            -0.09
+          ]
+        ],
+        "fill": "#C9001F"
+      },
+      {
+        "type": "polygon",
+        "points": [
+          [
+            "0.1020L+0.02700",
+            -0.04626
+          ],
+          [
+            "0.2856L+0.02160",
+            -0.06072
+          ],
+          [
+            "1.0404L-0.00060",
+            -0.03725
+          ],
+          [
+            "1.0404L-0.00060",
+            0.01443
+          ]
+        ],
+        "fill": "#000000"
+      },
+      {
+        "type": "polygon",
+        "points": [
+          [
+            "0.2448L+0.02280",
+            -0.06921
+          ],
+          [
+            "0.4284L+0.01740",
+            -0.08315
+          ],
+          [
+            "1.0404L-0.00060",
+            -0.086
+          ],
+          [
+            "1.0404L-0.00060",
+            -0.05285
+          ]
+        ],
+        "fill": "#000000"
+      },
+      {
+        "type": "polygon",
+        "points": [
+          [
+            "0.2244L+0.02340",
+            -0.04539
+          ],
+          [
+            "0.3060L+0.02100",
+            -0.04563
+          ],
+          [
+            "0.9180L+0.00300",
+            -0.00804
+          ],
+          [
+            "0.9180L+0.00300",
+            0.00466
+          ]
+        ],
+        "fill": "#FFFFFF"
+      }
+    ],
+    "how": "Shapes in cap-panel coordinates: a runs from the cap's inner edge by the collar over the top of the pad and down the arm, b from the pad's center line (front +, back -), meters on the 3D jersey. A coordinate may be meters, \"L-0.01\" (1 cm short of the cap's lower edge) or \"0.4L+0.02\" (a fraction of the cap's length plus an offset). ?capgrid shows a 5 mm grid on the cap."
+  },
+  "notes": "Type B from Doc's 2019-20 game and studio photos (black #7 close-up, studio portrait, red #7/Crum, white #5/#7), not from the art: a shoulder cap painted on its own piece (src/caps.js). A red patch starts behind the shoulder number and fans down the outer arm, wider toward the front at the lower edge. Two black claw cuts, pointed at the top, split it; a thin white line runs inside the first cut, behind a thin black gap; a thin red slash stays between the cuts; the outer red band follows the rear silhouette. The white line and the slash are about 14 mm and 16 mm wide, read from the photos. The art's own sleeve bands (Type A, like Red 20) are kept in artBands for reference and are not drawn.",
+  "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
 }
