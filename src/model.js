@@ -115,6 +115,25 @@ const JERSEY_PUFF = 0.006;
 // pants, the shoulder broadening, and the pants' fullness.
 // untucked: Doc wants the jersey tucked in (2026-10-03); true hangs it over the belt.
 const JERSEY_FIT = { untucked: false, belowBelt: 0.075, clear: 0.012, blend: 0.08, shoulders: 0.015, thigh: 0.012, knee: 0.009 };
+// Shoulder pads under the jersey (Doc, 2026-11-20). Cloth over each
+// shoulder is lifted onto a pad whose cross-section, in the plane across
+// the shoulders, is a dome that runs from beside the collar out to a
+// rounded square shoulder edge, then straight down to where the sleeve
+// hangs from it. Meters.
+const SHOULDER_PAD = {
+  height: 0.05, // pad top above the shoulder joint, at the shoulder edge
+  spread: 0.035, // the shoulder edge is this far beyond the arm's widest point
+  dome: 0.03, // the dome's apex rises this much above the edge height
+  arch: 0.03, // the apex sits this far out from the collar's edge
+  round: 2, // dome rounding: 2 = parabola from the apex to the edge; higher keeps the top flatter, dropping nearer the edge
+  corner: 0.03, // radius rounding the shoulder edge into the pad's side
+  drop: 0.03, // the pad's side reaches this far below the shoulder joint
+  depth: 0.125, // half-length of the pad front to back; the lift falls off toward its ends like a superellipse of power depthRound (2 = a round end, higher = squarer)
+  depthRound: 2,
+  cloth: 0.004, // cloth lies this far off the pad
+  sleeveFlare: 0.01, // the sleeve leaves the pad's edge, bellies out by this much, and
+  sleeveHem: 0.012, // tapers back to this far off the arm at the hem
+};
 // Skin within this distance under the jersey or pants is never drawn.
 const COVER_DEPTH = 0.08;
 const COVER_SIDE = 0.02;
@@ -906,6 +925,70 @@ export class Player {
         }
         return { p, axis, cuff: Math.max(cuff, 0.05) };
       });
+      // Shoulder pads (SHOULDER_PAD), per side: the arm's widest point at
+      // the shoulder, the arm's radius down its length (for the sleeve), the
+      // sleeve's hem, and the pad's cross-section as a polyline in
+      // (out from the center line, up), from the center over the dome and
+      // the rounded corner, then down the side.
+      const jn = worldNormals(jersey, jw);
+      const skinW = this.parts.skin ? worldPositions(this.parts.skin) : jw;
+      let neckTop = -Infinity;
+      for (let k = 1; k < jw.length; k += 3) neckTop = Math.max(neckTop, jw[k]);
+      let neckR = 0;
+      for (let i = 0; i < jw.length / 3; i++) if (jw[i * 3 + 1] > neckTop - 0.03) neckR = Math.max(neckR, Math.abs(jw[i * 3] - cx));
+      const ARM_BIN = 0.01;
+      const pads = joints.map((sj) => {
+        const P = SHOULDER_PAD;
+        const side = sj.p.x > cx ? 1 : -1;
+        let armOuter = 0;
+        const armR = new Float32Array(40);
+        for (let i = 0; i < skinW.length; i += 3) {
+          const x = skinW[i];
+          const y = skinW[i + 1];
+          const z = skinW[i + 2];
+          if ((x - cx) * side <= 0) continue;
+          if (y > sj.p.y - 0.07 && y < sj.p.y + 0.02 && Math.abs(z - sj.p.z) < 0.08) armOuter = Math.max(armOuter, (x - cx) * side);
+          const rx = x - sj.p.x;
+          const ry = y - sj.p.y;
+          const rz = z - sj.p.z;
+          const along = rx * sj.axis.x + ry * sj.axis.y + rz * sj.axis.z;
+          const b = Math.floor((along + 0.05) / ARM_BIN);
+          if (b < 0 || b >= armR.length) continue;
+          const px = rx - sj.axis.x * along;
+          const py = ry - sj.axis.y * along;
+          const pz = rz - sj.axis.z * along;
+          const r = Math.hypot(px, py, pz) || 1e-6;
+          if ((px / r) * side > 0) armR[b] = Math.max(armR[b], r);
+        }
+        for (let b = 1; b < armR.length; b++) if (!armR[b]) armR[b] = armR[b - 1];
+        for (let b = armR.length - 2; b >= 0; b--) if (!armR[b]) armR[b] = armR[b + 1];
+        let hemY = Infinity;
+        for (let i = 0; i < jw.length / 3; i++) if (uv.getX(i) < 0.44 && (jw[i * 3] - cx) * side > 0) hemY = Math.min(hemY, jw[i * 3 + 1]);
+        const edge = armOuter + P.spread;
+        const yEdge = sj.p.y + P.height;
+        const yApex = yEdge + P.dome;
+        const dApex = neckR + P.arch;
+        const top = (dl) => yApex - (yApex - yEdge) * Math.pow(Math.max(0, dl - dApex) / (edge - dApex), P.round);
+        // The corner arc is tangent to the dome where it ends and meets the
+        // side at `edge`: a few passes settle where the dome ends.
+        const r = P.corner;
+        let dEnd = edge - r;
+        let th = 0;
+        for (let it = 0; it < 4; it++) {
+          th = Math.atan2(top(dEnd) - top(dEnd + 1e-4), 1e-4);
+          dEnd = edge - r * (1 - Math.sin(th));
+        }
+        const pts = [];
+        for (let k = 0; k <= 48; k++) pts.push([(dEnd * k) / 48, top((dEnd * k) / 48)]);
+        const c = [dEnd - r * Math.sin(th), top(dEnd) - r * Math.cos(th)];
+        for (let k = 1; k <= 12; k++) {
+          const a = (Math.PI / 2 - th) * (1 - k / 12);
+          pts.push([c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]);
+        }
+        const yBottom = sj.p.y - P.drop;
+        pts.push([edge, yBottom - 0.05]);
+        return { side, armOuter, armR, hemY, edge, yApex, yBottom, pts };
+      });
       const moved = new Map();
       for (let i = 0; i < jw.length / 3; i++) {
         let x = jw[i * 3];
@@ -950,6 +1033,82 @@ export class Player {
           y += d.y;
           z += d.z;
           changed = true;
+        }
+        // Shoulder pad: cloth inside the pad's cross-section moves out to
+        // its nearest face, in proportion to how much it faces that way, so
+        // the chest and back stay put. Nothing at the collar, and the pad
+        // fades out at its front and back ends.
+        {
+          const P = SHOULDER_PAD;
+          const pad = pads[joints.indexOf(sj)];
+          const side = pad.side;
+          const dl = (x - cx) * side;
+          const dz = Math.abs(z - sj.p.z) / P.depth;
+          const depth = dz < 1 ? Math.pow(1 - Math.pow(dz, P.depthRound), 1 / P.depthRound) : 0;
+          const collar = THREE.MathUtils.smoothstep(dl, neckR, neckR + 0.03);
+          if (depth > 0 && collar > 0 && dl < pad.edge + 0.02 && y > pad.yBottom - 0.03 && y < pad.yApex + 0.01) {
+            let bx = 0;
+            let by = 0;
+            let bd = Infinity;
+            let nx = 0;
+            let ny = 0;
+            for (let k = 0; k + 1 < pad.pts.length; k++) {
+              const [ax, ay] = pad.pts[k];
+              const ex = pad.pts[k + 1][0] - ax;
+              const ey = pad.pts[k + 1][1] - ay;
+              const L2 = ex * ex + ey * ey || 1e-9;
+              const t = THREE.MathUtils.clamp(((dl - ax) * ex + (y - ay) * ey) / L2, 0, 1);
+              const px = ax + ex * t;
+              const py = ay + ey * t;
+              const d = (dl - px) ** 2 + (y - py) ** 2;
+              if (d < bd) {
+                bd = d;
+                bx = px;
+                by = py;
+                const L = Math.sqrt(L2);
+                nx = -ey / L; // outward: up over the dome, out along the side
+                ny = ex / L;
+              }
+            }
+            const dist = Math.sqrt(bd);
+            if (dist > 1e-5 && (dl - bx) * nx + (y - by) * ny < 0) {
+              const ux = (bx - dl) / dist;
+              const uy = (by - y) / dist;
+              const facing = THREE.MathUtils.smoothstep(jn[i * 3] * side * ux + jn[i * 3 + 1] * uy, 0.05, 0.5);
+              const bottom = THREE.MathUtils.smoothstep(y, pad.yBottom - 0.03, pad.yBottom);
+              const amt = (dist + P.cloth) * facing * depth * collar * (ux > 0.5 ? bottom : 1);
+              if (amt > 1e-5) {
+                x += ux * amt * side;
+                y += uy * amt;
+                changed = true;
+              }
+            }
+          }
+          // Below the pad the sleeve hangs off the arm: it leaves the pad's
+          // edge, bellies out a little, and tapers back toward the arm at
+          // the hem, on the outside of the arm only.
+          const below = THREE.MathUtils.smoothstep(pad.yBottom + 0.01 - y, 0, 0.02);
+          if (below > 0 && depth > 0 && y > pad.hemY - 0.01) {
+            const rx = x - sj.p.x;
+            const ry = y - sj.p.y;
+            const rz = z - sj.p.z;
+            const al = rx * sj.axis.x + ry * sj.axis.y + rz * sj.axis.z;
+            const px = rx - sj.axis.x * al;
+            const py = ry - sj.axis.y * al;
+            const pz = rz - sj.axis.z * al;
+            const r = Math.hypot(px, py, pz) || 1e-6;
+            const outward = THREE.MathUtils.smoothstep((px / r) * side, -0.2, 0.3);
+            const t = THREE.MathUtils.clamp((pad.yBottom - y) / Math.max(pad.yBottom - pad.hemY, 1e-3), 0, 1);
+            const b = THREE.MathUtils.clamp(Math.floor((al + 0.05) / ARM_BIN), 0, pad.armR.length - 1);
+            const off = P.spread + (P.sleeveHem - P.spread) * t * t * (3 - 2 * t) + P.sleeveFlare * 4 * t * (1 - t);
+            const push = (pad.armR[b] + off - r) * outward * below * depth;
+            if (push > 1e-5) {
+              x += (px / r) * push;
+              y += (py / r) * push;
+              z += (pz / r) * push;
+              changed = true;
+            }
+          }
         }
         if (changed) moved.set(i, new THREE.Vector3(x, y, z));
       }
