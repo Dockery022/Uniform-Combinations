@@ -1,0 +1,47 @@
+{
+ "piece": "jersey-white-wing",
+ "name": "White 24",
+ "type": "B-lines",
+ "reference": "hem",
+ "base": "#FFFFFF",
+ "sleeveLength_px": 384.0,
+ "sleeveLength_m": 0.168,
+ "bands": [
+  {
+   "from": 0.012,
+   "to": 0.069,
+   "color": "#C9001F"
+  }
+ ],
+ "overShoulder": true,
+ "outline": null,
+ "lines": [
+  {
+   "at": 0.22,
+   "to": 0.236,
+   "color": "#8A8D8F",
+   "raw": "#999999"
+  },
+  {
+   "at": 0.479,
+   "to": 0.49,
+   "color": "#8A8D8F",
+   "raw": "#9A9A9A"
+  },
+  {
+   "at": 0.547,
+   "to": 0.565,
+   "color": "#8A8D8F",
+   "raw": "#9B9B9B"
+  },
+  {
+   "at": 0.716,
+   "to": 0.732,
+   "color": "#8A8D8F",
+   "raw": "#989898"
+  }
+ ],
+ "stripe": null,
+ "notes": "Thin grey wing lines over the shoulder and sleeve, plus a red hem band. Not a single stripe.",
+ "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
+}

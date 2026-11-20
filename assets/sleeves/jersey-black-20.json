@@ -1,0 +1,32 @@
+{
+ "piece": "jersey-black-20",
+ "name": "Black 20",
+ "type": "B",
+ "reference": "hem",
+ "base": "#000000",
+ "sleeveLength_px": 384.5,
+ "sleeveLength_m": 0.168,
+ "bands": [
+  {
+   "from": 0.03,
+   "to": 0.077,
+   "color": "#C9001F"
+  },
+  {
+   "from": 0.164,
+   "to": 0.198,
+   "color": "#FFFFFF"
+  },
+  {
+   "from": 0.238,
+   "to": 0.365,
+   "color": "#C9001F"
+  }
+ ],
+ "overShoulder": true,
+ "outline": null,
+ "lines": null,
+ "stripe": null,
+ "notes": "Art shows Type A bands (red / white / red + hem band, like Red 20 in red). Doc asked for Type B from the QB photo; the photo, not this art, will set the stripe.",
+ "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
+}
