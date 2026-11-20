@@ -730,6 +730,11 @@ export class Player {
         vertexAfter: { skinning_vertex: 'transformed += normalize((skinMatrix * vec4(aPuffN, 0.0)).xyz) * uPuff * aPuff;' },
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
+          // The flat art's grey silhouette outline runs along the shoulder line; the 3D
+          // shoulder top samples it as pale blocks beside the collar. With a sleeve spec
+          // (which owns the shoulder) the strip above the art's shoulder line, outside
+          // the collar columns, is the base color.
+          if (uSleeveOn > 0.5 && vaArt.y < 0.0675 && (vaArt.x < 0.322 || vaArt.x > 0.678)) art.a = 0.0;
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
           // Sleeves with a spec: the base color with the spec's bands drawn by
           // distance from the hem (vaSleeve.x, meters), never the flat art. The
@@ -1284,8 +1289,9 @@ export class Player {
     const jersey = this.parts.jersey;
     if (!jersey || !this.padFrames) return;
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
+    const skirtMaterial = () => new THREE.MeshStandardMaterial({ name: 'cap-skirt', roughness: 0.9, metalness: 0, envMapIntensity: 0.3 }); // front side only: double-sided, the wall seen edge-on flipped its normal triangle by triangle and read as teeth
     const material = () => new THREE.MeshPhysicalMaterial({ name: 'cap', roughness: 0.62, metalness: 0, sheen: 0.6, sheenRoughness: 0.45, envMapIntensity: 0.5, side: THREE.DoubleSide });
-    this.caps = buildCaps({ jersey, world, normals: puffNormals, aNeck, aPuff, puff: JERSEY_PUFF, frames: this.padFrames, material });
+    this.caps = buildCaps({ jersey, world, normals: puffNormals, aNeck, aPuff, puff: JERSEY_PUFF, frames: this.padFrames, material, skirtMaterial });
     for (const cap of this.caps) {
       cap.canvas = paint.makeCanvas(cap.panel.w, cap.panel.h);
       const t = new THREE.CanvasTexture(cap.canvas);
@@ -1297,7 +1303,8 @@ export class Player {
       t.magFilter = THREE.LinearFilter;
       t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
       cap.texture = t;
-      cap.mesh.material.map = t;
+      cap.mesh.material[0].map = t;
+      cap.mesh.material[1].map = t;
       cap.mesh.visible = false;
     }
   }
@@ -1321,7 +1328,7 @@ export class Player {
       } : null;
       paintCap(cap.canvas, cap.panel, design, { number, grid: this.capGrid });
       cap.texture.needsUpdate = true;
-      cap.mesh.material.sheenColor.set(design.base).lerp(new THREE.Color('#ffffff'), 0.35);
+      cap.mesh.material[0].sheenColor.set(design.base).lerp(new THREE.Color('#ffffff'), 0.35);
     }
   }
 
@@ -1401,6 +1408,7 @@ export class Player {
           if (arm[i] < 0.5 || Math.abs(kw[i * 3] - neckX) < 0.12) continue;
           const t = along(kw[i * 3], kw[i * 3 + 1], kw[i * 3 + 2]);
           if (t < cuff - 0.02) aHide[i] = 1;
+          else if (t > cuff - 0.01) aHide[i] = 0; // below the cuff: the nearest-cloth test cut sawtooth holes here
         }
       }
     }

@@ -18,7 +18,7 @@ export const SHOULDER_CAP = {
   reach: 0.15, // the sampling rays start this far outside the pad's cross-section and run in to 0.12 inside it
   top: 0.088, // over the pad the cap reaches this far front and back of the pad's center line
   wrap: 62, // down the arm the cap wraps the sleeve this many degrees forward and back of the outer side
-  inflate: 0.0025, // the cap floats this far above the jersey
+  inflate: 0.004, // the cap floats this far above the jersey
   lip: 0.0035, // and this much more at its lower edge, where it overhangs the sleeve
   lipWidth: 0.015, // the lip rises over this distance in from the edge
   texel: 0.0005, // meters per texel of the cap panel
@@ -38,7 +38,7 @@ export const SHOULDER_CAP = {
 // ray in toward the pad at each grid point and takes the first cloth it
 // meets, with the skinning of the triangle it hit, then lifts the sampled
 // surface along its own normals.
-export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, frames, material }) {
+export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, frames, material, skirtMaterial }) {
   const C = SHOULDER_CAP;
   // The cloth as the jersey renders it: each vertex pushed out along its
   // (seam-welded) normal by the jersey's puff, so the cap lies over the
@@ -425,7 +425,12 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
           // Wound so the face points out, along the sampled normals.
           dA.fromArray(cloth, ids[1] * 3).sub(tri[0].fromArray(cloth, ids[0] * 3));
           dB.fromArray(cloth, ids[2] * 3).sub(tri[0]);
-          if (nrm.crossVectors(dA, dB).dot(tri[1].fromArray(nrmG, ids[0] * 3)) < 0) ids.reverse();
+          nrm.crossVectors(dA, dB);
+          const facing = nrm.dot(tri[1].fromArray(nrmG, ids[0] * 3)) / Math.max(nrm.length(), 1e-12);
+          if (facing < 0) ids.reverse();
+          // The sampling rays crossed over each other here (a fold in the sampled
+          // cloth): the triangle runs against the cloth it sits on, or edge-on to it. Leave it out.
+          if (Math.abs(facing) < 0.3) continue;
           // Sutherland-Hodgman against f >= 0: the kept polygon's corners in order.
           const poly = [];
           for (let e = 0; e < 3; e++) {
@@ -483,23 +488,35 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     }
     // A skirt under the cap's edges closes the gap down to the jersey: a
     // rounded step at the lip, a short wall at the other edges.
+    const capTris = tris.length; // the triangles from here on are the skirt
     const skirt = new Map(); // top vertex -> [mid, base]
     const stepVertex = (v, along, lift) => {
       nrm.fromArray(v.n);
       dB.copy(v.out).normalize();
       const w = new THREE.Vector3().fromArray(v.w).addScaledVector(nrm, lift * v.h).addScaledVector(dB, along * v.h);
-      const n = nrm.clone().multiplyScalar(1 - along).addScaledVector(dB, along).normalize();
-      verts.push({ skin: v.skin, w: w.toArray(), n: n.toArray(), a: v.a + along * v.h, b: v.b, h: 0, lip: 0, skirt: true });
+      // The skirt takes the edge vertex's own panel coordinates (the colour of the edge it hangs from; stepping 'a' along it dashed the cap's ends, where the edge runs along 'a').
+      const n = nrm.clone(); // the skirt shades as the cap does (turning it outward lit its segments in a dashed pattern)
+      verts.push({ skin: v.skin, w: w.toArray(), n: n.toArray(), a: v.a, b: v.b, h: 0, lip: 0, skirt: true });
       return verts.length - 1;
     };
-    const rings = (v) => (v.lip >= 0.99 ? [stepVertex(v, 0.45, 0.5), stepVertex(v, 0.9, 0.08)] : [stepVertex(v, 0.12, 0.5), stepVertex(v, 0.25, 0)]);
+    const rings = (v) => (v.lip >= 0.99 ? [stepVertex(v, 0.45, 0.5), stepVertex(v, 0.9, -0.3)] : [stepVertex(v, 0.12, 0.5), stepVertex(v, 0.25, -0.5)]);
     for (const [key, n] of edgeCount) {
       if (n !== 1) continue;
       const [p, q] = key.split('_').map(Number);
       for (const v of [p, q]) if (!skirt.has(v)) skirt.set(v, rings(verts[v]));
-      const [pm, pb0] = skirt.get(p);
-      const [qm, qb] = skirt.get(q);
-      tris.push(p, q, qm, p, qm, pm, pm, qm, qb, pm, qb, pb0);
+      // The edge's two ends come in sorted order, so wind each wall by where it faces:
+      // out of the cap and up, never in toward the cloth (a mixed winding drew every
+      // other triangle backwards, which read as teeth along the cap's edge).
+      const top = (v) => new THREE.Vector3().fromArray(verts[v].w).addScaledVector(nrm.fromArray(verts[v].n), verts[v].h);
+      const pt = top(p);
+      const qt = top(q);
+      const e = qt.clone().sub(pt);
+      const d = new THREE.Vector3().fromArray(verts[skirt.get(q)[0]].w).sub(qt);
+      const faceOut = new THREE.Vector3().crossVectors(e, d).dot(out.copy(verts[p].out).add(verts[q].out).normalize().addScaledVector(nrm.fromArray(verts[p].n), 0.6));
+      const [a, b] = faceOut >= 0 ? [p, q] : [q, p];
+      const [pm, pb0] = skirt.get(a);
+      const [qm, qb] = skirt.get(b);
+      tris.push(a, b, qm, a, qm, pm, pm, qm, qb, pm, qb, pb0);
     }
     // Positions and normals back in the jersey's own space, each through its
     // sampled skinning, so the cap moves with the jersey.
@@ -532,7 +549,12 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     capGeo.setAttribute('skinIndex', new THREE.BufferAttribute(sIndex, 4));
     capGeo.setAttribute('skinWeight', new THREE.BufferAttribute(sWeight, 4));
     capGeo.setIndex(tris);
-    const mesh = new THREE.SkinnedMesh(capGeo, material());
+    // The cap's face and its skirt are separate groups, so the skirt can be a
+    // plain matte cloth: with the face's sheen the skirt, seen edge-on, read as
+    // a pale dashed line along the cap's edge.
+    capGeo.addGroup(0, capTris, 0);
+    capGeo.addGroup(capTris, tris.length - capTris, 1);
+    const mesh = new THREE.SkinnedMesh(capGeo, [material(), skirtMaterial()]);
     mesh.name = `cap-${side > 0 ? 'left' : 'right'}`;
     mesh.position.copy(jersey.position);
     mesh.quaternion.copy(jersey.quaternion);
