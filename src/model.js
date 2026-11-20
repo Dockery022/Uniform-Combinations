@@ -136,8 +136,8 @@ const SHOULDER_PAD = {
   depth: 0.125, // half-length of the pad front to back; the lift is full out to depthFlat of that, then eases to nothing at the end with no step (a round superellipse end dropped almost vertically and folded the cloth there)
   depthFlat: 0.4,
   cloth: 0.004, // cloth lies this far off the pad
-  sleeveFlare: 0.01, // the sleeve leaves the pad's edge, bellies out by this much, and
-  sleeveHem: 0.012, // tapers back to this far off the arm at the hem
+  sleeveFlare: 0.006, // the sleeve leaves the pad's edge, bellies out by this much, and
+  sleeveHem: 0.004, // tapers back to this far off the arm at the hem
 };
 // Skin within this distance under the jersey or pants is never drawn.
 const COVER_DEPTH = 0.08;

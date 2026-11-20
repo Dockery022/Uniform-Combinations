@@ -14,13 +14,15 @@ export const SHOULDER_CAP = {
   collar: 0.012, // the inner edge stands off the neckline by this much, past the collar trim
   inner: 0.01, // and the cap reaches this far in past the neckline's widest point, so it doesn't wrap the collar
   step: 0.003, // the cap's own mesh has a vertex every this far along and across the panel
-  smooth: 2, // passes of neighbor averaging over the sampled cloth, which blend the millimeter step where the jersey's yoke panel lies over its sleeve panel
+  bridge: 6, // cells: the cap rides over the outermost cloth this far around, bridging creases in the jersey rather than following them
+  smooth: 5, // passes of neighbor averaging over the sampled cloth, which blend the millimeter step where the jersey's yoke panel lies over its sleeve panel
   reach: 0.15, // the sampling rays start this far outside the pad's cross-section and run in to 0.12 inside it
   top: 0.088, // over the pad the cap reaches this far front and back of the pad's center line
+  round: 3, // passes of box smoothing on the cut field: rounds the outline's corners to about the skirt's reach
   wrap: 62, // down the arm the cap wraps the sleeve this many degrees forward and back of the outer side
-  inflate: 0.004, // the cap floats this far above the jersey
-  lip: 0.0035, // and this much more at its lower edge, where it overhangs the sleeve
-  lipWidth: 0.015, // the lip rises over this distance in from the edge
+  inflate: 0.003, // the cap floats this far above the jersey
+  lip: 0.0015, // and this much more at its lower edge, where it overhangs the sleeve
+  lipWidth: 0.008, // the lip rises over this distance in from the edge
   texel: 0.0005, // meters per texel of the cap panel
   margin: 0.01, // panel margin past the cap's edges, under the lip's skirt
 };
@@ -161,6 +163,14 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     const o2 = new THREE.Vector3();
     const d2 = new THREE.Vector3();
     const rel = new THREE.Vector3();
+    // The angle round the arm of arc b at radius R. asin(b / R), kept going in a straight line past
+    // x = 0.8 (so there is no clamp and no jump where R changes from row to row: the rays at the cap's
+    // rear corner, where |b| is close to R, swung from 90 deg to 63 deg between rows and folded the sampled cloth).
+    const arcAngle = (x) => {
+      const ax = Math.abs(x);
+      const v = ax <= 0.8 ? Math.asin(ax) : Math.asin(0.8) + (ax - 0.8) / 0.6;
+      return Math.sign(x) * v;
+    };
     const rows = []; // per row: how far down the arm (0 over the pad, 1 down the side), the arm's radius there, the angle per b
     for (let ia = 0; ia <= na; ia++) {
       const a = rowA(ia);
@@ -168,7 +178,7 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       rel.set(frames.cx + side * dl, y, joint.p.z).sub(joint.p);
       const R = Math.max(rel.addScaledVector(axisD, -rel.dot(axisD)).length(), 0.02);
       const ease = THREE.MathUtils.smoothstep(a, aSide, aSide + 0.03);
-      rows.push({ down: 1 - Math.max(0, ny), R, theta: (b) => (1 - ease) * Math.asin(THREE.MathUtils.clamp(b / R, -1, 1)) + ease * (b / R) });
+      rows.push({ down: 1 - Math.max(0, ny), R, theta: (b) => (1 - ease) * arcAngle(b / R) + ease * (b / R) });
     }
     const origin = (ia, ib) => {
       const { dl, y, nx, ny } = along(rowA(ia));
@@ -292,7 +302,7 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       for (let ib = 0; ib <= nb; ib++) {
         if (!solid(at(ia, ib))) continue;
         let t = Infinity;
-        for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) if (ia + da >= 0 && ia + da <= na && ib + db >= 0 && ib + db <= nb && solid(at(ia + da, ib + db))) t = Math.min(t, raw[at(ia + da, ib + db)]);
+        for (let da = -C.bridge; da <= C.bridge; da++) for (let db = -C.bridge; db <= C.bridge; db++) if (ia + da >= 0 && ia + da <= na && ib + db >= 0 && ib + db <= nb && solid(at(ia + da, ib + db))) t = Math.min(t, raw[at(ia + da, ib + db)]);
         dist[at(ia, ib)] = t;
       }
     }
@@ -352,6 +362,7 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       const q = hasHi ? hi : at(ia, ib);
       out.set(sample[q * 3] - sample[p * 3], sample[q * 3 + 1] - sample[p * 3 + 1], sample[q * 3 + 2] - sample[p * 3 + 2]);
     };
+    const gridNormals = () => {
     for (let ia = 0; ia <= na; ia++) {
       for (let ib = 0; ib <= nb; ib++) {
         const i = at(ia, ib);
@@ -366,6 +377,62 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
         nrmG.set([nrm.x, nrm.y, nrm.z], i * 3);
         hitP.fromArray(sample, i * 3);
         cloth.set([hitP.x, hitP.y, hitP.z], i * 3);
+      }
+    }
+    };
+    gridNormals();
+    // Where the jersey's cloth steps back on itself (a ridge at the pad's end), the sampled grid folds:
+    // its triangles run edge-on or against the surface. Skipping them leaves a slit, and the skirt along
+    // the slit's two edges crosses and knots. Instead the sampled positions around the fold are smoothed
+    // over (a cap bridging a 5 mm step is better than a hole), and the normals taken again.
+    {
+      const folded = new Uint8Array(N);
+      const tv = new THREE.Vector3();
+      const mark = () => {
+        folded.fill(0);
+        let count = 0;
+        for (let ia = 0; ia < na; ia++) {
+          for (let ib = 0; ib < nb; ib++) {
+            const q = [at(ia, ib), at(ia + 1, ib), at(ia + 1, ib + 1), at(ia, ib + 1)];
+            for (const ids of [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]) {
+              if (ids.some((k) => !hits[k])) continue;
+              const u = new THREE.Vector3().fromArray(cloth, ids[1] * 3).sub(tv.fromArray(cloth, ids[0] * 3));
+              const w = new THREE.Vector3().fromArray(cloth, ids[2] * 3).sub(tv);
+              const c = u.cross(w);
+              const facing = Math.abs(c.dot(tv.fromArray(nrmG, ids[0] * 3))) / Math.max(c.length(), 1e-12);
+              if (facing < 0.3) { count++; for (const k of ids) folded[k] = 1; }
+            }
+          }
+        }
+        return count;
+      };
+      for (let round = 0; round < 14 && mark(); round++) {
+        // Spread the flag two cells out, then average those samples with their neighbors.
+        const area = new Uint8Array(N);
+        for (let ia = 0; ia <= na; ia++) for (let ib = 0; ib <= nb; ib++) if (folded[at(ia, ib)]) for (let da = -2; da <= 2; da++) for (let db = -2; db <= 2; db++) {
+          const ja = ia + da;
+          const jb = ib + db;
+          if (ja >= 0 && ja <= na && jb >= 0 && jb <= nb) area[at(ja, jb)] = 1;
+        }
+        for (let pass = 0; pass < 3; pass++) {
+          const next = Float32Array.from(sample);
+          for (let ia = 0; ia <= na; ia++) for (let ib = 0; ib <= nb; ib++) {
+            const i = at(ia, ib);
+            if (!area[i] || !hits[i]) continue;
+            let n = 0;
+            const sum = [0, 0, 0];
+            for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) {
+              const ja = ia + da;
+              const jb = ib + db;
+              if (ja < 0 || ja > na || jb < 0 || jb > nb || !hits[at(ja, jb)]) continue;
+              for (let c = 0; c < 3; c++) sum[c] += sample[at(ja, jb) * 3 + c];
+              n++;
+            }
+            for (let c = 0; c < 3; c++) next[i * 3 + c] = sum[c] / n;
+          }
+          sample.set(next);
+        }
+        gridNormals();
       }
     }
     // Inside the cap where every cut is positive: past the collar trim,
@@ -384,6 +451,28 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
         const ends = (1 - down) * (C.top - Math.abs(b)) + down * (wrapRad - Math.abs(theta(b))) * R;
         f[i] = Math.min(neckD[i] - C.collar, cloth[i * 3 + 1] - yCut, ends);
       }
+    }
+    // Round the cap's outline: the cuts meet at sharp corners, and where one is concave the lip's
+    // skirt (7 mm out from the edge) crosses itself and knots. A few box passes of the cut field
+    // leave every straight edge where it is and round the corners to about the skirt's reach.
+    for (let pass = 0; pass < C.round; pass++) {
+      const g = Float32Array.from(f);
+      for (let ia = 0; ia <= na; ia++) {
+        for (let ib = 0; ib <= nb; ib++) {
+          if (!hits[at(ia, ib)]) continue;
+          let sum = 0;
+          let n = 0;
+          for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) {
+            const ja = ia + da;
+            const jb = ib + db;
+            if (ja < 0 || ja > na || jb < 0 || jb > nb || !hits[at(ja, jb)]) continue;
+            sum += f[at(ja, jb)];
+            n++;
+          }
+          g[at(ia, ib)] = sum / n;
+        }
+      }
+      f.set(g);
     }
     // Cut the cap's triangles out of the grid's, clipping the ones the edge
     // crosses so the edge is a clean curve. Vertices on the cut are shared
@@ -429,8 +518,8 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
           const facing = nrm.dot(tri[1].fromArray(nrmG, ids[0] * 3)) / Math.max(nrm.length(), 1e-12);
           if (facing < 0) ids.reverse();
           // The sampling rays crossed over each other here (a fold in the sampled
-          // cloth): the triangle runs against the cloth it sits on, or edge-on to it. Leave it out.
-          if (Math.abs(facing) < 0.3) continue;
+          // cloth): wound by the side it faces below, and left out only if it has no area facing at all.
+          if (Math.abs(facing) < 0.02) continue;
           // Sutherland-Hodgman against f >= 0: the kept polygon's corners in order.
           const poly = [];
           for (let e = 0; e < 3; e++) {
@@ -459,6 +548,25 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       const edge = 1 - THREE.MathUtils.smoothstep(v.w[1] - yCut, 0, C.lipWidth);
       v.h = C.inflate + C.lip * edge; // above the puffed jersey
       v.lip = edge;
+    }
+    // Lifted by the lip, a triangle can end up turned against the cloth's normals (the sampled
+    // surface folds there). Left in, it shows from behind as a dark ragged patch; drop it.
+    {
+      const kept = [];
+      const pa = new THREE.Vector3();
+      const pb = new THREE.Vector3();
+      const pc = new THREE.Vector3();
+      const vn = new THREE.Vector3();
+      const tv = new THREE.Vector3();
+      const top = (v, out) => out.fromArray(verts[v].w).addScaledVector(nrm.fromArray(verts[v].n), verts[v].h);
+      for (let t = 0; t < tris.length; t += 3) {
+        top(tris[t], pa); top(tris[t + 1], pb); top(tris[t + 2], pc);
+        nrm.crossVectors(pb.sub(pa), pc.sub(pa)).normalize();
+        vn.fromArray(verts[tris[t]].n).add(tv.fromArray(verts[tris[t + 1]].n)).add(tv.fromArray(verts[tris[t + 2]].n)).normalize();
+        if (nrm.dot(vn) > -0.3) kept.push(tris[t], tris[t + 1], tris[t + 2]);
+      }
+      tris.length = 0;
+      for (const k of kept) tris.push(k);
     }
     // The cap's edges, each with the direction out of the cap along its
     // surface (away from the triangle behind it).
