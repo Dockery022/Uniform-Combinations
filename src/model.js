@@ -13,6 +13,7 @@ import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { SKIN_TONES, BRAND } from './team.js';
 import { art as url } from './combo.js';
 import * as paint from './textures.js';
+import { loadSleeveSpec, sleeveBands } from './sleeves.js';
 import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
 const PLAYER_HEIGHT = 1.88; // rest-pose height of the body in meters, without helmet
@@ -73,6 +74,9 @@ const JERSEY_ART = {
   // outer side at outerX and its inner side at innerX, shoulder to hem from
   // top to bottom. (The player's left sleeve is on the art's right.)
   sleeves: { top: 290, bottom: 500, left: { outerX: 1316, innerX: 1176 }, right: { outerX: 40, innerX: 190 } },
+  // Art columns outside these belong to the sleeves (the hanging sleeves and
+  // the shoulder caps' outer ends).
+  sleeveColumns: [205, 1161],
 };
 // Shoe art (702 x 372 side view, toe to the right): heel, toe, top and sole.
 const SHOE_ART = { heel: 0.012, toe: 0.997, top: 0.03, bottom: 0.95 };
@@ -335,6 +339,14 @@ function worldPositions(mesh) {
   return out;
 }
 
+// The mesh's own vertex positions, unskinned, as a flat array.
+function localPositions(mesh) {
+  const pos = mesh.geometry.attributes.position;
+  const out = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) out.set([pos.getX(i), pos.getY(i), pos.getZ(i)], i * 3);
+  return out;
+}
+
 // Smooth vertex normals for rest-pose world positions (welded by position,
 // so UV seams don't crease them).
 function worldNormals(mesh, world) {
@@ -436,6 +448,74 @@ function uvScale(mesh, world) {
   }
   const median = (a) => (a.length ? a.sort((x, y) => x - y)[a.length >> 1] : 1);
   return along.map(median);
+}
+
+// Per vertex: the distance to its side's sleeve hem (the open cuff edge) in
+// meters, and 1 on the sleeve islands. Each sleeve island is a tube, open at
+// the cuff and at the armhole, where it runs under the body's cloth; the
+// cuff is the ring at the high end of the island's v. The cut along the arm
+// is a UV seam: in the cloth as modeled (`modeled`, before skinning and
+// fitting) each of its edges has a twin at exactly the same place on the
+// other side, so those are left out. Distances are measured on the fitted
+// cloth (`world`).
+function hemDistances(mesh, modeled, world, uv) {
+  const index = mesh.geometry.index;
+  const count = world.length / 3;
+  const edges = new Map();
+  const addEdge = (a, b) => {
+    const k = a < b ? `${a}_${b}` : `${b}_${a}`;
+    edges.set(k, (edges.get(k) ?? 0) + 1);
+  };
+  for (let t = 0; t < index.count; t += 3) {
+    const a = index.getX(t);
+    const b = index.getX(t + 1);
+    const c = index.getX(t + 2);
+    addEdge(a, b);
+    addEdge(b, c);
+    addEdge(c, a);
+  }
+  const all = [];
+  for (const [k, n] of edges) if (n === 1) all.push(k.split('_').map(Number));
+  const near = (i, j) => Math.abs(modeled[i * 3] - modeled[j * 3]) + Math.abs(modeled[i * 3 + 1] - modeled[j * 3 + 1]) + Math.abs(modeled[i * 3 + 2] - modeled[j * 3 + 2]) < 1e-6;
+  const open = all.filter(([a, b], k) => uv.getX(a) < 0.44 && uv.getX(b) < 0.44
+    && !all.some(([c, d], m) => m !== k && ((near(a, c) && near(b, d)) || (near(a, d) && near(b, c)))));
+  const out = new Float32Array(count * 3);
+  let cx = 0;
+  for (let i = 0; i < count; i++) cx += world[i * 3] / count;
+  const p = new THREE.Vector3();
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  for (const right of [true, false]) {
+    let vMin = Infinity;
+    let vMax = -Infinity;
+    for (let i = 0; i < count; i++) {
+      if (uv.getX(i) >= 0.44 || (uv.getX(i) < 0.22) !== right) continue;
+      vMin = Math.min(vMin, uv.getY(i));
+      vMax = Math.max(vMax, uv.getY(i));
+    }
+    const vMid = (vMin + vMax) / 2;
+    const segs = open.filter(([i, j]) => (uv.getX(i) < 0.22) === right && uv.getY(i) > vMid && uv.getY(j) > vMid);
+    if (!segs.length) continue;
+    // The figure's right sleeve is at -x.
+    let sx = 0;
+    for (const [i] of segs) sx += world[i * 3] - cx;
+    for (let i = 0; i < count; i++) {
+      const island = uv.getX(i) < 0.44 && (uv.getX(i) < 0.22) === right;
+      if (!island && (world[i * 3] - cx) * sx < 0) continue;
+      p.fromArray(world, i * 3);
+      let best = Infinity;
+      for (const [s0, s1] of segs) {
+        a.fromArray(world, s0 * 3);
+        ab.fromArray(world, s1 * 3).sub(a);
+        const t = THREE.MathUtils.clamp(b.copy(p).sub(a).dot(ab) / (ab.lengthSq() || 1e-9), 0, 1);
+        best = Math.min(best, b.copy(a).addScaledVector(ab, t).distanceTo(p));
+      }
+      out[i * 3] = best;
+      out[i * 3 + 1] = island ? 1 : 0;
+    }
+  }
+  return out;
 }
 
 function nearestDistance(world, i, points) {
@@ -576,6 +656,10 @@ export class Player {
         uCollarW: { value: 0.008 },
         uSmoothRough: { value: MESH_FABRIC.smooth.roughness },
         uPuff: { value: 0 },
+        // Sleeve bands by distance from the hem, from the jersey's sleeve spec (0 = keep the art).
+        uSleeveOn: { value: 0 },
+        uArtSleeveX: { value: new THREE.Vector2(JERSEY_ART.sleeveColumns[0] / JERSEY_ART.width, JERSEY_ART.sleeveColumns[1] / JERSEY_ART.width) },
+        ...bandUniforms(),
         ...weaveU,
       },
       glove: { uGlove: { value: new THREE.Color() }, uGloveOn: { value: 1 }, uSock: { value: new THREE.Color() } },
@@ -605,9 +689,9 @@ export class Player {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves;
       // the mesh's relief, roughness and hole shading all fade with it.
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
-        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float', aPuffN: 'vec3' },
+        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float', aPuffN: 'vec3', aSleeve: 'vec3' },
         uniforms: this.uniforms.jersey,
-        declare: `uniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\n${weaveDecl}`,
+        declare: `${BANDS_GLSL}\nuniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\nuniform float uSleeveOn;\nuniform vec2 uArtSleeveX;\n${weaveDecl}`,
         // Pushed out along its skinned, seam-averaged normal (uPuff is JERSEY_PUFF in the
         // mesh's units), so it rides over the body instead of through it.
         vertexDeclare: 'uniform float uPuff;',
@@ -615,6 +699,12 @@ export class Player {
         fragment: /* glsl */ `
           vec4 art = vaArt.z < 0.5 ? texture2D(uArtFront, vaArt.xy) : texture2D(uArtBack, vaArt.xy);
           diffuseColor.rgb = mix(uBase, art.rgb, art.a);
+          // Sleeves with a spec: the base color with the spec's bands drawn by
+          // distance from the hem (vaSleeve.x, meters), never the flat art. The
+          // sleeve is the sleeve islands (vaSleeve.y) plus whatever of the body's
+          // cloth lands in the art's sleeve columns: the caps' outer ends.
+          bool onSleeve = vaSleeve.y > 0.5 || vaArt.x < uArtSleeveX.x || vaArt.x > uArtSleeveX.y;
+          if (uSleeveOn > 0.5 && onSleeve) diffuseColor.rgb = applyBands(uBase, vaSleeve.x);
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
           vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
@@ -1260,6 +1350,10 @@ export class Player {
     for (const mesh of Object.values(this.parts)) mesh.skeleton?.update();
     const bonePos = (n) => this.bones[n].getWorldPosition(new THREE.Vector3());
     const setAttr = (mesh, name, data) => mesh.geometry.setAttribute(name, new THREE.BufferAttribute(data, 1));
+    // Hem distances come from the cloth as modeled, before skinning and
+    // fitting, where the seams' duplicate vertices still coincide; the fit
+    // stretches the bands with the cloth.
+    const jerseyModeled = this.parts.jersey ? localPositions(this.parts.jersey) : null;
     this.fitUniform();
     this.tuckSocks();
 
@@ -1308,6 +1402,7 @@ export class Player {
         aMesh[i] = THREE.MathUtils.smoothstep(meshTop - world[i * 3 + 1], -0.02, 0.02);
       }
       setAttr(jersey, 'aMesh', aMesh);
+      jersey.geometry.setAttribute('aSleeve', new THREE.BufferAttribute(hemDistances(jersey, jerseyModeled, world, uv), 3));
       this.tileFabric(this.fabricMaps.jersey, jersey, world);
       // Full outward offset above the pants; tucked in, none where the hem
       // goes under the pants.
@@ -2006,13 +2101,16 @@ export class Player {
   // Images load once; a newer look that lands first wins.
   async paintArt(look) {
     const token = (this.artToken = (this.artToken ?? 0) + 1);
-    const [jersey, logos, decal, shoe] = await Promise.all([
+    const [jersey, logos, decal, shoe, sleeveSpec] = await Promise.all([
       loadImage(url(look.jersey.file)),
       loadImage(url(look.pants.spec.logos)),
       loadImage(url(look.helmet.spec.decal)),
       loadImage(url(look.shoes)),
+      loadSleeveSpec(look.jersey.file),
     ]);
     if (token !== this.artToken) return;
+    setBands(this.uniforms.jersey, sleeveBands(sleeveSpec));
+    this.uniforms.jersey.uSleeveOn.value = sleeveSpec ? 1 : 0;
     paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
     paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
     paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name);
