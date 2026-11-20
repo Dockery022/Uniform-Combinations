@@ -3,9 +3,8 @@
 // Each band is a fraction of the sleeve length from the hem, in from/to,
 // with its color. On the player the bands are drawn by surface distance
 // from the sleeve's hem, so they stay straight and a constant width.
-// A spec with a `stripe` (the 2020 black jersey) draws it over the shoulder
-// and down the outer sleeve instead, with the spec's `outline` around it;
-// its sizes are meters on the 3D jersey, since the art has no stripe.
+// A spec with a `cap` design paints it on the shoulder caps (src/caps.js),
+// as shapes in cap-panel coordinates in meters on the 3D jersey.
 const cache = new Map();
 
 // Jerseys whose sleeves are drawn from their spec. The rest keep the flat
@@ -28,19 +27,3 @@ export function sleeveBands(spec) {
   return spec.bands.map((b) => ({ at: ((b.from + b.to) / 2) * L, w: (b.to - b.from) * L, color: b.color }));
 }
 
-// The spec's over-the-shoulder stripe as the shader wants it, in meters:
-// width, where it starts past the shoulder number (from the neckline) and
-// ends above the cuff (from the hem), and its outline. null without one.
-export function sleeveStripe(spec) {
-  const s = spec?.stripe;
-  if (!s) return null;
-  const L = spec.sleeveLength_m ?? 0.168;
-  return {
-    width: s.width_m,
-    color: s.color,
-    start: s.fromNeck_m ?? 0,
-    end: (s.endFromHem ?? 0) * L,
-    outlineWidth: spec.outline?.width_m ?? 0,
-    outlineColor: spec.outline?.color ?? '#FFFFFF',
-  };
-}

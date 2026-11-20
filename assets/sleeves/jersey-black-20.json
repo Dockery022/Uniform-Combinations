@@ -25,17 +25,40 @@
   }
  ],
  "overShoulder": true,
- "outline": {
-  "width_m": 0.005,
-  "color": "#FFFFFF"
- },
  "lines": null,
- "stripe": {
-  "color": "#C9001F",
-  "width_m": 0.1,
-  "fromNeck_m": 0.1,
-  "endFromHem": 0.25
+ "cap": {
+  "shapes": [
+   {
+    "type": "polygon",
+    "points": [
+     [
+      0.045,
+      -0.03
+     ],
+     [
+      0.045,
+      -0.13
+     ],
+     [
+      "L-0.028",
+      -0.045
+     ],
+     [
+      "L-0.006",
+      0.045
+     ]
+    ],
+    "fill": "#C9001F",
+    "outline": [
+     {
+      "color": "#FFFFFF",
+      "width": 0.003
+     }
+    ]
+   }
+  ],
+  "how": "Shapes in cap-panel coordinates, meters on the 3D jersey: a runs from the cap's inner edge by the collar over the top of the pad and down the arm (\"L-0.01\" is 1 cm short of the cap's lower edge); b runs front (+) to back (-) from the pad's center line. The shoulder number sits at a 0.08, b 0.01 unless cap.number says otherwise. ?capgrid shows a 5 mm grid on the cap."
  },
- "notes": "Type B from the 2019 game photos, not from this art: a red stripe over the top of the shoulder pad and down the outer sleeve, ending above the cuff, with a thin white outline. The photos show it as a red panel with black claw cuts and thin white accents; this is the simplified stripe Doc asked for. width_m, fromNeck_m and outline.width_m are meters on the 3D jersey (estimates from the photos); endFromHem is a fraction of L like the bands. The art's own sleeve bands (Type A, like Red 20) are kept in artBands for reference and are not drawn.",
+ "notes": "Type B from the 2019 game photos, not from this art: a shoulder cap with a bold diagonal red stripe from the top of the pad behind the shoulder number down the outer arm toward the front, wider at the top, with 3 mm white edge lines and an angled end just above the cap's lower edge, painted on the cap piece (src/caps.js). The photos show the red with black claw cuts and white accents inside it; this is the simplified stripe Doc asked for, sizes estimated from the photos. The art's own sleeve bands (Type A, like Red 20) are kept in artBands for reference and are not drawn.",
  "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
 }
