@@ -18,6 +18,8 @@ export const SHOULDER_CAP = {
   smooth: 5, // passes of neighbor averaging over the sampled cloth, which blend the millimeter step where the jersey's yoke panel lies over its sleeve panel
   reach: 0.15, // the sampling rays start this far outside the pad's cross-section and run in to 0.12 inside it
   top: 0.088, // over the pad the cap reaches this far front and back of the pad's center line
+  cornerR: 0.02, // the lower edge and the rear and front ends meet in a rounded corner of about this radius
+  edgeSmooth: 30, // passes of neighbor averaging on the height the lower edge follows
   round: 9, // passes of box smoothing on the cut field: rounds the outline's corners to about the skirt's reach
   inflate: 0.003, // the cap floats this far above the jersey
   lip: 0.0015, // and this much more at its lower edge, where it overhangs the sleeve
@@ -440,6 +442,29 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     // back of the pad's center line over the pad, and `wrap` degrees round
     // the arm down the sleeve. Grid points with no cloth at all (through
     // the neck opening) are outside.
+    // The lower edge follows the cloth's height, but the jersey bunches near the pad's rear corner
+    // and the height steps there, kinking the edge; so it follows a smoothed copy of the height.
+    const ySm = new Float32Array(N);
+    for (let i = 0; i < N; i++) ySm[i] = cloth[i * 3 + 1];
+    for (let pass = 0; pass < C.edgeSmooth; pass++) {
+      const g = Float32Array.from(ySm);
+      for (let ia = 0; ia <= na; ia++) {
+        for (let ib = 0; ib <= nb; ib++) {
+          if (!hits[at(ia, ib)]) continue;
+          let sum = 0;
+          let n = 0;
+          for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) {
+            const ja = ia + da;
+            const jb = ib + db;
+            if (ja < 0 || ja > na || jb < 0 || jb > nb || !hits[at(ja, jb)]) continue;
+            sum += ySm[at(ja, jb)];
+            n++;
+          }
+          g[at(ia, ib)] = sum / n;
+        }
+      }
+      ySm.set(g);
+    }
     const f = new Float32Array(N);
     for (let ia = 0; ia <= na; ia++) {
       const { down, R, theta } = rows[ia];
@@ -450,7 +475,10 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
         // The ends are the same arc length either side of the center line all the way down (an angle limit
         // of wrap * R narrowed the cap where the arm is thin, biting a curve out of its rear edge).
         const ends = C.top - Math.abs(b);
-        f[i] = Math.min(neckD[i] - C.collar, cloth[i * 3 + 1] - yCut, ends);
+        // A soft minimum of the lower edge and the ends rounds the cap's corners; the neckline keeps its hard minimum.
+        const k = C.cornerR;
+        const soft = -k * Math.log(Math.exp(-(ySm[i] - yCut) / k) + Math.exp(-ends / k));
+        f[i] = Math.min(neckD[i] - C.collar, soft);
       }
     }
     // Round the cap's outline: the cuts meet at sharp corners, and where one is concave the lip's
