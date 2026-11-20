@@ -1701,14 +1701,18 @@ export class Player {
       const up = upHint.projectOnPlane(n0).normalize();
       const right = new THREE.Vector3().crossVectors(up, n0).normalize();
       const size = (tv.h / this.artScale) * 1.5; // the glyph is drawn 2/3 of the square
+      // Every vertex on this side gets its place on the decal's plane, so a
+      // triangle that reaches past the decal's edge (or the cut where the
+      // cloth turns away) interpolates true coordinates and clips the glyph
+      // cleanly. Leaving far vertices at zero smeared the glyph down the
+      // pad's side as long streaks.
+      const sideSign = Math.sign(c.x - neck.x);
       for (let i = 0; i < count; i++) {
+        if (Math.sign(world[i * 3] - neck.x) !== sideSign) continue;
         p.fromArray(world, i * 3).sub(c);
-        if (p.length() > size) continue;
         attr.array[i * 3] = p.dot(right) / size + 0.5;
         attr.array[i * 3 + 1] = 0.5 - p.dot(up) / size;
-        // Coordinates stay valid past the cut, so a triangle across it
-        // clips the glyph cleanly instead of smearing it.
-        attr.array[i * 3 + 2] = q.fromArray(normals, i * 3).dot(n0) > 0.2 ? side + 1 : 0;
+        attr.array[i * 3 + 2] = p.length() < size * 1.5 && q.fromArray(normals, i * 3).dot(n0) > 0.2 ? side + 1 : 0;
       }
       return size;
     });
