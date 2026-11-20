@@ -6,7 +6,8 @@
  "base": "#000000",
  "sleeveLength_px": 384.5,
  "sleeveLength_m": 0.168,
- "bands": [
+ "bands": [],
+ "artBands": [
   {
    "from": 0.03,
    "to": 0.077,
@@ -24,9 +25,17 @@
   }
  ],
  "overShoulder": true,
- "outline": null,
+ "outline": {
+  "width_m": 0.005,
+  "color": "#FFFFFF"
+ },
  "lines": null,
- "stripe": null,
- "notes": "Art shows Type A bands (red / white / red + hem band, like Red 20 in red). Doc asked for Type B from the QB photo; the photo, not this art, will set the stripe.",
+ "stripe": {
+  "color": "#C9001F",
+  "width_m": 0.1,
+  "fromNeck_m": 0.1,
+  "endFromHem": 0.25
+ },
+ "notes": "Type B from the 2019 game photos, not from this art: a red stripe over the top of the shoulder pad and down the outer sleeve, ending above the cuff, with a thin white outline. The photos show it as a red panel with black claw cuts and thin white accents; this is the simplified stripe Doc asked for. width_m, fromNeck_m and outline.width_m are meters on the 3D jersey (estimates from the photos); endFromHem is a fraction of L like the bands. The art's own sleeve bands (Type A, like Red 20) are kept in artBands for reference and are not drawn.",
  "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
 }
