@@ -131,9 +131,9 @@ const JERSEY_FIT = { untucked: false, belowBelt: 0.075, clear: 0.012, blend: 0.0
 // rounded square shoulder edge, then straight down to where the sleeve
 // hangs from it. Meters.
 const SHOULDER_PAD = {
-  height: 0.03, // pad top above the shoulder joint, at the shoulder edge
+  height: 0.026, // pad top above the shoulder joint, at the shoulder edge
   spread: 0.03, // the shoulder edge is this far beyond the arm's widest point
-  dome: 0.012, // the dome's apex rises this much above the edge height
+  dome: 0.008, // the dome's apex rises this much above the edge height
   arch: 0.03, // the apex sits this far out from the collar's edge
   round: 2, // dome rounding: 2 = parabola from the apex to the edge; higher keeps the top flatter, dropping nearer the edge
   corner: 0.03, // radius rounding the shoulder edge into the pad's side
