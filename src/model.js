@@ -131,9 +131,9 @@ const JERSEY_FIT = { untucked: false, belowBelt: 0.075, clear: 0.012, blend: 0.0
 // rounded square shoulder edge, then straight down to where the sleeve
 // hangs from it. Meters.
 const SHOULDER_PAD = {
-  height: 0.05, // pad top above the shoulder joint, at the shoulder edge
-  spread: 0.035, // the shoulder edge is this far beyond the arm's widest point
-  dome: 0.03, // the dome's apex rises this much above the edge height
+  height: 0.03, // pad top above the shoulder joint, at the shoulder edge
+  spread: 0.03, // the shoulder edge is this far beyond the arm's widest point
+  dome: 0.012, // the dome's apex rises this much above the edge height
   arch: 0.03, // the apex sits this far out from the collar's edge
   round: 2, // dome rounding: 2 = parabola from the apex to the edge; higher keeps the top flatter, dropping nearer the edge
   corner: 0.03, // radius rounding the shoulder edge into the pad's side
@@ -141,8 +141,8 @@ const SHOULDER_PAD = {
   depth: 0.125, // half-length of the pad front to back; the lift is full out to depthFlat of that, then eases to nothing at the end with no step (a round superellipse end dropped almost vertically and folded the cloth there)
   depthFlat: 0.4,
   cloth: 0.004, // cloth lies this far off the pad
-  sleeveFlare: 0.006, // the sleeve leaves the pad's edge, bellies out by this much, and
-  sleeveHem: 0.004, // tapers back to this far off the arm at the hem
+  sleeveFlare: 0.002, // the sleeve leaves the pad's edge, bellies out by this much, and
+  sleeveHem: 0.002, // tapers back to this far off the arm at the hem
 };
 // Skin within this distance under the jersey or pants is never drawn.
 const COVER_DEPTH = 0.08;
