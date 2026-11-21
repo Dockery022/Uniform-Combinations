@@ -890,13 +890,10 @@ export class Player {
           }
           // Rib knit, the one place a knit look is right: the collar band, the V-neck trim and the sleeve cuff bands get
           // fine ribs (about 1.6 mm pitch) that fade out when a rib is under a pixel wide.
-          float ribMask = 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck);
-          float ribPhase = vaNeck / 0.0016;
-          if (vaArt.z < 0.5 && vaArt.y < 0.2 && abs(vaArt.x - 0.5) < 0.2 && art.a > 0.5 && distance(art.rgb, uBase) > 0.12 && ribMask < 0.5) {
-            ribMask = 1.0;
-            // ribs follow the neck opening: phase is the distance from it, so they run along each arm of the V
-            ribPhase = vaNeck / 0.0016;
-          }
+          // The collar band and the V-neck trim stay one smooth band (Doc 2026-11-21: the rib read as lumpy ridges
+          // from above and behind); only the cuff bands are ribbed.
+          float ribMask = 0.0;
+          float ribPhase = 0.0;
           if (uSleeveOn > 0.5 && onSleeve && vaSleeve.x < 0.045 && distance(diffuseColor.rgb, uBase) > 0.12) {
             ribMask = 1.0;
             ribPhase = vaSleeve.x / 0.0016;
