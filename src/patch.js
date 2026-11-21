@@ -98,29 +98,29 @@ function drawMasks(k, W, H) {
     gl.stroke();
   }
   // ACC: bold italic capitals in the sans, filled and slightly stroked for heft.
-  const th = H * 0.285;
+  const th = H * 0.31;
   gt.font = `800 ${th * 1.38}px "Montserrat", "Arial Black", sans-serif`;
   gt.textAlign = 'center';
   gt.textBaseline = 'alphabetic';
   gt.save();
-  gt.translate(W * 0.505, H * 0.585);
-  gt.transform(1, 0, -0.34, 1, 0, 0);
+  gt.translate(W * 0.475, H * 0.60);
+  gt.transform(1, 0, -0.5, 1, 0, 0);
   gt.lineJoin = 'miter';
-  gt.lineWidth = H * 0.012;
+  gt.lineWidth = H * 0.016;
   const tw = gt.measureText('ACC').width;
-  const sx = (W * 0.56) / tw;
+  const sx = (W * 0.50) / tw;
   gt.scale(sx, 1);
   gt.strokeText('ACC', 0, 0);
   gt.fillText('ACC', 0, 0);
   gt.restore();
   // The bar under it: thinner than the letters and reaching out beneath them, its right end cut on the slant.
   gr.beginPath();
-  const by = H * 0.665;
+  const by = H * 0.675;
   const bh = H * 0.032;
-  gr.moveTo(W * 0.215, by + bh);
-  gr.lineTo(W * 0.235, by);
-  gr.lineTo(W * 0.805, by);
-  gr.lineTo(W * 0.785, by + bh);
+  gr.moveTo(W * 0.15, by + bh);
+  gr.lineTo(W * 0.175, by);
+  gr.lineTo(W * 0.78, by);
+  gr.lineTo(W * 0.76, by + bh);
   gr.closePath();
   gr.fill();
   return { border, text, bar, laces };

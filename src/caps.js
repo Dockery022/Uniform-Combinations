@@ -21,8 +21,8 @@ export const SHOULDER_CAP = {
   cornerR: 0.02, // the lower edge and the rear and front ends meet in a rounded corner of about this radius
   edgeSmooth: 30, // passes of neighbor averaging on the height the lower edge follows
   round: 9, // passes of box smoothing on the cut field: rounds the outline's corners to about the skirt's reach
-  ease: 0.016, // the cap eases down onto the jersey over this distance in from its neckline and end edges
-  easeFloor: 0.12, // and keeps this fraction of its inflate right at those edges
+  ease: 0.04, // the cap eases down onto the jersey over this distance in from its neckline and end edges (16 mm left a visible wall)
+  easeFloor: 0, // and meets the cloth flush right at those edges
   inflate: 0.003, // the cap floats this far above the jersey
   lip: 0.0015, // and this much more at its lower edge, where it overhangs the sleeve
   lipWidth: 0.008, // the lip rises over this distance in from the edge
