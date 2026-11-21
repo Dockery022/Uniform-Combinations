@@ -904,6 +904,14 @@ export class Player {
 // The torso carries the dimple mesh, not the weave; the yoke and sleeves keep only a faint weave (0.2 of full).
 float weaveAmt = (1.0 - vaMesh) * 0.2 * (1.0 - 0.7 * letters);
 ${WEAVE_GLSL}
+// Tackle twill: a slight raised border where the letter ends. The lettering's alpha ramps across its edge, so its
+// screen-space gradient tilts the normal there (view-space x and y are screen x and y), pushing the edge up.
+if (!${FABRIC_OFF ? 'true' : 'false'}) {
+  vec2 lg = vec2(dFdx(letters), dFdy(letters));
+  float lgl = length(lg);
+  lg *= min(1.0, 0.9 / max(lgl, 1e-4));
+  normal = normalize(normal - vec3(lg, 0.0) * 0.45 * (1.0 - accA));
+}
 if (accA > 0.01) {
   // The patch's stitch normal map, in a frame built from the decal's own coordinates.
   vec3 q0 = dFdx(-vViewPosition);

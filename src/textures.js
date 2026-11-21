@@ -17,7 +17,20 @@ export function makeCanvas(w, h) {
 
 // Draw text centered on (cx, cy) with a given cap height in pixels, an
 // optional horizontal squeeze, and outline layers drawn outside-in.
-export function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill, outlines = [], skew = 0, rotate = 0, spacing = 0 }) {
+// Tackle twill (stitch: true): a tight dashed stitch line sewn just inside the edge of the letter, a darker tone of
+// its fill (lighter on dark fills), the way twill letters are zigzag-stitched to the jersey.
+function stitchColor(fill) {
+  const m = /^#([0-9a-f]{6})$/i.exec(fill ?? '');
+  if (!m) return 'rgba(0,0,0,0.35)';
+  const n = parseInt(m[1], 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const lum = (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+  const t = lum > 0.5 ? 0 : 255;
+  const a = lum > 0.5 ? 0.2 : 0.3;
+  return `rgb(${c.map((v) => Math.round(v + (t - v) * a)).join(',')})`;
+}
+
+export function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill, outlines = [], skew = 0, rotate = 0, spacing = 0, stitch = false }) {
   ctx.save();
   ctx.font = `${weight} 100px ${family}`;
   ctx.letterSpacing = `${spacing}px`;
@@ -41,6 +54,38 @@ export function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 
   }
   ctx.fillStyle = fill;
   ctx.fillText(text, 0, baseline);
+  if (stitch) {
+    // A ring at 0.018 of the height inside the edge, 0.008 wide, dashed: a dashed stroke of the glyph wide enough
+    // to reach in to the ring's outer edge, minus a solid one that stops at its inner edge, clipped to the glyph.
+    const { width: W, height: H } = ctx.canvas;
+    const sc = makeCanvas(W, H);
+    const c2 = sc.getContext('2d');
+    c2.setTransform(ctx.getTransform());
+    c2.font = ctx.font;
+    c2.letterSpacing = ctx.letterSpacing;
+    c2.textAlign = 'center';
+    c2.textBaseline = 'alphabetic';
+    c2.lineJoin = 'round';
+    c2.miterLimit = 2;
+    const unit = height / k; // glyph units per drawn height
+    const inset = unit * 0.014;
+    const wide = unit * 0.006;
+    c2.strokeStyle = stitchColor(fill);
+    c2.lineWidth = 2 * (inset + wide / 2);
+    c2.setLineDash([unit * 0.022, unit * 0.014]);
+    c2.strokeText(text, 0, baseline);
+    c2.setLineDash([]);
+    c2.globalCompositeOperation = 'destination-out';
+    c2.lineWidth = 2 * (inset - wide / 2);
+    c2.strokeText(text, 0, baseline);
+    c2.globalCompositeOperation = 'destination-in';
+    c2.fillStyle = '#000';
+    c2.fillText(text, 0, baseline);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(sc, 0, 0);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -89,7 +134,7 @@ function setNumber(ctx, number, { cx, cy, height, width }, spec, style) {
   const outlines = [{ color: outline, width: height * 0.02 }];
   const draw = (text, x, sx) => {
     if (style.shadow) drawText(ctx, text, { family, cx: x + height * 0.03, cy: cy + height * 0.022, height, sx, fill: outline, outlines });
-    drawText(ctx, text, { family, cx: x, cy, height, sx, fill, outlines });
+    drawText(ctx, text, { family, cx: x, cy, height, sx, fill, outlines, stitch: true });
   };
   const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
   if (style.font === 'block') {
@@ -125,7 +170,7 @@ export function paintTvDecals(canvas, spec, style, number) {
     const w = textWidth(ctx, text, family, height);
     drawText(ctx, text, {
       family, cx: W * (i + 0.5) / 2, cy: H / 2, height, sx: Math.min(1, (W / 2 - 80) / w),
-      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: height * 0.035 }],
+      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: height * 0.035 }], stitch: true,
     });
   });
 }
@@ -216,7 +261,7 @@ function paintVector(ctx, vec, base) {
       const cx = (x0 + x1) / 2;
       const cy = (y0 + y1) / 2;
       if (sh.shadow) drawText(ctx, sh.text, { ...base2, cx: cx + sh.shadow.dx, cy: cy + sh.shadow.dy, fill: sh.shadow.color, outlines: [{ color: sh.shadow.color, width: sh.shadow.outline }] });
-      drawText(ctx, sh.text, { ...base2, cx, cy, fill: sh.fill });
+      drawText(ctx, sh.text, { ...base2, cx, cy, fill: sh.fill, stitch: sh.font === 'jersey' });
     }
   }
   const poly = (list) => {
@@ -313,7 +358,7 @@ export function paintBackLettering(canvas, spec, style, number, name) {
     const w = textWidth(ctx, name, FONTS.jersey, nameH, '', spacing);
     drawText(ctx, name, {
       family: FONTS.jersey, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 40) * k, height: nameH * k,
-      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill,
+      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill, stitch: true,
     });
   }
 }
