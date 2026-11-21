@@ -510,6 +510,24 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       }
       f.set(g);
     }
+    // Distance in from the grid's no-cloth edge (where rays found nothing, or the grid ends): triangles
+    // touching a missing cell are dropped whole rather than clipped, so the cap can end there in a ragged
+    // straight edge no cut field describes. The seam bevel needs this distance too.
+    const gd = new Float32Array(N).fill(1);
+    for (let ia = 0; ia <= na; ia++) {
+      for (let ib = 0; ib <= nb; ib++) {
+        if (!hits[at(ia, ib)]) continue;
+        let d = 1;
+        for (let r = 1; r <= 3 && d === 1; r++) {
+          for (let da = -r; da <= r && d === 1; da++) for (let db = -r; db <= r; db++) {
+            const ja = ia + da;
+            const jb = ib + db;
+            if (ja < 0 || ja > na || jb < 0 || jb > nb || !hits[at(ja, jb)]) { d = (r - 1) * C.step; break; }
+          }
+        }
+        gd[at(ia, ib)] = d;
+      }
+    }
     // Cut the cap's triangles out of the grid's, clipping the ones the edge
     // crosses so the edge is a clean curve. Vertices on the cut are shared
     // between neighbors.
@@ -520,7 +538,7 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     const vertex = (i) => {
       if (!byVertex.has(i)) {
         byVertex.set(i, verts.length);
-        verts.push({ w: Array.from(cloth.subarray(i * 3, i * 3 + 3)), n: Array.from(nrmG.subarray(i * 3, i * 3 + 3)), a: rowA(Math.floor(i / (nb + 1))), b: colB(i % (nb + 1)), skin: skins[i], cut: false, nd: neckD[i] });
+        verts.push({ w: Array.from(cloth.subarray(i * 3, i * 3 + 3)), n: Array.from(nrmG.subarray(i * 3, i * 3 + 3)), a: rowA(Math.floor(i / (nb + 1))), b: colB(i % (nb + 1)), skin: skins[i], cut: false, nd: neckD[i], gd: gd[i] });
       }
       return byVertex.get(i);
     };
@@ -539,6 +557,7 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
           skin: mixSkin([[skins[i], 1 - t], [skins[j], t]]),
           cut: true,
           nd: L(neckD[i], neckD[j]),
+          gd: Math.min(gd[i], gd[j]),
         });
       }
       return byEdge.get(key);
@@ -586,7 +605,7 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       // The cap's neck-side end (the panel's start, `a` = 0, which lies 3-9 cm from the collar line, so the
       // neckline distance never reached it: it stood a full inflate high there), the pad's front and rear
       // ends and the neckline are one sewn seam: flush at the edge, a rounded bevel up to the full inflate.
-      const dEdge = Math.max(0, Math.min(v.nd - C.collar, v.a, C.top - Math.abs(v.b)));
+      const dEdge = Math.max(0, Math.min(v.nd - C.collar, v.a, C.top - Math.abs(v.b), v.gd));
       const bevel = dEdge >= C.bevel ? 1 : Math.sin((dEdge / C.bevel) * Math.PI / 2);
       // The pillow: a soft swell toward the middle, growing from nothing at the seams and the lower edge.
       const dAll = Math.max(0, Math.min(dEdge, v.w[1] - yCut + 0.01));
