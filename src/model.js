@@ -108,6 +108,8 @@ const SOCK_SKIN = 0.04;
 // the art and combo colors are never replaced. At a distance the mipmaps
 // average it to a flat, faint tone.
 const WEAVE = { repeat: 8, strength: 0.6, shade: 0.22 };
+// ?fabric=off drops every fabric texture (weave, dimple mesh, rib, twill relief) so the plain shading can be compared.
+const FABRIC_OFF = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fabric') === 'off';
 const WEAVE_GLSL = /* glsl */ `
   vec3 weaveN = texture2D(uWeave, vNormalMapUv * uWeaveRepeat).xyz * 2.0 - 1.0;
   normal = normalize(normal + tbn * vec3(weaveN.xy * uWeaveStrength * weaveAmt, 0.0));
@@ -793,7 +795,7 @@ export class Player {
     weave.flipY = false;
     weave.colorSpace = THREE.NoColorSpace;
     weave.anisotropy = aniso;
-    const weaveU = { uWeave: { value: weave }, uWeaveRepeat: { value: WEAVE.repeat }, uWeaveStrength: { value: WEAVE.strength }, uWeaveShade: { value: WEAVE.shade } };
+    const weaveU = { uWeave: { value: weave }, uWeaveRepeat: { value: WEAVE.repeat }, uWeaveStrength: { value: FABRIC_OFF ? 0 : WEAVE.strength }, uWeaveShade: { value: FABRIC_OFF ? 0 : WEAVE.shade } };
     const weaveDecl = 'uniform sampler2D uWeave;\nuniform float uWeaveRepeat;\nuniform float uWeaveStrength;\nuniform float uWeaveShade;';
     const pantsU = bandUniforms();
     this.uniforms = {
@@ -972,6 +974,15 @@ if (accA > 0.01) {
       armSleeve: fabric({ name: 'armSleeve', roughness: 0.5, sheen: 0.3 }),
       eyes: new THREE.MeshPhysicalMaterial({ name: 'eyes', color: '#1a1410', roughness: 0.15, clearcoat: 1 }),
     };
+    if (FABRIC_OFF) {
+      for (const m of [this.m.jersey, this.m.pants]) {
+        m.normalScale.set(0, 0); // the art shaders still read the normal map's frame, so it stays, flat
+        m.aoMap = null;
+        m.roughnessMap = null;
+        m.roughness = 0.9;
+        m.needsUpdate = true;
+      }
+    }
     for (const [name, mesh] of Object.entries(this.parts)) {
       if (this.m[name]) mesh.material = this.m[name];
     }
@@ -1462,8 +1473,10 @@ if (accA > 0.01) {
       weave.repeat.set(cap.panel.A / (0.1 / WEAVE.repeat), (2 * cap.panel.B) / (0.1 / WEAVE.repeat));
       weave.needsUpdate = true;
       const face = cap.mesh.material[0];
-      face.normalMap = weave;
-      face.normalScale.set(WEAVE.strength, WEAVE.strength);
+      if (!FABRIC_OFF) {
+        face.normalMap = weave;
+        face.normalScale.set(WEAVE.strength, WEAVE.strength);
+      }
       cap.mesh.material[0].map = t;
       cap.mesh.material[1].map = t;
       cap.mesh.visible = false;
