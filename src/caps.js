@@ -24,6 +24,11 @@ export const SHOULDER_CAP = {
   bevel: 0.006, // the neck-side, front and rear end edges are sewn seams: flush with the cloth at the edge, rounding up to the full inflate over this distance
   bevelFloor: 0.12, // fraction of the inflate kept right at the seam so the cap doesn't z-fight the cloth
   inflate: 0.003, // the cap floats this far above the jersey
+  pillow: 0.003, // and swells this much more toward the middle of the cap, stuffed like a pad under the cloth
+  pillowReach: 0.045, // the swell is full this far in from the cap's edges
+  crease: 0.0016, // a crease runs down the cap's length, this deep,
+  creaseB: 0.012, // at this b (the pad's center line is 0, front positive),
+  creaseWidth: 0.004, // with this Gaussian half-width
   lip: 0.0015, // and this much more at its lower edge, where it overhangs the sleeve
   lipWidth: 0.008, // the lip rises over this distance in from the edge
   texel: 0.0005, // meters per texel of the cap panel
@@ -583,7 +588,12 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       // ends and the neckline are one sewn seam: flush at the edge, a rounded bevel up to the full inflate.
       const dEdge = Math.max(0, Math.min(v.nd - C.collar, v.a, C.top - Math.abs(v.b)));
       const bevel = dEdge >= C.bevel ? 1 : Math.sin((dEdge / C.bevel) * Math.PI / 2);
-      v.h = C.inflate * (C.bevelFloor + (1 - C.bevelFloor) * bevel) + C.lip * edge; // above the puffed jersey
+      // The pillow: a soft swell toward the middle, growing from nothing at the seams and the lower edge.
+      const dAll = Math.max(0, Math.min(dEdge, v.w[1] - yCut + 0.01));
+      const swell = Math.sin(Math.min(1, dAll / C.pillowReach) * Math.PI / 2);
+      // The crease: a shallow groove down the cap, fading out toward the seams so the edges stay clean.
+      const groove = Math.exp(-(((v.b - C.creaseB) / C.creaseWidth) ** 2)) * Math.min(1, dEdge / 0.02);
+      v.h = C.inflate * (C.bevelFloor + (1 - C.bevelFloor) * bevel) + C.pillow * swell - C.crease * groove + C.lip * edge; // above the puffed jersey
       v.lip = edge;
     }
     // Lifted by the lip, a triangle can end up turned against the cloth's normals (the sampled
@@ -694,6 +704,26 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     capGeo.setAttribute('skinIndex', new THREE.BufferAttribute(sIndex, 4));
     capGeo.setAttribute('skinWeight', new THREE.BufferAttribute(sWeight, 4));
     capGeo.setIndex(tris);
+    // The face shades from its own shape (the pillow and crease), not the flat cloth's normals; the
+    // skirt keeps the cloth's. Normals come from the face's triangles alone, turned to agree with the cloth.
+    {
+      const faceGeo = new THREE.BufferGeometry();
+      faceGeo.setAttribute('position', new THREE.BufferAttribute(position, 3));
+      faceGeo.setIndex(tris.slice(0, capTris));
+      faceGeo.computeVertexNormals();
+      const fn = faceGeo.attributes.normal;
+      const used = new Uint8Array(n);
+      for (let t = 0; t < capTris; t++) used[tris[t]] = 1;
+      for (let vi = 0; vi < n; vi++) {
+        if (!used[vi] || verts[vi].skirt) continue;
+        const dotc = fn.getX(vi) * normal[vi * 3] + fn.getY(vi) * normal[vi * 3 + 1] + fn.getZ(vi) * normal[vi * 3 + 2];
+        const sgn = dotc < 0 ? -1 : 1;
+        normal[vi * 3] = fn.getX(vi) * sgn;
+        normal[vi * 3 + 1] = fn.getY(vi) * sgn;
+        normal[vi * 3 + 2] = fn.getZ(vi) * sgn;
+      }
+      faceGeo.dispose();
+    }
     // The cap's face and its skirt are separate groups, so the skirt can be a
     // plain matte cloth: with the face's sheen the skirt, seen edge-on, read as
     // a pale dashed line along the cap's edge.
