@@ -928,7 +928,7 @@ export function paintCap(canvas, panel, design, { number, grid } = {}) {
 }
 
 // The cap's gloss map, laid out like the color panel: red = clearcoat (patent-leather claws), green =
-// roughness (smooth cloth 0.92, the claws 0.2). Shapes flagged `gloss` in the design are the patent
+// roughness (smooth cloth 0.92, the claws 0.42, semi-gloss). Shapes flagged `gloss` in the design are the patent
 // leather; everything else is cloth.
 export function paintCapGloss(canvas, panel, design) {
   const { texel, B, L } = panel;
@@ -937,10 +937,10 @@ export function paintCapGloss(canvas, panel, design) {
   ctx.fillStyle = 'rgb(0,235,0)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(1 / texel, 0, 0, 1 / texel, panel.margin / texel, 0);
-  ctx.fillStyle = 'rgb(255,51,0)';
+  ctx.fillStyle = 'rgb(255,107,0)';
   for (const shape of design.shapes ?? []) {
     if (shape.type === 'line') continue;
-    ctx.fillStyle = shape.gloss ? 'rgb(255,51,0)' : 'rgb(0,235,0)'; // a later shape without `gloss` (the black teeth) is cloth again
+    ctx.fillStyle = shape.gloss ? 'rgb(255,107,0)' : 'rgb(0,235,0)'; // a later shape without `gloss` (the black teeth) is cloth again
     ctx.beginPath();
     shape.points.forEach(([a, b], i) => (i ? ctx.lineTo(coord(a, L), B - coord(b, L)) : ctx.moveTo(coord(a, L), B - coord(b, L))));
     ctx.closePath();

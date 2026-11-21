@@ -1488,7 +1488,7 @@ if (accA > 0.01) {
     const skirtMaterial = () => new THREE.MeshStandardMaterial({ name: 'cap-skirt', roughness: 0.9, metalness: 0, envMapIntensity: 0.15 }); // front side only: double-sided, the wall seen edge-on flipped its normal triangle by triangle and read as teeth
     // Smooth cloth like the sleeve with a barely visible weave; the claws are patent leather (clearcoat and low roughness
     // from the gloss map, Doc 2026-11-21 18:07Z).
-    const material = () => new THREE.MeshPhysicalMaterial({ name: 'cap', roughness: 1, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.4, sheenRoughness: 0.5, envMapIntensity: 0.4, side: THREE.DoubleSide });
+    const material = () => new THREE.MeshPhysicalMaterial({ name: 'cap', roughness: 1, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.3, sheen: 0.4, sheenRoughness: 0.5, envMapIntensity: 0.4, side: THREE.DoubleSide });
     this.caps = buildCaps({ jersey, world, normals: puffNormals, aNeck, aPuff, puff: JERSEY_PUFF, frames: this.padFrames, material, skirtMaterial });
     for (const cap of this.caps) {
       cap.canvas = paint.makeCanvas(cap.panel.w, cap.panel.h);
