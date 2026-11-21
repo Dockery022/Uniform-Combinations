@@ -398,6 +398,120 @@ function boneWeight(mesh, test) {
 
 // Vertices on open edges of the mesh (neckline, sleeve hems, waist), after
 // welding the UV seams so they don't count as edges.
+// Closes the slits the shoulder pad opens between the jersey's panels. The sleeve panel and the body's
+// yoke panel share no vertices, so lifting each onto the pad parts them by a few millimeters at the
+// armhole, and skin, the cap's paint and the jersey's inside show through. Every open edge of the
+// sleeve panel near the shoulder is zipped to the nearest open vertices of the other panels (within
+// `maxGap`) with a strip of triangles that reuse the existing vertices, so they skin and shade as cloth.
+function stitchSeams(mesh, world, uv, { maxGap = 0.03, region = (x, y, z) => y > 1.42 } = {}) {
+  const geo = mesh.geometry;
+  const index = geo.index;
+  const n = world.length / 3;
+  const key = (i) => `${Math.round(world[i * 3] * 2000)},${Math.round(world[i * 3 + 1] * 2000)},${Math.round(world[i * 3 + 2] * 2000)}`;
+  const weld = new Map();
+  const id = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const k = key(i);
+    if (!weld.has(k)) weld.set(k, i);
+    id[i] = weld.get(k);
+  }
+  const edges = new Map();
+  for (let t = 0; t < index.count; t += 3) {
+    for (let e = 0; e < 3; e++) {
+      const a = id[index.getX(t + e)];
+      const b = id[index.getX(t + ((e + 1) % 3))];
+      const k = a < b ? `${a}_${b}` : `${b}_${a}`;
+      edges.set(k, (edges.get(k) ?? 0) + 1);
+    }
+  }
+  // Open vertices, each as the sleeve-island and the body-island vertex index found at its position.
+  const open = new Map();
+  const sleeveEdges = [];
+  for (const [k, c] of edges) {
+    if (c !== 1) continue;
+    const [a, b] = k.split('_').map(Number);
+    open.set(a, null);
+    open.set(b, null);
+    sleeveEdges.push([a, b]);
+  }
+  const rep = new Map(); // open position -> island index per side: sleeve (u < 0.44) and body
+  for (let i = 0; i < n; i++) {
+    if (!open.has(id[i])) continue;
+    const r = rep.get(id[i]) ?? {};
+    r[uv.getX(i) < 0.44 ? 's' : 'b'] ??= i;
+    rep.set(id[i], r);
+  }
+  const at = (w) => [world[w * 3], world[w * 3 + 1], world[w * 3 + 2]];
+  const ok = (w) => { const [x, y, z] = at(w); return region(x, y, z); };
+  // Boundary neighbors, so a vertex never pairs with its own edge chain a few steps away.
+  const adj = new Map();
+  for (const [a, b] of sleeveEdges) { (adj.get(a) ?? adj.set(a, []).get(a)).push(b); (adj.get(b) ?? adj.set(b, []).get(b)).push(a); }
+  const chainNear = (w) => {
+    const seen = new Set([w]);
+    let frontier = [w];
+    for (let d = 0; d < 6; d++) {
+      const nx = [];
+      for (const v of frontier) for (const u of adj.get(v) ?? []) if (!seen.has(u)) { seen.add(u); nx.push(u); }
+      frontier = nx;
+    }
+    return seen;
+  };
+  const cands = [...open.keys()].filter(ok);
+  const nearOf = (w) => {
+    const [x, y, z] = at(w);
+    const skip = chainNear(w);
+    let best = maxGap;
+    let hit = -1;
+    for (const q of cands) {
+      if (skip.has(q)) continue;
+      const d = Math.hypot(world[q * 3] - x, world[q * 3 + 1] - y, world[q * 3 + 2] - z);
+      if (d < best) { best = d; hit = q; }
+    }
+    return hit;
+  };
+  const worldN = worldNormals(mesh, world);
+  const out = [];
+  const done = new Set();
+  const vi = (w, prefer) => { const r = rep.get(w); return r[prefer] ?? r.s ?? r.b; };
+  const push = (a, b, c) => {
+    const tri = [a, b, c].sort((x, y) => x - y).join('_');
+    if (done.has(tri)) return;
+    done.add(tri);
+    const pa = at(a);
+    const u = [world[b * 3] - pa[0], world[b * 3 + 1] - pa[1], world[b * 3 + 2] - pa[2]];
+    const v = [world[c * 3] - pa[0], world[c * 3 + 1] - pa[1], world[c * 3 + 2] - pa[2]];
+    const f = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const d = f[0] * worldN[a * 3] + f[1] * worldN[a * 3 + 1] + f[2] * worldN[a * 3 + 2];
+    if (d >= 0) out.push(a, b, c); else out.push(a, c, b);
+  };
+  let strips = 0;
+  const partner = new Map();
+  for (const w of cands) partner.set(w, nearOf(w));
+  for (const [a, b] of sleeveEdges) {
+    if (!ok(a) || !ok(b)) continue;
+    const pa = partner.get(a);
+    const pb = partner.get(b);
+    if (pa === undefined || pb === undefined || pa < 0 || pb < 0) continue;
+    const side = rep.get(a).s !== undefined ? 's' : 'b';
+    const ia = vi(a, side);
+    const ib = vi(b, side);
+    const oth = side === 's' ? 'b' : 's';
+    const qa = vi(pa, oth);
+    const qb = vi(pb, oth);
+    if (pa === pb) push(ia, ib, qa);
+    else if (pa === b || pb === a) continue;
+    else { push(ia, ib, qb); push(ia, qb, qa); }
+    strips++;
+  }
+  if (out.length) {
+    const next = new (index.array.constructor)(index.count + out.length);
+    next.set(index.array);
+    next.set(out, index.count);
+    geo.setIndex(new THREE.BufferAttribute(next, 1));
+  }
+  return strips;
+}
+
 function boundaryPoints(mesh, world) {
   const index = mesh.geometry.index;
   const key = (i) => `${Math.round(world[i * 3] * 2000)},${Math.round(world[i * 3 + 1] * 2000)},${Math.round(world[i * 3 + 2] * 2000)}`;
@@ -1488,6 +1602,11 @@ if (accA > 0.01) {
     // vertex lands on the front-view art.
     const jersey = this.parts.jersey;
     if (jersey) {
+      {
+        const w0 = worldPositions(jersey);
+        const strips = stitchSeams(jersey, w0, jersey.geometry.attributes.uv);
+        if (new URLSearchParams(location.search).has('debug')) console.info('stitched seam strips', strips);
+      }
       const world = worldPositions(jersey);
       const count = world.length / 3;
       const neck = bonePos('Neck');
