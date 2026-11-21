@@ -830,6 +830,26 @@ export function paintCap(canvas, panel, design, { number, grid } = {}) {
   if (grid) drawGrid(out, panel);
 }
 
+// The cap's gloss map, laid out like the color panel: red = clearcoat (patent-leather claws), green =
+// roughness (the satin cloth 0.62, the claws 0.14). Shapes flagged `gloss` in the design are the patent
+// leather; everything else keeps the matte cloth.
+export function paintCapGloss(canvas, panel, design) {
+  const { texel, B, L } = panel;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = 'rgb(0,158,0)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(1 / texel, 0, 0, 1 / texel, panel.margin / texel, 0);
+  ctx.fillStyle = 'rgb(255,36,0)';
+  for (const shape of design.shapes ?? []) {
+    if (!shape.gloss || shape.type === 'line') continue;
+    ctx.beginPath();
+    shape.points.forEach(([a, b], i) => (i ? ctx.lineTo(coord(a, L), B - coord(b, L)) : ctx.moveTo(coord(a, L), B - coord(b, L))));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
 // A labeled 5 mm grid over the panel, for checking the layout: thin lines
 // every 5 mm, heavier every 50 mm with their a and b in millimeters, the
 // cap's inner edge (a = 0) and the pad's center line (b = 0) brightest.

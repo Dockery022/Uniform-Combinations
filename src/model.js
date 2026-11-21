@@ -14,7 +14,7 @@ import { SKIN_TONES, BRAND } from './team.js';
 import { art as url } from './combo.js';
 import * as paint from './textures.js';
 import { loadSleeveSpec, sleeveBands } from './sleeves.js';
-import { buildCaps, paintCap } from './caps.js';
+import { buildCaps, paintCap, paintCapGloss } from './caps.js';
 import { paintAccPatch, ACC_PATCH } from './patch.js';
 import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
@@ -1451,6 +1451,19 @@ if (accA > 0.01) {
       t.magFilter = THREE.LinearFilter;
       t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
       cap.texture = t;
+      // Gloss map (red = clearcoat, green = roughness): the claws are patent leather on matte cloth.
+      cap.glossCanvas = paint.makeCanvas(cap.panel.w, cap.panel.h);
+      const gt = new THREE.CanvasTexture(cap.glossCanvas);
+      gt.flipY = false;
+      gt.anisotropy = aniso;
+      gt.wrapS = gt.wrapT = THREE.ClampToEdgeWrapping;
+      cap.glossTexture = gt;
+      const face = cap.mesh.material[0];
+      face.roughness = 1;
+      face.roughnessMap = gt;
+      face.clearcoat = 1;
+      face.clearcoatMap = gt;
+      face.clearcoatRoughness = 0.08;
       cap.mesh.material[0].map = t;
       cap.mesh.material[1].map = t;
       cap.mesh.visible = false;
@@ -1475,7 +1488,9 @@ if (accA > 0.01) {
         at: { a: 0.08, b: 0.01, ...(design.number ?? {}) }, size: design.number?.size ?? (tv.h / this.artScale) * 1.5, side: cap.side,
       } : null;
       paintCap(cap.canvas, cap.panel, design, { number, grid: this.capGrid });
+      paintCapGloss(cap.glossCanvas, cap.panel, design);
       cap.texture.needsUpdate = true;
+      cap.glossTexture.needsUpdate = true;
       cap.mesh.material[0].sheenColor.set(design.base).lerp(new THREE.Color('#ffffff'), 0.35);
     }
   }
