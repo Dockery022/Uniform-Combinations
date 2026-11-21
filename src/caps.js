@@ -939,7 +939,8 @@ export function paintCapGloss(canvas, panel, design) {
   ctx.setTransform(1 / texel, 0, 0, 1 / texel, panel.margin / texel, 0);
   ctx.fillStyle = 'rgb(255,51,0)';
   for (const shape of design.shapes ?? []) {
-    if (!shape.gloss || shape.type === 'line') continue;
+    if (shape.type === 'line') continue;
+    ctx.fillStyle = shape.gloss ? 'rgb(255,51,0)' : 'rgb(0,235,0)'; // a later shape without `gloss` (the black teeth) is cloth again
     ctx.beginPath();
     shape.points.forEach(([a, b], i) => (i ? ctx.lineTo(coord(a, L), B - coord(b, L)) : ctx.moveTo(coord(a, L), B - coord(b, L))));
     ctx.closePath();
