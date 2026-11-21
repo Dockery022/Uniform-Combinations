@@ -185,13 +185,49 @@ function paintFlag(ctx, cx, cy, w) {
   ctx.restore();
 }
 
+// Clean vector art over a jersey's blurry flat art: erases each `erase` box (source pixels) with the
+// body color, then fills the traced shapes (wordmark, adidas, V-neck trim) at the canvas's scale.
+// Shapes are in the source thumbnail's pixels (`unit` art pixels per source pixel); polygons whose
+// name starts "vneck" are one even-odd path (the outline and its holes).
+function paintVector(ctx, vec, base) {
+  const u = vec.unit;
+  ctx.save();
+  ctx.scale(u, u);
+  ctx.fillStyle = base;
+  for (const [a, b, c, d] of vec.erase) ctx.fillRect(a, b, c - a, d - b);
+  const FAM = { jersey: FONTS.jersey, sans: FONTS.sans };
+  for (const sh of vec.shapes) {
+    if (sh.type === 'text') {
+      const [x0, y0, x1, y1] = sh.box;
+      const fam = FAM[sh.font];
+      const h = y1 - y0;
+      const sx = (x1 - x0) / textWidth(ctx, sh.text, fam, h, sh.weight ?? '', sh.spacing ?? 0);
+      const base2 = { family: fam, weight: sh.weight ?? '', height: h, sx, skew: sh.skew ?? 0, spacing: sh.spacing ?? 0 };
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      if (sh.shadow) drawText(ctx, sh.text, { ...base2, cx: cx + sh.shadow.dx, cy: cy + sh.shadow.dy, fill: sh.shadow.color, outlines: [{ color: sh.shadow.color, width: sh.shadow.outline }] });
+      drawText(ctx, sh.text, { ...base2, cx, cy, fill: sh.fill });
+    }
+  }
+  const poly = (list) => {
+    for (const s of list) {
+      s.points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+    }
+  };
+  const vn = vec.shapes.filter((s) => s.type === 'polygon' && s.name.startsWith('vneck'));
+  if (vn.length) { ctx.fillStyle = vn[0].fill; ctx.beginPath(); poly(vn); ctx.fill('evenodd'); }
+  for (const s of vec.shapes.filter((x) => x.type === 'polygon' && !x.name.startsWith('vneck'))) { ctx.fillStyle = s.fill; ctx.beginPath(); poly([s]); ctx.fill(); }
+  ctx.restore();
+}
+
 // The jersey's front art, ready to project. The V-neck is filled with the
 // body color, because the 3D jersey's neckline is shallower than the drawing's
 // and gets its own piping from the collar shader. The art's "10" (chest and
 // shoulders) is painted out; the chosen number is lettered on the chest, and
 // the shoulder numbers go on as decals (paintTvDecals).
 // Coordinates are art pixels (1366 x 1408), drawn at the canvas's scale.
-export function paintJerseyFront(canvas, img, spec, style, number, sleeves, acc) {
+export function paintJerseyFront(canvas, img, spec, style, number, sleeves, acc, vec) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -221,6 +257,12 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves, acc)
         ctx.fillRect(x, top, w, bottom - top);
       }
     }
+  }
+  if (vec) {
+    ctx.save();
+    ctx.scale(k, k);
+    paintVector(ctx, vec, spec.base);
+    ctx.restore();
   }
   ctx.restore();
 

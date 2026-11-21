@@ -2315,7 +2315,7 @@ if (accA > 0.01) {
     if (token !== this.artToken) return;
     setBands(this.uniforms.jersey, sleeveBands(sleeveSpec));
     this.uniforms.jersey.uSleeveOn.value = sleeveSpec ? 1 : 0;
-    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves, sleeveSpec?.acc);
+    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves, sleeveSpec?.acc, sleeveSpec?.vec);
     paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
     paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name);
     this.placeTv(look.jersey.style);

@@ -30,76 +30,17 @@
     "shapes": [
       {
         "type": "polygon",
-        "points": [
-          [
-            "1.0404L-0.00060",
-            0.07
-          ],
-          [
-            "0.1530L+0.02550",
-            -0.02625
-          ],
-          [
-            "0.0000L+0.03000",
-            -0.048
-          ],
-          [
-            "0.1122L+0.02670",
-            -0.05514
-          ],
-          [
-            "1.0404L-0.00060",
-            -0.0119
-          ]
-        ],
+        "points": [[ "1.0404L-0.00060", 0.07 ], [ "0.1530L+0.02550", -0.02625 ], [ "0.0000L+0.03000", -0.048 ], [ "0.1122L+0.02670", -0.05514 ], [ "1.0404L-0.00060", -0.0119 ]],
         "fill": "#C9001F"
       },
       {
         "type": "polygon",
-        "points": [
-          [
-            "1.0404L-0.00060",
-            -0.047
-          ],
-          [
-            "0.3060L+0.02100",
-            -0.0652
-          ],
-          [
-            "0.0714L+0.02790",
-            -0.07311
-          ],
-          [
-            "0.2856L+0.02160",
-            -0.08423
-          ],
-          [
-            "1.0404L-0.00060",
-            -0.0899
-          ]
-        ],
+        "points": [[ "1.0404L-0.00060", -0.047 ], [ "0.3060L+0.02100", -0.0652 ], [ "0.0714L+0.02790", -0.07311 ], [ "0.2856L+0.02160", -0.08423 ], [ "1.0404L-0.00060", -0.0899 ]],
         "fill": "#C9001F"
       },
       {
         "type": "polygon",
-        "points": [
-          [
-            "0.2244L+0.02340",
-            -0.05548
-          ],
-          [
-            "0.3060L+0.02100",
-            -0.0565
-          ],
-          [
-            "0.9180L+0.00300",
-            -0.03071
-          ],
-          [
-            "0.9180L+0.00300",
-            -0.01983
-          ]
-        ],
+        "points": [[ "0.2244L+0.02340", -0.05548 ], [ "0.3060L+0.02100", -0.0565 ], [ "0.9180L+0.00300", -0.03071 ], [ "0.9180L+0.00300", -0.01983 ]],
         "fill": "#FFFFFF"
       }
     ],
@@ -113,10 +54,63 @@
       "x": 334.2,
       "y": 299.9
     },
-    "erase": [
-      84,
-      52
-    ],
+    "erase": [84, 52],
     "note": "Where the source art draws its oval ACC patch (art pixels, 1366 x 1408); the oval is painted out and the football patch decal goes here."
+  },
+  "vec": {
+    "note": "Clean vector redraw of the blurry flat art, traced from assets/uni/jersey-black-20.webp (source pixels 1024x1055; unit = art pixels per source pixel). Never from photos. The V-neck trace is kept in /mnt/project-files/phaseB but not drawn on the model: the 3D neckline is shallower than the drawing, so the traced band landed beside the collar shader's own piping and doubled it.",
+    "unit": 1.334,
+    "erase": [[ 370, 300, 665, 375],
+      [
+        705,
+        180,
+        815,
+        262
+      ]
+    ],
+    "shapes": [
+      {
+        "name": "wordmark",
+        "type": "text",
+        "text": "LOUISVILLE",
+        "font": "jersey",
+        "box": [389.8, 313.2, 644.0, 360.2],
+        "fill": "#FFFFFF",
+        "shadow": {
+          "color": "#C9001F",
+          "dx": -4.0,
+          "dy": 3.0,
+          "outline": 2.0
+        },
+        "spacing": 7
+      },
+      {
+        "name": "adidas-stripe-1",
+        "type": "polygon",
+        "fill": "#FFFFFF",
+        "points": [[726.84, 230.95], [724.02, 226.63], [737.03, 218.15], [744.73, 229.96], [743.21, 230.95]]
+      },
+      {
+        "name": "adidas-stripe-2",
+        "type": "polygon",
+        "fill": "#FFFFFF",
+        "points": [[750.36, 233.2], [737.84, 214.0], [753.19, 204.0], [769.71, 229.32], [763.76, 233.2]]
+      },
+      {
+        "name": "adidas-stripe-3",
+        "type": "polygon",
+        "fill": "#FFFFFF",
+        "points": [[774.71, 231.2], [753.94, 199.33], [768.87, 189.6], [794.22, 228.5], [790.08, 231.2]]
+      },
+      {
+        "name": "adidas-text",
+        "type": "text",
+        "text": "adidas",
+        "font": "sans",
+        "weight": "700",
+        "box": [714.0, 231.8, 806.8, 252.5],
+        "fill": "#FFFFFF"
+      }
+    ]
   }
 }
