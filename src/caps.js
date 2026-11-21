@@ -584,7 +584,7 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     const vertex = (i) => {
       if (!byVertex.has(i)) {
         byVertex.set(i, verts.length);
-        verts.push({ w: Array.from(cloth.subarray(i * 3, i * 3 + 3)), n: Array.from(nrmG.subarray(i * 3, i * 3 + 3)), a: rowA(Math.floor(i / (nb + 1))), b: colB(i % (nb + 1)), skin: skins[i], cut: false, nd: neckD[i], gd: gd[i] });
+        verts.push({ w: Array.from(cloth.subarray(i * 3, i * 3 + 3)), n: Array.from(nrmG.subarray(i * 3, i * 3 + 3)), a: rowA(Math.floor(i / (nb + 1))), b: colB(i % (nb + 1)), skin: skins[i], cut: false, nd: neckD[i], gd: gd[i], ys: ySm[i] });
       }
       return byVertex.get(i);
     };
@@ -604,6 +604,7 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
           cut: true,
           nd: L(neckD[i], neckD[j]),
           gd: Math.min(gd[i], gd[j]),
+          ys: L(ySm[i], ySm[j]),
         });
       }
       return byEdge.get(key);
@@ -647,7 +648,8 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     // The lip: the cap stands up to `lip` more proud of the jersey within
     // lipWidth of its lower edge, and a skirt under that edge closes the step.
     for (const v of verts) {
-      const edge = 1 - THREE.MathUtils.smoothstep(v.w[1] - yCut, 0, C.lipWidth);
+      // (measured from the smoothed height the cut itself follows, so the lip doesn't step where the cloth's raw height does)
+      const edge = 1 - THREE.MathUtils.smoothstep(v.ys - yCut, 0, C.lipWidth);
       // The cap's neck-side end (the panel's start, `a` = 0, which lies 3-9 cm from the collar line, so the
       // neckline distance never reached it: it stood a full inflate high there), the pad's front and rear
       // ends and the neckline are one sewn seam: flush at the edge, a rounded bevel up to the full inflate.
