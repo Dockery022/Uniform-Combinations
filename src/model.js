@@ -148,7 +148,7 @@ const COVER_SIDE = 0.02;
 
 const MESH_FABRIC = {
   holesPerMeter: 200, // each map tile is 20 holes across
-  mesh: { normalScale: 0.25, aoIntensity: 0.35, sheen: 0.5, sheenRoughness: 0.5, envMapIntensity: 0.6, roughness: 1.35 },
+  mesh: { normalScale: 0.2, aoIntensity: 0.25, sheen: 0.6, sheenRoughness: 0.4, envMapIntensity: 0.6, roughness: 1.15 },
   smooth: { sheen: 0.5, sheenRoughness: 0.5, roughness: 0.88, envMapIntensity: 0.6 }, // yoke, sleeves, socks
   yokeDrop: 0.07, // meters below the armpits where the mesh starts on the front
   backDrop: 0.07, // and on the back: the same as the front, so the two match
@@ -889,14 +889,18 @@ export class Player {
           float letters = lettering.a;
           diffuseColor.rgb = diffuseColor.rgb * (1.0 - letters) + lettering.rgb;
           // No mesh under the lettering or anything else off the base color.
-          float meshAmt = vaMesh * (1.0 - letters) * (1.0 - smoothstep(0.12, 0.25, distance(diffuseColor.rgb, uBase)));
+          // The dimple mesh reads as texture only close up: it fades out between 0.8 m and 2 m from the camera, so the
+          // full-body view is plain satin with no moire.
+          float meshFade = 1.0 - smoothstep(0.8, 2.0, length(vViewPosition));
+          float meshAmt = vaMesh * meshFade * (1.0 - letters) * (1.0 - smoothstep(0.12, 0.25, distance(diffuseColor.rgb, uBase)));
         `,
         rewrite: { aomap_fragment: (chunk) => chunk.replace(/aoMapIntensity/g, '(aoMapIntensity * meshAmt)') },
         after: {
           roughnessmap_fragment: 'roughnessFactor = mix(uSmoothRough, roughnessFactor, meshAmt);\nroughnessFactor = mix(roughnessFactor, 0.46, accA);',
           // Twill lettering shows less of the weave than the cloth.
           normal_fragment_maps: `normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));
-float weaveAmt = 1.0 - 0.7 * letters;
+// The torso carries the dimple mesh, not the weave; the weave stays on the yoke and sleeves for now.
+float weaveAmt = (1.0 - vaMesh) * (1.0 - 0.7 * letters);
 ${WEAVE_GLSL}
 if (accA > 0.01) {
   // The patch's stitch normal map, in a frame built from the decal's own coordinates.
