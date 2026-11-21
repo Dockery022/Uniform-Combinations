@@ -15,6 +15,7 @@ export const SHOULDER_CAP = {
   inner: 0.01, // and the cap reaches this far in past the neckline's widest point, so it doesn't wrap the collar
   step: 0.003, // the cap's own mesh has a vertex every this far along and across the panel
   bridge: 6, // cells: the cap rides over the outermost cloth this far around, bridging creases in the jersey rather than following them
+  pinchCos: 0.96, pinchRounds: 12,
   smooth: 5, // passes of neighbor averaging over the sampled cloth, which blend the millimeter step where the jersey's yoke panel lies over its sleeve panel
   reach: 0.15, // the sampling rays start this far outside the pad's cross-section and run in to 0.12 inside it
   top: 0.088, // over the pad the cap reaches this far front and back of the pad's center line
@@ -423,6 +424,51 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
           const jb = ib + db;
           if (ja >= 0 && ja <= na && jb >= 0 && jb <= nb) area[at(ja, jb)] = 1;
         }
+        for (let pass = 0; pass < 3; pass++) {
+          const next = Float32Array.from(sample);
+          for (let ia = 0; ia <= na; ia++) for (let ib = 0; ib <= nb; ib++) {
+            const i = at(ia, ib);
+            if (!area[i] || !hits[i]) continue;
+            let n = 0;
+            const sum = [0, 0, 0];
+            for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) {
+              const ja = ia + da;
+              const jb = ib + db;
+              if (ja < 0 || ja > na || jb < 0 || jb > nb || !hits[at(ja, jb)]) continue;
+              for (let c = 0; c < 3; c++) sum[c] += sample[at(ja, jb) * 3 + c];
+              n++;
+            }
+            for (let c = 0; c < 3; c++) next[i * 3 + c] = sum[c] / n;
+          }
+          sample.set(next);
+        }
+        gridNormals();
+      }
+      // Where the cloth itself pinches (a crease where the sleeve bends: adjacent samples' normals turn
+      // sharply), the cap bridges it the same way: the flagged samples are averaged with their neighbors.
+      for (let round = 0; round < C.pinchRounds; round++) {
+        const area = new Uint8Array(N);
+        let count = 0;
+        for (let ia = 0; ia <= na; ia++) for (let ib = 0; ib <= nb; ib++) {
+          const i = at(ia, ib);
+          if (!hits[i]) continue;
+          for (const [da, db] of [[1, 0], [0, 1]]) {
+            const ja = ia + da;
+            const jb = ib + db;
+            if (ja > na || jb > nb || !hits[at(ja, jb)]) continue;
+            const j = at(ja, jb);
+            const dot = nrmG[i * 3] * nrmG[j * 3] + nrmG[i * 3 + 1] * nrmG[j * 3 + 1] + nrmG[i * 3 + 2] * nrmG[j * 3 + 2];
+            if (dot < C.pinchCos) {
+              count++;
+              for (let ea = -2; ea <= 2; ea++) for (let eb = -2; eb <= 2; eb++) {
+                const xa = ia + ea;
+                const xb = ib + eb;
+                if (xa >= 0 && xa <= na && xb >= 0 && xb <= nb) area[at(xa, xb)] = 1;
+              }
+            }
+          }
+        }
+        if (!count) break;
         for (let pass = 0; pass < 3; pass++) {
           const next = Float32Array.from(sample);
           for (let ia = 0; ia <= na; ia++) for (let ib = 0; ib <= nb; ib++) {
