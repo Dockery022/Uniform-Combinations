@@ -1,0 +1,16 @@
+{
+ "piece": "jersey-halloween",
+ "name": "Halloween 26",
+ "type": "A",
+ "reference": "hem",
+ "base": "#000000",
+ "sleeveLength_px": 384.0,
+ "sleeveLength_m": 0.168,
+ "bands": [],
+ "overShoulder": false,
+ "outline": null,
+ "lines": null,
+ "stripe": null,
+ "notes": "Plain black sleeves. Gold piping sits by the collar only, outside the sleeve.",
+ "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
+}
