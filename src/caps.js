@@ -21,8 +21,8 @@ export const SHOULDER_CAP = {
   cornerR: 0.02, // the lower edge and the rear and front ends meet in a rounded corner of about this radius
   edgeSmooth: 30, // passes of neighbor averaging on the height the lower edge follows
   round: 9, // passes of box smoothing on the cut field: rounds the outline's corners to about the skirt's reach
-  ease: 0.04, // the cap eases down onto the jersey over this distance in from its neckline and end edges (16 mm left a visible wall)
-  easeFloor: 0, // and meets the cloth flush right at those edges
+  bevel: 0.006, // the neck-side, front and rear end edges are sewn seams: flush with the cloth at the edge, rounding up to the full inflate over this distance
+  bevelFloor: 0.12, // fraction of the inflate kept right at the seam so the cap doesn't z-fight the cloth
   inflate: 0.003, // the cap floats this far above the jersey
   lip: 0.0015, // and this much more at its lower edge, where it overhangs the sleeve
   lipWidth: 0.008, // the lip rises over this distance in from the edge
@@ -578,10 +578,12 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
     // lipWidth of its lower edge, and a skirt under that edge closes the step.
     for (const v of verts) {
       const edge = 1 - THREE.MathUtils.smoothstep(v.w[1] - yCut, 0, C.lipWidth);
-      // Toward the neckline and the pad's front and back ends the cap eases down onto the jersey (the
-      // inflate fades over `ease`), so those edges meet the yoke in a soft step instead of a wall.
-      const ease = THREE.MathUtils.smoothstep(Math.min(v.nd - C.collar, C.top - Math.abs(v.b)), 0, C.ease);
-      v.h = C.inflate * (C.easeFloor + (1 - C.easeFloor) * ease) + C.lip * edge; // above the puffed jersey
+      // The cap's neck-side end (the panel's start, `a` = 0, which lies 3-9 cm from the collar line, so the
+      // neckline distance never reached it: it stood a full inflate high there), the pad's front and rear
+      // ends and the neckline are one sewn seam: flush at the edge, a rounded bevel up to the full inflate.
+      const dEdge = Math.max(0, Math.min(v.nd - C.collar, v.a, C.top - Math.abs(v.b)));
+      const bevel = dEdge >= C.bevel ? 1 : Math.sin((dEdge / C.bevel) * Math.PI / 2);
+      v.h = C.inflate * (C.bevelFloor + (1 - C.bevelFloor) * bevel) + C.lip * edge; // above the puffed jersey
       v.lip = edge;
     }
     // Lifted by the lip, a triangle can end up turned against the cloth's normals (the sampled
