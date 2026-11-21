@@ -781,6 +781,32 @@ export function buildCaps({ jersey, world: rest, normals, aNeck, aPuff, puff, fr
       const fn = faceGeo.attributes.normal;
       const used = new Uint8Array(n);
       for (let t = 0; t < capTris; t++) used[tris[t]] = 1;
+      // Smooth the normals over the face's own edges (8 rounds, half each): the triangles along the cut
+      // boundaries are irregular, and their area-weighted normals read as flat facets in a highlight.
+      {
+        const nb = Array.from({ length: n }, () => []);
+        for (let t = 0; t < capTris; t += 3) {
+          const a = tris[t], b = tris[t + 1], c = tris[t + 2];
+          nb[a].push(b, c);
+          nb[b].push(a, c);
+          nb[c].push(a, b);
+        }
+        let cur = Float32Array.from(fn.array);
+        for (let round = 0; round < 8; round++) {
+          const next = Float32Array.from(cur);
+          for (let vi = 0; vi < n; vi++) {
+            if (!used[vi] || verts[vi].skirt || !nb[vi].length) continue;
+            let x = 0, y = 0, z = 0;
+            for (const u of nb[vi]) { x += cur[u * 3]; y += cur[u * 3 + 1]; z += cur[u * 3 + 2]; }
+            const k = 0.5 / nb[vi].length;
+            x = cur[vi * 3] * 0.5 + x * k; y = cur[vi * 3 + 1] * 0.5 + y * k; z = cur[vi * 3 + 2] * 0.5 + z * k;
+            const l = Math.hypot(x, y, z) || 1;
+            next[vi * 3] = x / l; next[vi * 3 + 1] = y / l; next[vi * 3 + 2] = z / l;
+          }
+          cur = next;
+        }
+        fn.array.set(cur);
+      }
       for (let vi = 0; vi < n; vi++) {
         if (!used[vi] || verts[vi].skirt) continue;
         const dotc = fn.getX(vi) * normal[vi * 3] + fn.getY(vi) * normal[vi * 3 + 1] + fn.getZ(vi) * normal[vi * 3 + 2];
