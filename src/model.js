@@ -888,7 +888,25 @@ export class Player {
             lettering = lettering * (1.0 - ac.a) + ac;
             accA = ac.a;
           }
+          // Rib knit, the one place a knit look is right: the collar band, the V-neck trim and the sleeve cuff bands get
+          // fine ribs (about 1.6 mm pitch) that fade out when a rib is under a pixel wide.
+          float ribMask = 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck);
+          float ribPhase = vaNeck / 0.0016;
+          if (vaArt.z < 0.5 && vaArt.y < 0.2 && abs(vaArt.x - 0.5) < 0.2 && art.a > 0.5 && distance(art.rgb, uBase) > 0.12 && ribMask < 0.5) {
+            ribMask = 1.0;
+            // ribs follow the neck opening: phase is the distance from it, so they run along each arm of the V
+            ribPhase = vaNeck / 0.0016;
+          }
+          if (uSleeveOn > 0.5 && onSleeve && vaSleeve.x < 0.045 && distance(diffuseColor.rgb, uBase) > 0.12) {
+            ribMask = 1.0;
+            ribPhase = vaSleeve.x / 0.0016;
+          }
           float letters = lettering.a;
+          ribMask *= (1.0 - letters);
+          float ribFade = 1.0 - smoothstep(0.25, 0.6, fwidth(ribPhase));
+          float ribWave = sin(ribPhase * 6.2831853);
+          ribMask *= ${FABRIC_OFF ? '0.0' : '1.0'};
+          diffuseColor.rgb *= 1.0 - 0.12 * ribMask * ribFade * (0.5 - 0.5 * ribWave);
           diffuseColor.rgb = diffuseColor.rgb * (1.0 - letters) + lettering.rgb;
           // No mesh under the lettering or anything else off the base color.
           // The dimple mesh reads as texture only close up: it fades out between 0.8 m and 2 m from the camera, so the
@@ -904,6 +922,7 @@ export class Player {
 // The torso carries the dimple mesh, not the weave; the yoke and sleeves keep only a faint weave (0.2 of full).
 float weaveAmt = (1.0 - vaMesh) * 0.2 * (1.0 - 0.7 * letters);
 ${WEAVE_GLSL}
+normal = normalize(normal + tbn * vec3(ribWave * 0.25 * ribMask * ribFade, 0.0, 0.0));
 // Tackle twill: a slight raised border where the letter ends. The lettering's alpha ramps across its edge, so its
 // screen-space gradient tilts the normal there (view-space x and y are screen x and y), pushing the edge up.
 if (!${FABRIC_OFF ? 'true' : 'false'}) {
