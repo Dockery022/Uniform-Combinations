@@ -195,6 +195,16 @@ function paintVector(ctx, vec, base) {
   ctx.scale(u, u);
   ctx.fillStyle = base;
   for (const [a, b, c, d] of vec.erase) ctx.fillRect(a, b, c - a, d - b);
+  // Seam lines drawn in the flat art (the yoke curves and the armhole diagonals) are wiped with the body color.
+  ctx.strokeStyle = base;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const line of vec.wipe ?? []) {
+    ctx.lineWidth = line.width;
+    ctx.beginPath();
+    line.points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+  }
   const FAM = { jersey: FONTS.jersey, sans: FONTS.sans };
   for (const sh of vec.shapes) {
     if (sh.type === 'text') {
