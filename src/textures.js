@@ -17,7 +17,7 @@ export function makeCanvas(w, h) {
 
 // Draw text centered on (cx, cy) with a given cap height in pixels, an
 // optional horizontal squeeze, and outline layers drawn outside-in.
-function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill, outlines = [], skew = 0, rotate = 0, spacing = 0 }) {
+export function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill, outlines = [], skew = 0, rotate = 0, spacing = 0 }) {
   ctx.save();
   ctx.font = `${weight} 100px ${family}`;
   ctx.letterSpacing = `${spacing}px`;
@@ -45,7 +45,7 @@ function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill
 }
 
 // Width of `text` drawn by drawText at a given height, before any squeeze.
-function textWidth(ctx, text, family, height, weight = '', spacing = 0) {
+export function textWidth(ctx, text, family, height, weight = '', spacing = 0) {
   ctx.save();
   ctx.font = `${weight} 100px ${family}`;
   ctx.letterSpacing = `${spacing}px`;
@@ -191,7 +191,7 @@ function paintFlag(ctx, cx, cy, w) {
 // shoulders) is painted out; the chosen number is lettered on the chest, and
 // the shoulder numbers go on as decals (paintTvDecals).
 // Coordinates are art pixels (1366 x 1408), drawn at the canvas's scale.
-export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
+export function paintJerseyFront(canvas, img, spec, style, number, sleeves, acc) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -199,6 +199,12 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   ctx.save();
   ctx.scale(k, k);
   ctx.fillStyle = spec.base;
+  // A jersey with its own patch decal (see Player.placeAcc) loses the patch drawn in its art.
+  if (acc?.erase) {
+    ctx.beginPath();
+    ctx.ellipse(acc.art.x, acc.art.y, acc.erase[0], acc.erase[1], 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.beginPath();
   for (const [x, y] of [[445, 0], [921, 0], [915, 58], [690, 392], [676, 392], [451, 58]]) ctx.lineTo(x, y);
   ctx.closePath();

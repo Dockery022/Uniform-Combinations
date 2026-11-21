@@ -15,6 +15,7 @@ import { art as url } from './combo.js';
 import * as paint from './textures.js';
 import { loadSleeveSpec, sleeveBands } from './sleeves.js';
 import { buildCaps, paintCap } from './caps.js';
+import { paintAccPatch, ACC_PATCH } from './patch.js';
 import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
 const PLAYER_HEIGHT = 1.88; // rest-pose height of the body in meters, without helmet
@@ -656,11 +657,16 @@ export class Player {
       // The back of the helmet: the number on the shell and LOUISVILLE on the bumper.
       helmetBack: C(1024, 1600),
       ball: C(512, 256),
+      // The ACC patch (its own small canvases, resized when painted): color and stitch normal map.
+      acc: C(2, 2),
+      accN: C(2, 2),
     };
     this.textures = Object.fromEntries(Object.entries(this.canvases).map(([k, c]) => [k, tex(c, k === 'ball')]));
     // Premultiplied, so the letters' edges filter cleanly over the jersey.
     this.textures.backLetters.premultiplyAlpha = true;
     this.textures.tv.premultiplyAlpha = true;
+    this.textures.acc.premultiplyAlpha = true;
+    this.textures.accN.colorSpace = THREE.NoColorSpace;
     this.textures.helmetBack.premultiplyAlpha = true;
     // One set of fabric maps; the jersey and pants each get their own tiling,
     // set from their UV scale in measure().
@@ -683,6 +689,9 @@ export class Player {
         uArtBack: { value: this.textures.back },
         uBackLetters: { value: this.textures.backLetters },
         uTv: { value: this.textures.tv },
+        uAcc: { value: this.textures.acc },
+        uAccN: { value: this.textures.accN },
+        uAccOn: { value: 0 },
         uBase: { value: new THREE.Color() },
         uCollar: { value: new THREE.Color() },
         uCollarW: { value: 0.008 },
@@ -721,9 +730,9 @@ export class Player {
       // aMesh is 1 on the dimple-mesh body and 0 on the smooth yoke and sleeves;
       // the mesh's relief, roughness and hole shading all fade with it.
       jersey: extend(applyMeshFabricInPlace(fabric({ name: 'jersey' }), this.fabricMaps.jersey, MESH_FABRIC.mesh), {
-        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aPuff: 'float', aPuffN: 'vec3', aSleeve: 'vec3' },
+        attrs: { aArt: 'vec3', aNeck: 'float', aMesh: 'float', aTv: 'vec3', aAcc: 'vec3', aPuff: 'float', aPuffN: 'vec3', aSleeve: 'vec3' },
         uniforms: this.uniforms.jersey,
-        declare: `${BANDS_GLSL}\nuniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\nuniform float uSleeveOn;\nuniform vec2 uArtSleeveX;\n${weaveDecl}`,
+        declare: `${BANDS_GLSL}\nuniform sampler2D uArtFront;\nuniform sampler2D uArtBack;\nuniform sampler2D uBackLetters;\nuniform sampler2D uTv;\nuniform sampler2D uAcc;\nuniform sampler2D uAccN;\nuniform float uAccOn;\nuniform vec3 uBase;\nuniform vec3 uCollar;\nuniform float uCollarW;\nuniform float uSmoothRough;\nuniform float uSleeveOn;\nuniform vec2 uArtSleeveX;\n${weaveDecl}`,
         // Pushed out along its skinned, seam-averaged normal (uPuff is JERSEY_PUFF in the
         // mesh's units), so it rides over the body instead of through it.
         vertexDeclare: 'uniform float uPuff;',
@@ -750,6 +759,13 @@ export class Player {
             vec4 tv = texture2D(uTv, vec2((vaTv.z > 1.5 ? 0.5 : 0.0) + vaTv.x * 0.5, vaTv.y));
             lettering = lettering * (1.0 - tv.a) + tv;
           }
+          // The ACC patch: a flat decal projected from the front (aAcc = across, down, 1 where it may show).
+          float accA = 0.0;
+          if (uAccOn > 0.5 && vaAcc.z > 0.5 && all(greaterThan(vaAcc.xy, vec2(0.0))) && all(lessThan(vaAcc.xy, vec2(1.0)))) {
+            vec4 ac = texture2D(uAcc, vaAcc.xy); // premultiplied
+            lettering = lettering * (1.0 - ac.a) + ac;
+            accA = ac.a;
+          }
           float letters = lettering.a;
           diffuseColor.rgb = diffuseColor.rgb * (1.0 - letters) + lettering.rgb;
           // No mesh under the lettering or anything else off the base color.
@@ -757,9 +773,27 @@ export class Player {
         `,
         rewrite: { aomap_fragment: (chunk) => chunk.replace(/aoMapIntensity/g, '(aoMapIntensity * meshAmt)') },
         after: {
-          roughnessmap_fragment: 'roughnessFactor = mix(uSmoothRough, roughnessFactor, meshAmt);',
+          roughnessmap_fragment: 'roughnessFactor = mix(uSmoothRough, roughnessFactor, meshAmt);\nroughnessFactor = mix(roughnessFactor, 0.46, accA);',
           // Twill lettering shows less of the weave than the cloth.
-          normal_fragment_maps: `normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));\nfloat weaveAmt = 1.0 - 0.7 * letters;\n${WEAVE_GLSL}`,
+          normal_fragment_maps: `normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));
+float weaveAmt = 1.0 - 0.7 * letters;
+${WEAVE_GLSL}
+if (accA > 0.01) {
+  // The patch's stitch normal map, in a frame built from the decal's own coordinates.
+  vec3 q0 = dFdx(-vViewPosition);
+  vec3 q1 = dFdy(-vViewPosition);
+  vec2 st0 = dFdx(vaAcc.xy);
+  vec2 st1 = dFdy(vaAcc.xy);
+  vec3 q1p = cross(q1, normal);
+  vec3 q0p = cross(normal, q0);
+  vec3 T = q1p * st0.x + q0p * st1.x;
+  vec3 B = q1p * st0.y + q0p * st1.y;
+  float det = max(dot(T, T), dot(B, B));
+  float sc = det == 0.0 ? 0.0 : inversesqrt(det);
+  vec3 pn = texture2D(uAccN, vaAcc.xy).xyz * 2.0 - 1.0;
+  vec3 pnormal = normalize(T * (sc * pn.x) + B * (sc * pn.y) + normal * pn.z);
+  normal = normalize(mix(normal, pnormal, accA));
+}`,
         },
       }),
       pants: extend(applyMeshFabricInPlace(fabric({ name: 'pants' }), this.fabricMaps.pants, MESH_FABRIC.mesh), {
@@ -1485,6 +1519,8 @@ export class Player {
       });
       this.jerseyRest = { world, normals, art: aArt, neck: neckPos, tops };
       jersey.geometry.setAttribute('aTv', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+      jersey.geometry.setAttribute('aAcc', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+      this.accKey = null;
       // Dimple mesh on the front below the yoke and on the lower back, faded over 4 cm.
       const uv = jersey.geometry.attributes.uv;
       const aMesh = new Float32Array(count);
@@ -1919,6 +1955,71 @@ export class Player {
     return this.tvSizes;
   }
 
+  // The ACC patch as a flat decal: its own small canvases (at ACC_PATCH.texelM per texel), and for every
+  // front-panel vertex near it the place on a plane facing the front (rest-pose x and y), so the patch
+  // lies flat and does not stretch with the cloth's curve. `acc` is the jersey's patch spec
+  // ({ kind: 'football', art: { x, y } }); without one the jersey keeps the patch drawn in its art.
+  placeAcc(acc) {
+    const jersey = this.parts.jersey;
+    const R = this.jerseyRest;
+    const U = this.uniforms.jersey;
+    if (!jersey || !R) return;
+    const attr = jersey.geometry.attributes.aAcc;
+    if (!acc) { attr.array.fill(0); attr.needsUpdate = true; U.uAccOn.value = 0; this.accKey = null; return; }
+    if (this.accKey !== JSON.stringify(acc)) {
+      this.accKey = JSON.stringify(acc);
+      this.accPatch ??= paintAccPatch(ACC_PATCH);
+      const P = this.accPatch;
+      // New textures, since the canvases' size differs from the placeholders' and a texture's storage can't be resized.
+      const aniso = this.renderer.capabilities.getMaxAnisotropy();
+      for (const [k, src, uni] of [['acc', P.color, 'uAcc'], ['accN', P.normal, 'uAccN']]) {
+        const t = new THREE.CanvasTexture(src);
+        t.colorSpace = k === 'acc' ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+        t.flipY = false;
+        t.premultiplyAlpha = k === 'acc';
+        t.anisotropy = aniso;
+        t.generateMipmaps = true;
+        t.minFilter = THREE.LinearMipmapLinearFilter;
+        t.magFilter = THREE.LinearFilter;
+        t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+        this.textures[k].dispose();
+        this.textures[k] = t;
+        U[uni].value = t;
+      }
+      const { world, normals, art } = R;
+      const uv = jersey.geometry.attributes.uv;
+      const count = world.length / 3;
+      const ax = acc.art.x / JERSEY_ART.width;
+      const ay = acc.art.y / JERSEY_ART.height;
+      let best = -1;
+      let bestD = Infinity;
+      for (let i = 0; i < count; i++) {
+        const u = uv.getX(i);
+        if (u < 0.44 || u >= 0.715) continue; // the front panel
+        const d = (art[i * 3] - ax) ** 2 + (art[i * 3 + 1] - ay) ** 2;
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      attr.array.fill(0);
+      if (best >= 0) {
+        const cx = world[best * 3];
+        const cy = world[best * 3 + 1];
+        const reach = Math.max(P.widthM, P.heightM) * 1.5;
+        for (let i = 0; i < count; i++) {
+          const u = uv.getX(i);
+          if (u < 0.44 || u >= 0.715) continue;
+          const dx = world[i * 3] - cx;
+          const dy = world[i * 3 + 1] - cy;
+          // Seen from the front, +x is toward the viewer's right, so the decal's across runs along +x.
+          attr.array[i * 3] = 0.5 + dx / P.widthM;
+          attr.array[i * 3 + 1] = 0.5 - dy / P.heightM;
+          attr.array[i * 3 + 2] = Math.abs(dx) < reach && Math.abs(dy) < reach && normals[i * 3 + 2] > 0.05 ? 1 : 0;
+        }
+      }
+      attr.needsUpdate = true;
+    }
+    U.uAccOn.value = 1;
+  }
+
   attachHelmet(helmet) {
     this.helmet = helmet;
     this.helmetParts = {};
@@ -2215,10 +2316,11 @@ export class Player {
     if (token !== this.artToken) return;
     setBands(this.uniforms.jersey, sleeveBands(sleeveSpec));
     this.uniforms.jersey.uSleeveOn.value = sleeveSpec ? 1 : 0;
-    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves);
+    paint.paintJerseyFront(this.canvases.front, jersey, look.jersey.spec, look.jersey.style, look.number, look.jersey.sleeves, sleeveSpec?.acc);
     paint.paintJerseyBack(this.canvases.back, look.jersey.spec);
     paint.paintBackLettering(this.canvases.backLetters, look.jersey.spec, look.jersey.style, look.backNumber, look.name);
     this.placeTv(look.jersey.style);
+    this.placeAcc(sleeveSpec?.acc);
     paint.paintTvDecals(this.canvases.tv, look.jersey.spec, look.jersey.style, look.number);
     this.paintCaps(look, sleeveSpec);
     paint.paintHelmetBack(this.canvases.helmetBack, HELMET_BACK, look.backNumber, look.helmet.spec.shell, look.helmet.spec.back);

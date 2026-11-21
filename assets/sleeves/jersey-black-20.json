@@ -32,44 +32,24 @@
         "type": "polygon",
         "points": [
           [
-            "0.0000L+0.03000",
-            -0.03
-          ],
-          [
-            "0.2550L+0.02250",
-            -0.019
-          ],
-          [
-            "0.5100L+0.01500",
-            0.012
-          ],
-          [
-            "0.7650L+0.00750",
-            0.045
-          ],
-          [
-            "1.0200L+0.00000",
+            "1.0404L-0.00060",
             0.07
           ],
           [
-            "1.0200L+0.00000",
-            -0.125
-          ],
-          [
-            "0.7650L+0.00750",
-            -0.11607
-          ],
-          [
-            "0.5100L+0.01500",
-            -0.10714
-          ],
-          [
-            "0.2550L+0.02250",
-            -0.09833
+            "0.1530L+0.02550",
+            -0.02625
           ],
           [
             "0.0000L+0.03000",
-            -0.09
+            -0.0426
+          ],
+          [
+            "0.1122L+0.02670",
+            -0.04618
+          ],
+          [
+            "1.0404L-0.00060",
+            0.01443
           ]
         ],
         "fill": "#C9001F"
@@ -78,45 +58,27 @@
         "type": "polygon",
         "points": [
           [
-            "0.1020L+0.02700",
-            -0.04626
-          ],
-          [
-            "0.2856L+0.02160",
-            -0.06072
-          ],
-          [
             "1.0404L-0.00060",
             -0.03725
           ],
           [
-            "1.0404L-0.00060",
-            0.01443
-          ]
-        ],
-        "fill": "#000000"
-      },
-      {
-        "type": "polygon",
-        "points": [
-          [
-            "0.2448L+0.02280",
-            -0.06921
+            "0.3060L+0.02100",
+            -0.06085
           ],
           [
-            "0.3264L+0.02040",
-            -0.11874
+            "0.0714L+0.02790",
+            -0.06638
           ],
           [
-            "1.0404L-0.00060",
-            -0.164
+            "0.2856L+0.02160",
+            -0.06828
           ],
           [
             "1.0404L-0.00060",
             -0.05285
           ]
         ],
-        "fill": "#000000"
+        "fill": "#C9001F"
       },
       {
         "type": "polygon",
@@ -144,5 +106,17 @@
     "how": "Shapes in cap-panel coordinates: a runs from the cap's inner edge by the collar over the top of the pad and down the arm, b from the pad's center line (front +, back -), meters on the 3D jersey. A coordinate may be meters, \"L-0.01\" (1 cm short of the cap's lower edge) or \"0.4L+0.02\" (a fraction of the cap's length plus an offset). ?capgrid shows a 5 mm grid on the cap."
   },
   "notes": "Type B from Doc's 2019-20 game and studio photos (black #7 close-up, studio portrait, red #7/Crum, white #5/#7), not from the art: a shoulder cap painted on its own piece (src/caps.js). A red patch starts behind the shoulder number and fans down the outer arm, wider toward the front at the lower edge. Two black claw cuts, pointed at the top, split it; a thin white line runs inside the first cut, behind a thin black gap; a thin red slash stays between the cuts; the outer red band follows the rear silhouette. The white line and the slash are about 14 mm and 16 mm wide, read from the photos. The art's own sleeve bands (Type A, like Red 20) are kept in artBands for reference and are not drawn.",
-  "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
+  "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m.",
+  "acc": {
+    "kind": "football",
+    "art": {
+      "x": 334.2,
+      "y": 299.9
+    },
+    "erase": [
+      84,
+      52
+    ],
+    "note": "Where the source art draws its oval ACC patch (art pixels, 1366 x 1408); the oval is painted out and the football patch decal goes here."
+  }
 }
