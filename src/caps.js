@@ -937,7 +937,7 @@ export function paintCapGloss(canvas, panel, design) {
   ctx.fillStyle = 'rgb(0,158,0)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(1 / texel, 0, 0, 1 / texel, panel.margin / texel, 0);
-  ctx.fillStyle = 'rgb(255,36,0)';
+  ctx.fillStyle = 'rgb(255,66,0)';
   for (const shape of design.shapes ?? []) {
     if (!shape.gloss || shape.type === 'line') continue;
     ctx.beginPath();

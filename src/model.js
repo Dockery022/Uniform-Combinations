@@ -1465,9 +1465,9 @@ if (accA > 0.01) {
       const face = cap.mesh.material[0];
       face.roughness = 1;
       face.roughnessMap = gt;
-      face.clearcoat = 1;
+      face.clearcoat = 0.8;
       face.clearcoatMap = gt;
-      face.clearcoatRoughness = 0.08;
+      face.clearcoatRoughness = 0.18;
       cap.mesh.material[0].map = t;
       cap.mesh.material[1].map = t;
       cap.mesh.visible = false;
