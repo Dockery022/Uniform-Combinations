@@ -937,31 +937,13 @@ export function paintCapGloss(canvas, panel, design) {
   ctx.fillStyle = 'rgb(0,235,0)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(1 / texel, 0, 0, 1 / texel, panel.margin / texel, 0);
-  ctx.lineJoin = 'round';
   for (const shape of design.shapes ?? []) {
     if (shape.type === 'line') continue;
-    const path = () => {
-      ctx.beginPath();
-      shape.points.forEach(([a, b], i) => (i ? ctx.lineTo(coord(a, L), B - coord(b, L)) : ctx.moveTo(coord(a, L), B - coord(b, L))));
-      ctx.closePath();
-    };
-    path();
-    // Satin across the face (clearcoat 0.24, roughness 0.59); a non-gloss shape (the black teeth) is cloth again.
-    ctx.fillStyle = shape.gloss ? 'rgb(61,150,0)' : 'rgb(0,235,0)';
+    ctx.fillStyle = shape.gloss ? 'rgb(255,107,0)' : 'rgb(0,235,0)'; // a later shape without `gloss` (the black teeth) is cloth again
+    ctx.beginPath();
+    shape.points.forEach(([a, b], i) => (i ? ctx.lineTo(coord(a, L), B - coord(b, L)) : ctx.moveTo(coord(a, L), B - coord(b, L))));
+    ctx.closePath();
     ctx.fill();
-    if (!shape.gloss) continue;
-    // Semi-gloss on the edges only: two bands inside the outline, 8 mm and then 4 mm wide, each glossier.
-    ctx.save();
-    ctx.clip();
-    ctx.strokeStyle = 'rgb(120,120,0)';
-    ctx.lineWidth = 0.016;
-    path();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgb(175,85,0)';
-    ctx.lineWidth = 0.008;
-    path();
-    ctx.stroke();
-    ctx.restore();
   }
 }
 
