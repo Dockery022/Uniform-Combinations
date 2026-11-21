@@ -2005,8 +2005,7 @@ if (accA > 0.01) {
         const cy = world[best * 3 + 1];
         const reach = Math.max(P.widthM, P.heightM) * 1.5;
         for (let i = 0; i < count; i++) {
-          const u = uv.getX(i);
-          if (u < 0.44 || u >= 0.715) continue;
+          if (uv.getX(i) >= 0.715) continue; // not the back; the yoke and sleeve cloth by the patch take it too
           const dx = world[i * 3] - cx;
           const dy = world[i * 3 + 1] - cy;
           // Seen from the front, +x is toward the viewer's right, so the decal's across runs along +x.
