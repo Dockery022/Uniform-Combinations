@@ -14,7 +14,7 @@ import { SKIN_TONES, BRAND } from './team.js';
 import { art as url } from './combo.js';
 import * as paint from './textures.js';
 import { loadSleeveSpec, sleeveBands } from './sleeves.js';
-import { buildCaps, paintCap, paintCapGloss } from './caps.js';
+import { buildCaps, paintCap } from './caps.js';
 import { paintAccPatch, ACC_PATCH } from './patch.js';
 import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
@@ -1441,8 +1441,9 @@ if (accA > 0.01) {
     const jersey = this.parts.jersey;
     if (!jersey || !this.padFrames) return;
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
-    const skirtMaterial = () => new THREE.MeshStandardMaterial({ name: 'cap-skirt', roughness: 0.9, metalness: 0, envMapIntensity: 0.3 }); // front side only: double-sided, the wall seen edge-on flipped its normal triangle by triangle and read as teeth
-    const material = () => new THREE.MeshPhysicalMaterial({ name: 'cap', roughness: 0.62, metalness: 0, sheen: 0.6, sheenRoughness: 0.45, envMapIntensity: 0.5, side: THREE.DoubleSide });
+    const skirtMaterial = () => new THREE.MeshStandardMaterial({ name: 'cap-skirt', roughness: 0.9, metalness: 0, envMapIntensity: 0.15 }); // front side only: double-sided, the wall seen edge-on flipped its normal triangle by triangle and read as teeth
+    // Matte cloth like the jersey's sleeve (Doc, 2026-11-21): no clearcoat, rough, little environment reflection, a soft sheen, and the jersey's weave normal map at the same size.
+    const material = () => new THREE.MeshPhysicalMaterial({ name: 'cap', roughness: 0.9, metalness: 0, clearcoat: 0, sheen: 0.4, sheenRoughness: 0.5, envMapIntensity: 0.15, side: THREE.DoubleSide });
     this.caps = buildCaps({ jersey, world, normals: puffNormals, aNeck, aPuff, puff: JERSEY_PUFF, frames: this.padFrames, material, skirtMaterial });
     for (const cap of this.caps) {
       cap.canvas = paint.makeCanvas(cap.panel.w, cap.panel.h);
@@ -1455,19 +1456,14 @@ if (accA > 0.01) {
       t.magFilter = THREE.LinearFilter;
       t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
       cap.texture = t;
-      // Gloss map (red = clearcoat, green = roughness): the claws are patent leather on matte cloth.
-      cap.glossCanvas = paint.makeCanvas(cap.panel.w, cap.panel.h);
-      const gt = new THREE.CanvasTexture(cap.glossCanvas);
-      gt.flipY = false;
-      gt.anisotropy = aniso;
-      gt.wrapS = gt.wrapT = THREE.ClampToEdgeWrapping;
-      cap.glossTexture = gt;
+      // The jersey's weave (about 12.5 mm per 16-thread tile, see WEAVE) on the cap's metric panel UV, so the
+      // threads run at the same size as on the sleeve.
+      const weave = this.uniforms.jersey.uWeave.value.clone();
+      weave.repeat.set(cap.panel.A / (0.1 / WEAVE.repeat), (2 * cap.panel.B) / (0.1 / WEAVE.repeat));
+      weave.needsUpdate = true;
       const face = cap.mesh.material[0];
-      face.roughness = 1;
-      face.roughnessMap = gt;
-      face.clearcoat = 0.8;
-      face.clearcoatMap = gt;
-      face.clearcoatRoughness = 0.18;
+      face.normalMap = weave;
+      face.normalScale.set(WEAVE.strength, WEAVE.strength);
       cap.mesh.material[0].map = t;
       cap.mesh.material[1].map = t;
       cap.mesh.visible = false;
@@ -1492,10 +1488,8 @@ if (accA > 0.01) {
         at: { a: 0.08, b: 0.01, ...(design.number ?? {}) }, size: design.number?.size ?? (tv.h / this.artScale) * 1.5, side: cap.side,
       } : null;
       paintCap(cap.canvas, cap.panel, design, { number, grid: this.capGrid });
-      paintCapGloss(cap.glossCanvas, cap.panel, design);
       cap.texture.needsUpdate = true;
-      cap.glossTexture.needsUpdate = true;
-      cap.mesh.material[0].sheenColor.set(design.base).lerp(new THREE.Color('#ffffff'), 0.35);
+      cap.mesh.material[0].sheenColor.set(design.base).lerp(new THREE.Color('#ffffff'), 0.15);
     }
   }
 
