@@ -14,7 +14,7 @@ import { SKIN_TONES, BRAND } from './team.js';
 import { art as url } from './combo.js';
 import * as paint from './textures.js';
 import { loadSleeveSpec, sleeveBands } from './sleeves.js';
-import { buildCaps, paintCap } from './caps.js';
+import { buildCaps, paintCap, paintCapGloss } from './caps.js';
 import { paintAccPatch, ACC_PATCH } from './patch.js';
 import { loadFabricMaps, withTiling, applyMeshFabricInPlace, applySmoothFabricInPlace } from '../jersey-material/jerseyMaterial.js';
 
@@ -109,6 +109,8 @@ const SOCK_SKIN = 0.04;
 // average it to a flat, faint tone.
 const WEAVE = { repeat: 8, strength: 0.6, shade: 0.22 };
 // ?fabric=off drops every fabric texture (weave, dimple mesh, rib, twill relief) so the plain shading can be compared.
+// Weave strength on the shoulder caps and the sleeves: barely there.
+const CAP_WEAVE = 0.12;
 const FABRIC_OFF = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fabric') === 'off';
 const WEAVE_GLSL = /* glsl */ `
   vec3 weaveN = texture2D(uWeave, vNormalMapUv * uWeaveRepeat).xyz * 2.0 - 1.0;
@@ -899,8 +901,8 @@ export class Player {
           roughnessmap_fragment: 'roughnessFactor = mix(uSmoothRough, roughnessFactor, meshAmt);\nroughnessFactor = mix(roughnessFactor, 0.46, accA);',
           // Twill lettering shows less of the weave than the cloth.
           normal_fragment_maps: `normal = normalize(mix(nonPerturbedNormal, normal, meshAmt));
-// The torso carries the dimple mesh, not the weave; the weave stays on the yoke and sleeves for now.
-float weaveAmt = (1.0 - vaMesh) * (1.0 - 0.7 * letters);
+// The torso carries the dimple mesh, not the weave; the yoke and sleeves keep only a faint weave (0.2 of full).
+float weaveAmt = (1.0 - vaMesh) * 0.2 * (1.0 - 0.7 * letters);
 ${WEAVE_GLSL}
 if (accA > 0.01) {
   // The patch's stitch normal map, in a frame built from the decal's own coordinates.
@@ -1457,8 +1459,9 @@ if (accA > 0.01) {
     if (!jersey || !this.padFrames) return;
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
     const skirtMaterial = () => new THREE.MeshStandardMaterial({ name: 'cap-skirt', roughness: 0.9, metalness: 0, envMapIntensity: 0.15 }); // front side only: double-sided, the wall seen edge-on flipped its normal triangle by triangle and read as teeth
-    // Matte cloth like the jersey's sleeve (Doc, 2026-11-21): no clearcoat, rough, little environment reflection, a soft sheen, and the jersey's weave normal map at the same size.
-    const material = () => new THREE.MeshPhysicalMaterial({ name: 'cap', roughness: 0.9, metalness: 0, clearcoat: 0, sheen: 0.4, sheenRoughness: 0.5, envMapIntensity: 0.15, side: THREE.DoubleSide });
+    // Smooth cloth like the sleeve with a barely visible weave; the claws are patent leather (clearcoat and low roughness
+    // from the gloss map, Doc 2026-11-21 18:07Z).
+    const material = () => new THREE.MeshPhysicalMaterial({ name: 'cap', roughness: 1, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.4, sheenRoughness: 0.5, envMapIntensity: 0.4, side: THREE.DoubleSide });
     this.caps = buildCaps({ jersey, world, normals: puffNormals, aNeck, aPuff, puff: JERSEY_PUFF, frames: this.padFrames, material, skirtMaterial });
     for (const cap of this.caps) {
       cap.canvas = paint.makeCanvas(cap.panel.w, cap.panel.h);
@@ -1476,10 +1479,18 @@ if (accA > 0.01) {
       const weave = this.uniforms.jersey.uWeave.value.clone();
       weave.repeat.set(cap.panel.A / (0.1 / WEAVE.repeat), (2 * cap.panel.B) / (0.1 / WEAVE.repeat));
       weave.needsUpdate = true;
+      cap.glossCanvas = paint.makeCanvas(cap.panel.w, cap.panel.h);
+      const gt = new THREE.CanvasTexture(cap.glossCanvas);
+      gt.flipY = false;
+      gt.anisotropy = aniso;
+      gt.wrapS = gt.wrapT = THREE.ClampToEdgeWrapping;
+      cap.glossTexture = gt;
       const face = cap.mesh.material[0];
+      face.roughnessMap = gt;
+      face.clearcoatMap = gt;
       if (!FABRIC_OFF) {
         face.normalMap = weave;
-        face.normalScale.set(WEAVE.strength, WEAVE.strength);
+        face.normalScale.set(CAP_WEAVE, CAP_WEAVE);
       }
       cap.mesh.material[0].map = t;
       cap.mesh.material[1].map = t;
@@ -1505,7 +1516,9 @@ if (accA > 0.01) {
         at: { a: 0.08, b: 0.01, ...(design.number ?? {}) }, size: design.number?.size ?? (tv.h / this.artScale) * 1.5, side: cap.side,
       } : null;
       paintCap(cap.canvas, cap.panel, design, { number, grid: this.capGrid });
+      paintCapGloss(cap.glossCanvas, cap.panel, design);
       cap.texture.needsUpdate = true;
+      cap.glossTexture.needsUpdate = true;
       cap.mesh.material[0].sheenColor.set(design.base).lerp(new THREE.Color('#ffffff'), 0.15);
     }
   }
