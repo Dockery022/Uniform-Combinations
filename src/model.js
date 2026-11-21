@@ -868,6 +868,10 @@ export class Player {
           float cfw = max(fwidth(vaNeck), 1e-4);
           diffuseColor.rgb = mix(diffuseColor.rgb, uCollar, 1.0 - smoothstep(uCollarW - cfw, uCollarW + cfw, vaNeck));
           vec4 lettering = vaArt.z < 0.5 ? vec4(0.0) : texture2D(uBackLetters, vaArt.xy); // premultiplied
+          // The seam strips (stitchSeams) join the sleeve panel's texture coordinates to the body's, so across
+          // them the coordinates race through the art: the lettering must not show in that smear (it left
+          // white dashes by the back armholes).
+          if (max(fwidth(vaArt.x), fwidth(vaArt.y)) > 0.03 || vaArt.z < 0.999) lettering = vec4(0.0);
           // Shoulder numbers: flat decals, aTv = (across, down, side 1 or 2).
           if (vaTv.z > 0.5 && all(greaterThan(vaTv.xy, vec2(0.0))) && all(lessThan(vaTv.xy, vec2(1.0)))) {
             vec4 tv = texture2D(uTv, vec2((vaTv.z > 1.5 ? 0.5 : 0.0) + vaTv.x * 0.5, vaTv.y));
