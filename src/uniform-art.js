@@ -92,6 +92,24 @@ export const ART = {
     "pxPerUnit": 541.7
    }
   },
+  "helmet-red-26": {
+   "shell": "#C9001F",
+   "finish": "gloss",
+   "mirror": true,
+   "decalMetal": 0,
+   "stripe": [],
+   "back": {
+    "number": false
+   },
+   "decal": "decal-helmet-red-26",
+   "decalArt": {
+    "width": 752,
+    "height": 762,
+    "frontX": 85,
+    "topY": 5,
+    "pxPerUnit": 541.7
+   }
+  },
   "helmet-black-20": {
    "shell": "#000000",
    "finish": "gloss",

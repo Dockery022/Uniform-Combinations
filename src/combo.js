@@ -74,7 +74,7 @@ export function groupHex(group) {
 // Art image for a piece, as the panel and the graphic show it. ART_VERSION
 // changes whenever the art is redrawn, so browsers fetch the new pictures
 // instead of showing ones they cached.
-const ART_VERSION = '2026-10-24a';
+const ART_VERSION = '2026-11-23a';
 export const art = (file) => `assets/uni/${file}.webp?v=${ART_VERSION}`;
 
 // Doc (2026-10-24): black cleats worn with the Halloween uniform trade their
