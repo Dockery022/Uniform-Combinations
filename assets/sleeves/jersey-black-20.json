@@ -1,0 +1,173 @@
+{
+  "piece": "jersey-black-20",
+  "name": "Black 20",
+  "type": "B",
+  "reference": "hem",
+  "base": "#000000",
+  "sleeveLength_px": 384.5,
+  "sleeveLength_m": 0.168,
+  "bands": [],
+  "artBands": [
+    {
+      "from": 0.03,
+      "to": 0.077,
+      "color": "#C9001F"
+    },
+    {
+      "from": 0.164,
+      "to": 0.198,
+      "color": "#FFFFFF"
+    },
+    {
+      "from": 0.238,
+      "to": 0.365,
+      "color": "#C9001F"
+    }
+  ],
+  "overShoulder": true,
+  "lines": null,
+  "cap": {
+    "shapes": [
+      {
+        "type": "polygon",
+        "points": [[ "1.0404L-0.00060", 0.07 ], [ "0.1530L+0.02550", -0.02625 ], [ "0.0000L+0.03000", -0.039 ], [ "0.1020L+0.02700", -0.04067 ], [ "1.0404L-0.00060", 0.031 ]],
+        "fill": "#C9001F",
+        "gloss": true
+      },
+      {
+        "type": "polygon",
+        "points": [[ "1.0404L-0.00060", 0.02125 ], [ "0.1836L+0.02460", -0.04313 ], [ "0.0510L+0.02850", -0.0514 ], [ "0.1632L+0.02520", -0.05512 ], [ "1.0404L-0.00060", -0.0119 ]],
+        "fill": "#C9001F",
+        "gloss": true
+      },
+      {
+        "type": "polygon",
+        "points": [[ "1.0404L-0.00060", -0.047 ], [ "0.3060L+0.02100", -0.0652 ], [ "0.0714L+0.02790", -0.07311 ], [ "0.2856L+0.02160", -0.08423 ], [ "1.0404L-0.00060", -0.0899 ]],
+        "fill": "#C9001F",
+        "gloss": true
+      },
+      {
+        "type": "polygon",
+        "points": [[ "0.2244L+0.02340", -0.05548 ], [ "0.3060L+0.02100", -0.0565 ], [ "0.9180L+0.00300", -0.03071 ], [ "0.9180L+0.00300", -0.01983 ]],
+        "fill": "#FFFFFF",
+        "gloss": true
+      },
+      {
+        "type": "polygon",
+        "points": [[ 0.03, -0.01 ], [ 0.03, -0.078 ], [ 0.077, -0.082 ], [ 0.077, -0.024 ]],
+        "fill": "#C9001F",
+        "gloss": true
+      },
+      {
+        "type": "polygon",
+        "points": [[ 0.028, -0.036 ], [ 0.028, -0.07 ], [ 0.060, -0.055 ]],
+        "fill": "#000000"
+      },
+      {
+        "type": "polygon",
+        "points": [[ 0.028, -0.014 ], [ 0.028, -0.028 ], [ 0.046, -0.021 ]],
+        "fill": "#000000"
+      }
+    ],
+    "how": "Shapes in cap-panel coordinates: a runs from the cap's inner edge by the collar over the top of the pad and down the arm, b from the pad's center line (front +, back -), meters on the 3D jersey. A coordinate may be meters, \"L-0.01\" (1 cm short of the cap's lower edge) or \"0.4L+0.02\" (a fraction of the cap's length plus an offset). ?capgrid shows a 5 mm grid on the cap."
+  },
+  "notes": "Type B from Doc's 2019-20 game and studio photos (black #7 close-up, studio portrait, red #7/Crum, white #5/#7), not from the art: a shoulder cap painted on its own piece (src/caps.js). A red patch starts behind the shoulder number and fans down the outer arm, wider toward the front at the lower edge. Two black claw cuts, pointed at the top, split it; a thin white line runs inside the first cut, behind a thin black gap; a thin red slash stays between the cuts; the outer red band follows the rear silhouette. The white line and the slash are about 14 mm and 16 mm wide, read from the photos. The art's own sleeve bands (Type A, like Red 20) are kept in artBands for reference and are not drawn.",
+  "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m.",
+  "acc": {
+    "kind": "football",
+    "art": {
+      "x": 334.2,
+      "y": 299.9
+    },
+    "erase": [84, 52],
+    "note": "Where the source art draws its oval ACC patch (art pixels, 1366 x 1408); the oval is painted out and the football patch decal goes here."
+  },
+  "vec": {
+    "note": "Clean vector redraw of the blurry flat art, traced from assets/uni/jersey-black-20.webp (source pixels 1024x1055; unit = art pixels per source pixel). Never from photos. The V-neck trace is kept in /mnt/project-files/phaseB but not drawn on the model: the 3D neckline is shallower than the drawing, so the traced band landed beside the collar shader's own piping and doubled it.",
+    "unit": 1.334,
+    "erase": [[ 370, 300, 665, 375],
+      [
+        705,
+        180,
+        815,
+        262
+      ]
+    ],
+    "shapes": [
+      {
+        "name": "wordmark",
+        "type": "text",
+        "text": "LOUISVILLE",
+        "font": "jersey",
+        "box": [389.8, 313.2, 644.0, 360.2],
+        "fill": "#FFFFFF",
+        "shadow": {
+          "color": "#C9001F",
+          "dx": -4.0,
+          "dy": 3.0,
+          "outline": 2.0
+        },
+        "spacing": 7
+      },
+      {
+        "name": "adidas-stripe-1",
+        "type": "polygon",
+        "fill": "#FFFFFF",
+        "points": [[726.84, 230.95], [724.02, 226.63], [737.03, 218.15], [744.73, 229.96], [743.21, 230.95]]
+      },
+      {
+        "name": "adidas-stripe-2",
+        "type": "polygon",
+        "fill": "#FFFFFF",
+        "points": [[750.36, 233.2], [737.84, 214.0], [753.19, 204.0], [769.71, 229.32], [763.76, 233.2]]
+      },
+      {
+        "name": "adidas-stripe-3",
+        "type": "polygon",
+        "fill": "#FFFFFF",
+        "points": [[774.71, 231.2], [753.94, 199.33], [768.87, 189.6], [794.22, 228.5], [790.08, 231.2]]
+      },
+      {
+        "name": "adidas-text",
+        "type": "text",
+        "text": "adidas",
+        "font": "sans",
+        "weight": "700",
+        "box": [714.0, 231.8, 806.8, 252.5],
+        "fill": "#FFFFFF"
+      }
+    ],
+    "wipe": [
+      {
+        "name": "left yoke seam",
+        "width": 14,
+        "points": [[393, 213], [380, 235], [340, 266], [290, 286], [235, 298], [184, 304]]
+      },
+      {
+        "name": "right yoke seam",
+        "width": 14,
+        "points": [[634, 220], [650, 240], [700, 271], [760, 295], [832, 306]]
+      },
+      {
+        "name": "left yoke seam stub",
+        "width": 9,
+        "points": [[399, 205], [392, 218]]
+      },
+      {
+        "name": "right yoke seam stub",
+        "width": 9,
+        "points": [[629, 211], [637, 224]]
+      },
+      {
+        "name": "left armhole diagonal",
+        "width": 14,
+        "points": [[60, 120], [100, 178], [150, 242], [190, 304]]
+      },
+      {
+        "name": "right armhole diagonal",
+        "width": 14,
+        "points": [[966, 118], [904, 205], [838, 306]]
+      }
+    ]
+  }
+}

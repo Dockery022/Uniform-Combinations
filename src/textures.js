@@ -17,7 +17,20 @@ export function makeCanvas(w, h) {
 
 // Draw text centered on (cx, cy) with a given cap height in pixels, an
 // optional horizontal squeeze, and outline layers drawn outside-in.
-function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill, outlines = [], skew = 0, rotate = 0, spacing = 0 }) {
+// Tackle twill (stitch: true): a tight dashed stitch line sewn just inside the edge of the letter, a darker tone of
+// its fill (lighter on dark fills), the way twill letters are zigzag-stitched to the jersey.
+function stitchColor(fill) {
+  const m = /^#([0-9a-f]{6})$/i.exec(fill ?? '');
+  if (!m) return 'rgba(0,0,0,0.35)';
+  const n = parseInt(m[1], 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const lum = (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+  const t = lum > 0.5 ? 0 : 255;
+  const a = lum > 0.5 ? 0.2 : 0.3;
+  return `rgb(${c.map((v) => Math.round(v + (t - v) * a)).join(',')})`;
+}
+
+export function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill, outlines = [], skew = 0, rotate = 0, spacing = 0, stitch = false }) {
   ctx.save();
   ctx.font = `${weight} 100px ${family}`;
   ctx.letterSpacing = `${spacing}px`;
@@ -41,11 +54,43 @@ function drawText(ctx, text, { family, weight = '', cx, cy, height, sx = 1, fill
   }
   ctx.fillStyle = fill;
   ctx.fillText(text, 0, baseline);
+  if (stitch) {
+    // A ring at 0.018 of the height inside the edge, 0.008 wide, dashed: a dashed stroke of the glyph wide enough
+    // to reach in to the ring's outer edge, minus a solid one that stops at its inner edge, clipped to the glyph.
+    const { width: W, height: H } = ctx.canvas;
+    const sc = makeCanvas(W, H);
+    const c2 = sc.getContext('2d');
+    c2.setTransform(ctx.getTransform());
+    c2.font = ctx.font;
+    c2.letterSpacing = ctx.letterSpacing;
+    c2.textAlign = 'center';
+    c2.textBaseline = 'alphabetic';
+    c2.lineJoin = 'round';
+    c2.miterLimit = 2;
+    const unit = height / k; // glyph units per drawn height
+    const inset = unit * 0.014;
+    const wide = unit * 0.006;
+    c2.strokeStyle = stitchColor(fill);
+    c2.lineWidth = 2 * (inset + wide / 2);
+    c2.setLineDash([unit * 0.022, unit * 0.014]);
+    c2.strokeText(text, 0, baseline);
+    c2.setLineDash([]);
+    c2.globalCompositeOperation = 'destination-out';
+    c2.lineWidth = 2 * (inset - wide / 2);
+    c2.strokeText(text, 0, baseline);
+    c2.globalCompositeOperation = 'destination-in';
+    c2.fillStyle = '#000';
+    c2.fillText(text, 0, baseline);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(sc, 0, 0);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
 // Width of `text` drawn by drawText at a given height, before any squeeze.
-function textWidth(ctx, text, family, height, weight = '', spacing = 0) {
+export function textWidth(ctx, text, family, height, weight = '', spacing = 0) {
   ctx.save();
   ctx.font = `${weight} 100px ${family}`;
   ctx.letterSpacing = `${spacing}px`;
@@ -89,7 +134,7 @@ function setNumber(ctx, number, { cx, cy, height, width }, spec, style) {
   const outlines = [{ color: outline, width: height * 0.02 }];
   const draw = (text, x, sx) => {
     if (style.shadow) drawText(ctx, text, { family, cx: x + height * 0.03, cy: cy + height * 0.022, height, sx, fill: outline, outlines });
-    drawText(ctx, text, { family, cx: x, cy, height, sx, fill, outlines });
+    drawText(ctx, text, { family, cx: x, cy, height, sx, fill, outlines, stitch: true });
   };
   const family = style.font === 'block' ? FONTS.block : FONTS.jersey;
   if (style.font === 'block') {
@@ -125,7 +170,7 @@ export function paintTvDecals(canvas, spec, style, number) {
     const w = textWidth(ctx, text, family, height);
     drawText(ctx, text, {
       family, cx: W * (i + 0.5) / 2, cy: H / 2, height, sx: Math.min(1, (W / 2 - 80) / w),
-      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: height * 0.035 }],
+      fill: numberColors(spec).fill, outlines: [{ color: numberColors(spec).outline, width: height * 0.035 }], stitch: true,
     });
   });
 }
@@ -185,13 +230,59 @@ function paintFlag(ctx, cx, cy, w) {
   ctx.restore();
 }
 
+// Clean vector art over a jersey's blurry flat art: erases each `erase` box (source pixels) with the
+// body color, then fills the traced shapes (wordmark, adidas, V-neck trim) at the canvas's scale.
+// Shapes are in the source thumbnail's pixels (`unit` art pixels per source pixel); polygons whose
+// name starts "vneck" are one even-odd path (the outline and its holes).
+function paintVector(ctx, vec, base) {
+  const u = vec.unit;
+  ctx.save();
+  ctx.scale(u, u);
+  ctx.fillStyle = base;
+  for (const [a, b, c, d] of vec.erase) ctx.fillRect(a, b, c - a, d - b);
+  // Seam lines drawn in the flat art (the yoke curves and the armhole diagonals) are wiped with the body color.
+  ctx.strokeStyle = base;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const line of vec.wipe ?? []) {
+    ctx.lineWidth = line.width;
+    ctx.beginPath();
+    line.points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+  }
+  const FAM = { jersey: FONTS.jersey, sans: FONTS.sans };
+  for (const sh of vec.shapes) {
+    if (sh.type === 'text') {
+      const [x0, y0, x1, y1] = sh.box;
+      const fam = FAM[sh.font];
+      const h = y1 - y0;
+      const sx = (x1 - x0) / textWidth(ctx, sh.text, fam, h, sh.weight ?? '', sh.spacing ?? 0);
+      const base2 = { family: fam, weight: sh.weight ?? '', height: h, sx, skew: sh.skew ?? 0, spacing: sh.spacing ?? 0 };
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      if (sh.shadow) drawText(ctx, sh.text, { ...base2, cx: cx + sh.shadow.dx, cy: cy + sh.shadow.dy, fill: sh.shadow.color, outlines: [{ color: sh.shadow.color, width: sh.shadow.outline }] });
+      drawText(ctx, sh.text, { ...base2, cx, cy, fill: sh.fill, stitch: sh.font === 'jersey' });
+    }
+  }
+  const poly = (list) => {
+    for (const s of list) {
+      s.points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+    }
+  };
+  const vn = vec.shapes.filter((s) => s.type === 'polygon' && s.name.startsWith('vneck'));
+  if (vn.length) { ctx.fillStyle = vn[0].fill; ctx.beginPath(); poly(vn); ctx.fill('evenodd'); }
+  for (const s of vec.shapes.filter((x) => x.type === 'polygon' && !x.name.startsWith('vneck'))) { ctx.fillStyle = s.fill; ctx.beginPath(); poly([s]); ctx.fill(); }
+  ctx.restore();
+}
+
 // The jersey's front art, ready to project. The V-neck is filled with the
 // body color, because the 3D jersey's neckline is shallower than the drawing's
 // and gets its own piping from the collar shader. The art's "10" (chest and
 // shoulders) is painted out; the chosen number is lettered on the chest, and
 // the shoulder numbers go on as decals (paintTvDecals).
 // Coordinates are art pixels (1366 x 1408), drawn at the canvas's scale.
-export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
+export function paintJerseyFront(canvas, img, spec, style, number, sleeves, acc, vec) {
   const ctx = canvas.getContext('2d');
   const k = canvas.width / spec.art.width;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -199,6 +290,12 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
   ctx.save();
   ctx.scale(k, k);
   ctx.fillStyle = spec.base;
+  // A jersey with its own patch decal (see Player.placeAcc) loses the patch drawn in its art.
+  if (acc?.erase) {
+    ctx.beginPath();
+    ctx.ellipse(acc.art.x, acc.art.y, acc.erase[0], acc.erase[1], 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.beginPath();
   for (const [x, y] of [[445, 0], [921, 0], [915, 58], [690, 392], [676, 392], [451, 58]]) ctx.lineTo(x, y);
   ctx.closePath();
@@ -215,6 +312,12 @@ export function paintJerseyFront(canvas, img, spec, style, number, sleeves) {
         ctx.fillRect(x, top, w, bottom - top);
       }
     }
+  }
+  if (vec) {
+    ctx.save();
+    ctx.scale(k, k);
+    paintVector(ctx, vec, spec.base);
+    ctx.restore();
   }
   ctx.restore();
 
@@ -255,7 +358,7 @@ export function paintBackLettering(canvas, spec, style, number, name) {
     const w = textWidth(ctx, name, FONTS.jersey, nameH, '', spacing);
     drawText(ctx, name, {
       family: FONTS.jersey, spacing, cx: canvas.width / 2, cy: (top - nameH * 0.5 - 40) * k, height: nameH * k,
-      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill,
+      sx: Math.min(1, maxW / w), fill: isLight(spec.base) ? '#000000' : numberColors(spec).fill, stitch: true,
     });
   }
 }

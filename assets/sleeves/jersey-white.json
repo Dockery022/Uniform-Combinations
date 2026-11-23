@@ -1,0 +1,27 @@
+{
+ "piece": "jersey-white",
+ "name": "White (2026)",
+ "type": "A",
+ "reference": "hem",
+ "base": "#FFFFFF",
+ "sleeveLength_px": 384.0,
+ "sleeveLength_m": 0.168,
+ "bands": [
+  {
+   "from": 0.294,
+   "to": 0.32,
+   "color": "#000000"
+  },
+  {
+   "from": 0.346,
+   "to": 0.523,
+   "color": "#C9001F"
+  }
+ ],
+ "overShoulder": false,
+ "outline": null,
+ "lines": null,
+ "stripe": null,
+ "notes": "The red band carries a fleur-de-lis pattern in the art. Drawn horizontal, not hem-parallel.",
+ "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
+}

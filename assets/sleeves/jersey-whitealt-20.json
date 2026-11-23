@@ -1,0 +1,22 @@
+{
+ "piece": "jersey-whitealt-20",
+ "name": "White Alt 20 (Ali)",
+ "type": "A",
+ "reference": "hem",
+ "base": "#FFFFFF",
+ "sleeveLength_px": 387.0,
+ "sleeveLength_m": 0.168,
+ "bands": [
+  {
+   "from": 0.004,
+   "to": 0.07,
+   "color": "#000000"
+  }
+ ],
+ "overShoulder": false,
+ "outline": null,
+ "lines": null,
+ "stripe": null,
+ "notes": "Hem band only (black), with a faint grey seam line.",
+ "how": "from/to are fractions of the sleeve length L, measured along the sleeve from the hem edge; L = hem to the top of the shoulder cap along the outer sleeve line in the art (same template for every jersey). mm uses the 3D jersey: hem to shoulder top = 0.168 m."
+}

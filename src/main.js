@@ -540,7 +540,7 @@ const s2slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replac
 // redraw (see start).
 const fontLoads = Promise.all([
   `100px ${FONTS.jersey}`, `100px ${FONTS.block}`, `100px ${FONTS.display}`,
-  `600 20px ${FONTS.sans}`,
+  `600 20px ${FONTS.sans}`, `800 100px "Montserrat"`,
 ].map((f) => document.fonts.load(f).catch(() => [])));
 let fontsSettled = false;
 fontLoads.then(() => { fontsSettled = true; });
@@ -585,6 +585,8 @@ async function start(data = {}) {
     return;
   }
   player = new Player(renderer, assets);
+  // ?capgrid draws a labeled 5 mm grid on the shoulder caps' panels, for checking their layout.
+  player.capGrid = new URLSearchParams(location.search).has('capgrid');
   scene.add(player.root);
   if (new URLSearchParams(location.search).has('debug')) window.__combo = {
     player, orbit, scene, camera, THREE, setMode,
