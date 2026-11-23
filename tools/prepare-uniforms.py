@@ -25,6 +25,7 @@ from palette import BLACK, RED, WHITE, snap  # noqa: E402
 from black_collar import COLLAR, blacken_collar  # noqa: E402
 from hip_mark import MARK_PANTS, redraw_mark  # noqa: E402
 import halloween_helmet  # noqa: E402
+import red_26_helmet  # noqa: E402
 from pants_panels import STRIPES, draw_panels  # noqa: E402
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else 'uni-src')
@@ -183,6 +184,10 @@ for name, opts in HELMETS.items():
         if key in opts:
             spec['helmet'][name][key] = opts[key]
 halloween_helmet.redraw(OUT)
+# Red 2026: the White 2020 helmet on a red shell, no back number (Doc's
+# photos, 2026-11-23); see red_26_helmet.py.
+red_26_helmet.make(OUT)
+spec['helmet'][red_26_helmet.NAME] = red_26_helmet.SPEC
 
 # ---------- jerseys ----------
 # Front views on one template (1366 x 1408): V-neck tip at (683, 380),

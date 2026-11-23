@@ -26,6 +26,7 @@ export const LIB = {
     ['Black', 'Black', 'Louie', 'helmet-black'],
     ['White 20', 'White', 'Cardinal head · 2020', 'helmet-white-20'],
     ['Red 20', 'Red', '2020', 'helmet-red-20'],
+    ['Red 26', 'Red', 'Cardinal head · 2026', 'helmet-red-26'],
     ['Black 20', 'Black', '2020', 'helmet-black-20'],
     ['White Alt 20', 'White', 'Ali', 'helmet-whitealt-20'],
     ['Black Script', 'Black', 'Cards script', 'helmet-script'],
